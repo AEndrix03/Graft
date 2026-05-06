@@ -84,27 +84,10 @@ mg_err_t mg_retrieve_node_keywords(mg_storage_t *s,
                                    int *out_n,
                                    int max_kw) {
     if (!s || !out_kw || !out_n || max_kw <= 0) return MG_ERR_INVALID_ARG;
-
-    mg_edge_t edges[64];
-    int n_edges = 0;
-    mg_err_t e = mg_storage_neighbors(s, node_id, MG_EDGE_KEYWORD,
-                                       NULL, 0, edges,
-                                       (int)(sizeof(edges) / sizeof(edges[0])),
-                                       &n_edges);
-    if (e != MG_OK) return e;
-
-    int n = 0;
-    for (int i = 0; i < n_edges && n < max_kw; i++) {
-        mg_keyword_id_t kw = edges[i].keyword_id;
-        if (kw <= 0) continue;
-        bool dup = false;
-        for (int j = 0; j < n; j++) {
-            if (out_kw[j] == kw) { dup = true; break; }
-        }
-        if (!dup) out_kw[n++] = kw;
-    }
-    *out_n = n;
-    return MG_OK;
+    /* Read the ownership table directly. Walking MG_EDGE_KEYWORD edges only
+     * surfaces keywords shared with at least one peer node — a brand-new
+     * node with no peers would appear keyword-less, which is wrong. */
+    return mg_storage_node_keywords(s, node_id, out_kw, max_kw, out_n);
 }
 
 /* ----- RRF fusion ----- */

@@ -2,18 +2,14 @@
  *
  * Result map (handler writes a single mpack VALUE):
  *   {
- *     "n_nodes":    int,    // TODO MVP: 0 (counts disabled, see below)
- *     "n_edges":    int,    // TODO MVP: 0
- *     "n_keywords": int,    // TODO MVP: 0
+ *     "n_nodes":    int,
+ *     "n_edges":    int,
+ *     "n_keywords": int,
  *     "distributions": {
  *       "insert_topk": { p25, p50, p75, p90, p95, p99 },
  *       "query_top1":  { p25, p50, p75, p90, p95, p99 }
  *     }
  *   }
- *
- * TODO MVP: counts disabilitati - richiede estensione storage API in v2.
- * The storage header does not currently expose count primitives; v2 will
- * add `mg_storage_count(s, kind, *out)` or similar and we'll wire it here.
  *
  * Sample kind convention (matches insert/query handlers):
  *   kind=0  "insert_topk"   (cosine of edge candidates at insert time)
@@ -55,12 +51,18 @@ mg_err_t mg_op_stats(mg_ctx_t *ctx, mpack_node_t args, mpack_writer_t *result) {
                                               MG_STATS_KIND_QUERY_TOP1,
                                               pct_query);
 
+    int64_t n_nodes = 0, n_edges = 0, n_keywords = 0;
+    /* Best-effort: a count failure (corrupt DB, locked) is not fatal — we
+     * still want the percentile portion of the report. */
+    (void)mg_storage_count(ctx->storage, MG_STORAGE_COUNT_NODES,    &n_nodes);
+    (void)mg_storage_count(ctx->storage, MG_STORAGE_COUNT_EDGES,    &n_edges);
+    (void)mg_storage_count(ctx->storage, MG_STORAGE_COUNT_KEYWORDS, &n_keywords);
+
     mpack_build_map(result);
 
-    /* TODO MVP: counts disabilitati - richiede estensione storage API in v2 */
-    mpack_write_cstr(result, "n_nodes");    mpack_write_int(result, 0);
-    mpack_write_cstr(result, "n_edges");    mpack_write_int(result, 0);
-    mpack_write_cstr(result, "n_keywords"); mpack_write_int(result, 0);
+    mpack_write_cstr(result, "n_nodes");    mpack_write_int(result, n_nodes);
+    mpack_write_cstr(result, "n_edges");    mpack_write_int(result, n_edges);
+    mpack_write_cstr(result, "n_keywords"); mpack_write_int(result, n_keywords);
 
     mpack_write_cstr(result, "distributions");
     mpack_build_map(result);

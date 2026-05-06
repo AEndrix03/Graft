@@ -543,3 +543,58 @@ mg_err_t mg_storage_get_embedding(mg_storage_t *s, const mg_node_id_t id, mg_emb
   sqlite3_finalize(stmt);
   return rc == SQLITE_DONE ? MG_ERR_NOT_FOUND : MG_ERR_STORAGE;
 }
+
+mg_err_t mg_storage_count(mg_storage_t *s, int kind, int64_t *out) {
+  static const char *const sqls[] = {
+    "SELECT COUNT(*) FROM nodes;",
+    "SELECT COUNT(*) FROM edges;",
+    "SELECT COUNT(*) FROM keywords;",
+  };
+  if (!s || !out) return MG_ERR_INVALID_ARG;
+  if (kind < 0 || kind >= (int)(sizeof(sqls) / sizeof(*sqls)))
+    return MG_ERR_INVALID_ARG;
+
+  sqlite3_stmt *stmt = NULL;
+  mg_err_t err = prepare(s->db, sqls[kind], &stmt);
+  if (err != MG_OK) return err;
+
+  int rc = sqlite3_step(stmt);
+  if (rc == SQLITE_ROW) {
+    *out = (int64_t)sqlite3_column_int64(stmt, 0);
+    sqlite3_finalize(stmt);
+    return MG_OK;
+  }
+  sqlite3_finalize(stmt);
+  return MG_ERR_STORAGE;
+}
+
+mg_err_t mg_storage_node_keywords(mg_storage_t *s,
+                                  const mg_node_id_t node_id,
+                                  mg_keyword_id_t *out_ids,
+                                  int max_out, int *out_count) {
+  if (!s || !out_ids || !out_count || max_out <= 0) return MG_ERR_INVALID_ARG;
+
+  sqlite3_stmt *stmt = NULL;
+  mg_err_t err = prepare(s->db,
+    "SELECT keyword_id FROM node_keywords WHERE node_id = ? ORDER BY keyword_id;",
+    &stmt);
+  if (err != MG_OK) return err;
+
+  sqlite3_bind_blob(stmt, 1, node_id, MG_NODE_ID_BYTES, SQLITE_STATIC);
+
+  int n = 0;
+  while (n < max_out) {
+    int rc = sqlite3_step(stmt);
+    if (rc == SQLITE_ROW) {
+      out_ids[n++] = (mg_keyword_id_t)sqlite3_column_int64(stmt, 0);
+    } else if (rc == SQLITE_DONE) {
+      break;
+    } else {
+      sqlite3_finalize(stmt);
+      return MG_ERR_STORAGE;
+    }
+  }
+  sqlite3_finalize(stmt);
+  *out_count = n;
+  return MG_OK;
+}

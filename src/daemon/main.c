@@ -32,10 +32,58 @@
 #include <string.h>
 
 #ifdef _WIN32
+#  define WIN32_LEAN_AND_MEAN
 #  include <windows.h>
+#  include <direct.h>
+#  define mg_mkdir(p) _mkdir(p)
+#  define MG_PATH_SEP '\\'
 #else
 #  include <unistd.h>
+#  include <sys/stat.h>
+#  include <sys/types.h>
+#  define mg_mkdir(p) mkdir((p), 0755)
+#  define MG_PATH_SEP '/'
 #endif
+
+/* Apply env-var overrides on top of the YAML config. The CLI uses these to
+ * point the daemon at a per-profile DB / socket without rewriting the
+ * config file. */
+static void apply_env_overrides(mg_config_t *cfg) {
+    const char *e = getenv("MEMGRAPH_SOCKET");
+    if (e && *e) {
+        free(cfg->socket_path);
+        cfg->socket_path = strdup(e);
+    }
+    e = getenv("MEMGRAPH_DB_PATH");
+    if (e && *e) {
+        free(cfg->db_path);
+        cfg->db_path = strdup(e);
+    }
+}
+
+/* Ensure the parent directory of db_path exists so SQLite can create the
+ * file on first start (relevant for per-profile DBs under MEMGRAPH_HOME). */
+static void ensure_parent_dir(const char *path) {
+    if (!path) return;
+    char buf[1024];
+    size_t n = strlen(path);
+    if (n == 0 || n >= sizeof(buf)) return;
+    memcpy(buf, path, n + 1);
+    /* trim trailing component */
+    while (n > 0 && buf[n - 1] != MG_PATH_SEP && buf[n - 1] != '/') n--;
+    if (n == 0) return;
+    buf[n - 1] = '\0';
+    /* mkdir -p */
+    for (size_t i = 1; i < strlen(buf); i++) {
+        if (buf[i] == MG_PATH_SEP || buf[i] == '/') {
+            char saved = buf[i];
+            buf[i] = '\0';
+            (void)mg_mkdir(buf);
+            buf[i] = saved;
+        }
+    }
+    (void)mg_mkdir(buf);
+}
 
 static volatile sig_atomic_t g_shutdown  = 0;
 static int                   g_listen_fd = -1;
@@ -108,6 +156,9 @@ int main(int argc, char **argv) {
                 mg_strerror(err), config_path);
         return 1;
     }
+    apply_env_overrides(&cfg);
+    ensure_parent_dir(cfg.db_path);
+    ensure_parent_dir(cfg.socket_path);
 
     mg_storage_t    *storage = NULL;
     mg_embed_ctx_t  *embed   = NULL;

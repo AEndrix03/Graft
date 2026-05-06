@@ -18,11 +18,55 @@
 #include "memgraph/wire.h"
 #include "memgraph/error.h"
 #include "mpack.h"
+#include "autostart.h"
+#include "usage_log.h"
+#include "profile.h"
+
+#ifdef _WIN32
+#  define mg_setenv(k, v) _putenv_s((k), (v))
+#else
+#  include <stdlib.h>
+#  define mg_setenv(k, v) setenv((k), (v), 1)
+#endif
+
+/* Set MEMGRAPH_SOCKET and MEMGRAPH_DB_PATH to the per-profile defaults
+ * unless the caller already set them. The daemon honors both as overrides
+ * on top of the YAML config — see src/daemon/main.c. */
+static void mg_apply_profile_env(void) {
+    char active[128];
+    if (mg_profile_active(active, sizeof(active)) != 0) return;
+
+    const char *cur_sock = getenv("MEMGRAPH_SOCKET");
+    if (!cur_sock || !*cur_sock) {
+        char sock[1024];
+        if (mg_profile_socket_path(active, sock, sizeof(sock), 1) == 0)
+            mg_setenv("MEMGRAPH_SOCKET", sock);
+    }
+    const char *cur_db = getenv("MEMGRAPH_DB_PATH");
+    if (!cur_db || !*cur_db) {
+        char db[1024];
+        if (mg_profile_db_path(active, db, sizeof(db), 1) == 0)
+            mg_setenv("MEMGRAPH_DB_PATH", db);
+    }
+}
 
 #include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
+
+#ifdef _WIN32
+#  define WIN32_LEAN_AND_MEAN
+#  include <windows.h>
+static long long mg_now_ms(void) { return (long long)GetTickCount64(); }
+#else
+static long long mg_now_ms(void) {
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (long long)ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
+}
+#endif
 
 /* JSON-ish pretty-printer for mpack nodes.
  * mpack's own print helpers are gated on MPACK_DEBUG (off in release),
@@ -114,7 +158,9 @@ static int usage(void) {
         "  memgraph get <hex_id>\n"
         "  memgraph classify --summary S\n"
         "  memgraph stats\n"
-        "  memgraph consolidate\n");
+        "  memgraph consolidate\n"
+        "  memgraph analytics [--since 7d|24h] [--seconds-per-hit 60]\n"
+        "  memgraph profile <list|current|add|remove|set|import|export> ...\n");
     return 2;
 }
 
@@ -235,6 +281,18 @@ int main(int argc, char **argv) {
     if (argc < 2) return usage();
     const char *cmd = argv[1];
 
+    /* `analytics` and `profile` are CLI-only — they never touch the daemon. */
+    if (!strcmp(cmd, "analytics")) {
+        return mg_usage_analytics(argc, argv);
+    }
+    if (!strcmp(cmd, "profile")) {
+        return mg_profile_cmd(argc, argv);
+    }
+
+    /* For everything else, lock socket and DB path to the active profile so
+     * each profile gets its own daemon, isolated from the others. */
+    mg_apply_profile_env();
+
     /* ---- build request ---- */
     char  *req     = NULL;
     size_t req_len = 0;
@@ -274,12 +332,26 @@ int main(int argc, char **argv) {
     const char *sock_path = getenv("MEMGRAPH_SOCKET");
     if (!sock_path || !*sock_path) sock_path = "/tmp/memgraph.sock";
 
+    long long t_start = mg_now_ms();
+
     int fd = -1;
     if (mg_daemon_socket_connect(sock_path, &fd) != MG_OK) {
-        fprintf(stderr, "connect failed: %s\n", sock_path);
-        free(req);
-        mg_daemon_socket_shutdown();
-        return 1;
+        /* Daemon down — try to spawn it next to this binary, then retry once.
+         * This pays a one-time cost (~1-2s) on the first command of a session
+         * and saves the user from having to start the daemon manually. */
+        char ae[256] = { 0 };
+        if (mg_autostart_daemon(sock_path, ae, sizeof(ae)) != MG_OK) {
+            fprintf(stderr, "connect failed: %s\nauto-start: %s\n", sock_path, ae);
+            free(req);
+            mg_daemon_socket_shutdown();
+            return 1;
+        }
+        if (mg_daemon_socket_connect(sock_path, &fd) != MG_OK) {
+            fprintf(stderr, "connect failed after auto-start: %s\n", sock_path);
+            free(req);
+            mg_daemon_socket_shutdown();
+            return 1;
+        }
     }
 
     if (mg_wire_write_frame(fd, req, req_len) != MG_OK) {
@@ -303,10 +375,16 @@ int main(int argc, char **argv) {
     mg_daemon_socket_shutdown();
 
     /* ---- parse and print ---- */
+    long long t_end = mg_now_ms();
+    int       latency_ms = (int)(t_end - t_start);
+
     mpack_tree_t tree;
     mpack_tree_init_data(&tree, (const char *)resp, resp_len);
     mpack_tree_parse(&tree);
-    int rc = 0;
+    int  rc            = 0;
+    int  status_int    = 0;
+    char hit_buf[16]   = { 0 };
+    char id_buf[64]    = { 0 };
     if (mpack_tree_error(&tree) != mpack_ok) {
         fprintf(stderr, "response decode error\n");
         rc = 1;
@@ -317,11 +395,32 @@ int main(int argc, char **argv) {
         /* Propagate non-zero status to exit code so scripts can check it. */
         mpack_node_t st = mpack_node_map_cstr_optional(root, "status");
         if (!mpack_node_is_missing(st) && !mpack_node_is_nil(st)) {
-            int s = (int)mpack_node_int(st);
-            if (s != 0) rc = 3;
+            status_int = (int)mpack_node_int(st);
+            if (status_int != 0) rc = 3;
+        }
+        /* Extract hit / id_hex from result for analytics. Both are optional. */
+        mpack_node_t result = mpack_node_map_cstr_optional(root, "result");
+        if (!mpack_node_is_missing(result) && !mpack_node_is_nil(result)
+            && mpack_node_type(result) == mpack_type_map) {
+            mpack_node_t hit = mpack_node_map_cstr_optional(result, "hit");
+            if (!mpack_node_is_missing(hit) && mpack_node_type(hit) == mpack_type_str) {
+                size_t l = mpack_node_strlen(hit);
+                if (l >= sizeof(hit_buf)) l = sizeof(hit_buf) - 1;
+                memcpy(hit_buf, mpack_node_str(hit), l);
+                hit_buf[l] = '\0';
+            }
+            mpack_node_t idn = mpack_node_map_cstr_optional(result, "id_hex");
+            if (!mpack_node_is_missing(idn) && mpack_node_type(idn) == mpack_type_str) {
+                size_t l = mpack_node_strlen(idn);
+                if (l >= sizeof(id_buf)) l = sizeof(id_buf) - 1;
+                memcpy(id_buf, mpack_node_str(idn), l);
+                id_buf[l] = '\0';
+            }
         }
     }
     mpack_tree_destroy(&tree);
     free(resp);
+
+    mg_usage_log_append(cmd, status_int, latency_ms, hit_buf, id_buf);
     return rc;
 }

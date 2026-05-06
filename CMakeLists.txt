@@ -40,6 +40,30 @@ target_compile_definitions(blake3 PRIVATE
 
 # sqlite-vec
 set(SQLITE_VEC_DIR ${CMAKE_SOURCE_DIR}/third_party/sqlite-vec)
+# The submodule ships only a `sqlite-vec.h.tmpl`; the header is generated
+# at make-time upstream. Substitute the placeholders ourselves so the build
+# works end-to-end without an external `make sqlite-vec.h` step.
+if(NOT EXISTS ${SQLITE_VEC_DIR}/sqlite-vec.h)
+  file(READ ${SQLITE_VEC_DIR}/VERSION _sv_raw)
+  string(STRIP "${_sv_raw}" VERSION)
+  string(REGEX MATCH "^([0-9]+)\\.([0-9]+)\\.([0-9]+)" _sv_match "${VERSION}")
+  set(VERSION_MAJOR "${CMAKE_MATCH_1}")
+  set(VERSION_MINOR "${CMAKE_MATCH_2}")
+  set(VERSION_PATCH "${CMAKE_MATCH_3}")
+  string(TIMESTAMP DATE "%Y-%m-%dT%H:%M:%SZ" UTC)
+  set(SOURCE "cmake-configured")
+  configure_file(
+    ${SQLITE_VEC_DIR}/sqlite-vec.h.tmpl
+    ${SQLITE_VEC_DIR}/sqlite-vec.h
+    @ONLY
+  )
+  # @ONLY only substitutes @VAR@ — but the template uses ${VAR}. Re-run with
+  # the default mode that also handles ${VAR}.
+  configure_file(
+    ${SQLITE_VEC_DIR}/sqlite-vec.h.tmpl
+    ${SQLITE_VEC_DIR}/sqlite-vec.h
+  )
+endif()
 add_library(sqlite_vec STATIC ${SQLITE_VEC_DIR}/sqlite-vec.c)
 target_include_directories(sqlite_vec PUBLIC ${SQLITE_VEC_DIR} ${SQLITE_INCLUDE_DIRS})
 target_compile_definitions(sqlite_vec PRIVATE SQLITE_CORE)
@@ -97,7 +121,12 @@ target_link_libraries(memgraph_core
 add_executable(memgraphd src/daemon/main.c)
 target_link_libraries(memgraphd memgraph_core)
 
-add_executable(memgraph src/cli/main.c)
+add_executable(memgraph
+  src/cli/main.c
+  src/cli/autostart.c
+  src/cli/usage_log.c
+  src/cli/profile.c
+)
 target_link_libraries(memgraph memgraph_core)
 
 # === Tests ===

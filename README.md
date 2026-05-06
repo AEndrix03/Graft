@@ -15,19 +15,30 @@ memgraph (CLI)  ──[unix socket]──▶  memgraphd (daemon)
 
 ## Installazione
 
-### 1. Prerequisiti
+### Opzione rapida (raccomandata)
+
+```bash
+bash scripts/install.sh        # Linux, macOS, Windows MSYS2
+pwsh scripts/install.ps1       # Windows (autoinstalla MSYS2 se serve)
+```
+
+Lo script è interattivo, ti chiede solo l'essenziale (3 prompt totali) e fa tutto il resto in automatico: dipendenze di sistema, submodules, build di llama.cpp, download del modello BGE-M3 (~600 MB), build di memgraph e smoke test. È idempotente: ri-eseguirlo non ripete lavoro già fatto.
+
+### Opzione manuale
+
+#### 1. Prerequisiti
 
 - **Linux/macOS**: `build-essential`/`Xcode`, `cmake ≥ 3.20`, `git`, `curl`, `pkg-config`, `libsqlite3-dev`, `libyaml-dev`.
 - **Windows**: MSYS2 con MinGW64 (`gcc`, `pkg-config`, `mingw-w64-x86_64-libyaml`, `sqlite3`), `cmake`, `git`. Vedi `plans/sub_task_0_preambolo.md`.
 
-### 2. Clone & dipendenze
+#### 2. Clone & dipendenze
 
 ```bash
 git clone <repo> agent-memory && cd agent-memory
 # third_party già clonati nel repo: sqlite-vec, mpack, BLAKE3, llama.cpp
 ```
 
-### 3. Build di llama.cpp (una volta)
+#### 3. Build di llama.cpp (una volta)
 
 ```bash
 cd third_party/llama.cpp
@@ -42,7 +53,7 @@ cd ../..
 
 Su Windows aggiungi `-G "MinGW Makefiles"` al primo `cmake`.
 
-### 4. Modello BGE-M3
+#### 4. Modello BGE-M3
 
 ```bash
 mkdir -p models
@@ -52,7 +63,7 @@ curl -L --ssl-no-revoke -o models/bge-m3.gguf \
 
 (~600 MB; quantization Q8_0.)
 
-### 5. Build memgraph
+#### 5. Build memgraph
 
 ```bash
 cmake -B build
@@ -65,11 +76,24 @@ Output: `build/memgraph` (CLI) e `build/memgraphd` (daemon).
 
 ## Avvio
 
+Il **CLI auto-avvia il daemon** se non è in esecuzione: il primo comando paga ~1-2s di cold-start, gli successivi sono veloci. Non serve fare nulla manualmente.
+
+```bash
+memgraph stats   # se il daemon è giù, viene avviato automaticamente
+```
+
+Per controllare/avviare manualmente (opzionale):
+
 ```bash
 ./build/memgraphd --config ./config.example.yaml &
 ```
 
-Il daemon stampa `memgraphd: listening on /tmp/memgraph.sock`. Override del socket via env `MEMGRAPH_SOCKET` (anche dal lato CLI).
+Il daemon stampa `memgraphd: listening on /tmp/memgraph.sock`. Override:
+- `MEMGRAPH_SOCKET` — path del socket (default per-profilo).
+- `MEMGRAPH_CONFIG` — path del config file usato dall'auto-start (default `~/.lmemorygraph/config.yaml` se installato).
+- `MEMGRAPH_HOME` — root directory (default `~/.lmemorygraph`).
+- `MEMGRAPH_PROFILE` — profilo attivo (default `default`).
+- `MEMGRAPH_USAGE_LOG` — path del log JSONL usato da `analytics` (default `<MEMGRAPH_HOME>/usage.jsonl`).
 
 Per fermarlo: `kill %1` o `Ctrl+C` se in foreground.
 
@@ -122,6 +146,53 @@ memgraph stats
 # percentili p25/p50/p75/p90/p95/p99 della distribuzione di similarità
 ```
 
+### Profili — più memorie isolate
+
+Un profilo è una "tenant" del grafo: ognuno ha il proprio DB SQLite e il proprio daemon su un proprio socket. Il profilo `default` è creato automaticamente al primo avvio e non è rimovibile.
+
+```bash
+memgraph profile list
+memgraph profile current
+
+memgraph profile add work
+memgraph profile add personal
+memgraph profile remove personal           # chiede conferma (digitare il nome)
+
+# Cambio profilo per la sessione corrente (env var di terminale):
+eval "$(memgraph profile set work)"        # bash/zsh/fish
+memgraph profile set work | iex            # PowerShell
+
+# Per renderlo persistente, aggiungi la riga stampata al tuo shell rc
+# (~/.bashrc, ~/.zshrc, profile.ps1...). Niente magia globale.
+
+# Backup / migrazione:
+memgraph profile export work --path work-2026-05-06.mgprofile
+memgraph profile import --name work-restored --file work-2026-05-06.mgprofile
+```
+
+Risoluzione del profilo attivo: `$MEMGRAPH_PROFILE` → `default`. Niente file di stato globale: il `set` stampa solo l'export, sei tu che decidi se applicarlo alla sessione (`eval`) o renderlo persistente (shell rc).
+
+I file vivono in:
+- POSIX: `~/.lmemorygraph/profiles/<name>/memgraph.db` + `/tmp/memgraph-<name>.sock`
+- Windows: `%USERPROFILE%\.lmemorygraph\profiles\<name>\memgraph.db` + `%USERPROFILE%\.lmemorygraph\sockets\<name>.sock`
+
+Ogni profilo ha il suo daemon che si auto-avvia a richiesta.
+
+### Analytics — sta valendo la pena?
+
+```bash
+memgraph analytics                       # finestra: tutto lo storico
+memgraph analytics --since 7d            # ultima settimana
+memgraph analytics --seconds-per-hit 90  # stima personalizzata del tempo risparmiato per cache hit
+```
+
+Riporta hit-rate (STRONG / total query), latenza media, rapporto insert/query, tempo stimato risparmiato e i top nodi più riusati. Operazione locale: legge solo `~/.memgraph/usage.jsonl` (o `MEMGRAPH_USAGE_LOG`), non contatta il daemon.
+
+Letture chiave:
+- `cache.hit_rate` < 0.10 → o stai cercando con la frase sbagliata, o stai inserendo entry troppo specifiche.
+- `insert_to_query_ratio` > 1 → stai accumulando senza cercare prima.
+- `top_reused_nodes` con conteggi alti → candidati naturali a diventare README/standard di team.
+
 ---
 
 ## Output
@@ -142,7 +213,7 @@ Le configurazioni sono in `integrations/`. Linee guida operative:
 
 | Assistente   | Tipo  | File                                                   |
 | ------------ | ----- | ------------------------------------------------------ |
-| Claude Code  | CLI   | `~/.claude/skills/memgraph/SKILL.md`                   |
+| Claude Code  | CLI   | `~/.claude/skills/{memgraph,recall,memoryze,learn,memory-audit}/` (5 skill) |
 | Codex        | CLI   | `~/.codex/AGENTS.md`                                   |
 | Gemini CLI   | CLI   | `~/.gemini/GEMINI.md`                                  |
 | Open Code    | CLI   | `~/.config/opencode/AGENTS.md`                         |
@@ -191,7 +262,6 @@ Fuori MVP, già strutturati come hook:
 - NLI per contraddizioni → archi `MG_EDGE_CONTRADICTS`.
 - Calibrazione adattiva delle soglie da `stats`.
 - `consolidate` reale (dedup, supersede, stale-mark).
-- API count in storage (ora `n_nodes`/`n_edges`/`n_keywords` ritornano 0 nello stats).
 
 ---
 

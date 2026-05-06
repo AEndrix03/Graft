@@ -90,4 +90,21 @@ mg_err_t mg_storage_distribution_percentiles(mg_storage_t *s, int kind, float ou
 /* === Embedding accessor === */
 mg_err_t mg_storage_get_embedding(mg_storage_t *s, const mg_node_id_t id, mg_embedding_t out);
 
+/* === Counts (per stats) === */
+/* kind: 0=nodes, 1=edges, 2=keywords. Other kinds return MG_ERR_INVALID_ARG. */
+#define MG_STORAGE_COUNT_NODES    0
+#define MG_STORAGE_COUNT_EDGES    1
+#define MG_STORAGE_COUNT_KEYWORDS 2
+mg_err_t mg_storage_count(mg_storage_t *s, int kind, int64_t *out);
+
+/* === Per-node keyword ownership === */
+/* Reads the node_keywords link table directly (NOT the graph edges).
+ * Use this to answer "which keywords does this node carry" — orthogonal
+ * from the keyword-edge graph relation. */
+mg_err_t mg_storage_node_keywords(
+  mg_storage_t *s,
+  const mg_node_id_t node_id,
+  mg_keyword_id_t *out_ids, int max_out, int *out_count
+);
+
 #endif
