@@ -1,10 +1,11 @@
 # Claude Code — memgraph skill suite
 
-Cinque skill collaborano:
+Sei skill collaborano:
 
 | Skill              | Trigger                                           | Cosa fa                                                                  |
 | ------------------ | ------------------------------------------------- | ------------------------------------------------------------------------ |
 | `memgraph`         | Auto su qualunque problema tecnico non banale     | Master: orchestrazione, profili, reference CLI, troubleshooting.         |
+| `memgraph-init`    | `/memgraph-init`, "configura memgraph"            | Configuratore one-shot: scrive il blocco istruzioni in CLAUDE.md (global o local). |
 | `recall`           | `/recall …`, "do we have X?", "ricordi se..."     | Cerca con strategia smart: query → retrieve → explore in cascata.        |
 | `memoryze`         | `/memoryze …`, "save this", "ricorda questo"      | Distilla la conversazione in 1-5 nodi ben formati e li inserisce.        |
 | `learn`            | `/learn …`, "ingest this folder", "porting"       | Batch-ingestion da fonti esterne (codebase, docs): plan + conferma + ingest. |
