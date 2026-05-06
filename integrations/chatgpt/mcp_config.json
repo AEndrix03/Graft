@@ -1,0 +1,15 @@
+{
+  "name": "memgraph",
+  "description": "Persistent graph memory for the assistant. Use BEFORE solving non-trivial problems and AFTER novel solutions.",
+  "transport": {
+    "type": "stdio",
+    "command": "python",
+    "args": [
+      "C:/Users/redeg/Documents/Progetti/agent-memory/integrations/mcp-server/server.py"
+    ],
+    "env": {
+      "MEMGRAPH_BIN": "C:/Users/redeg/Documents/Progetti/agent-memory/build/memgraph.exe",
+      "MEMGRAPH_SOCKET": "/tmp/memgraph.sock"
+    }
+  }
+}

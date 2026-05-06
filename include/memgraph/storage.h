@@ -1,0 +1,93 @@
+#ifndef MEMGRAPH_STORAGE_H
+#define MEMGRAPH_STORAGE_H
+
+#include "memgraph/types.h"
+#include "memgraph/error.h"
+
+typedef struct mg_storage mg_storage_t;
+
+mg_err_t mg_storage_open(const char *db_path, mg_storage_t **out);
+void     mg_storage_close(mg_storage_t *s);
+
+/* Schema: idempotent, applica migrations all'apertura */
+mg_err_t mg_storage_apply_schema(mg_storage_t *s);
+
+/* === Nodi === */
+/* Inserisce nodo + embedding. La transazione include anche gli archi
+ * passati in input (per atomicita'). edges puo' essere NULL/0 se non si vogliono archi. */
+mg_err_t mg_storage_insert_node_with_edges(
+  mg_storage_t *s,
+  const mg_node_t *node,
+  const mg_embedding_t embedding,
+  const mg_keyword_id_t *keyword_ids, size_t n_keywords,
+  const mg_edge_t *edges, size_t n_edges
+);
+
+/* Recupera nodo. Il chiamante deve fare mg_node_free su out->summary/detail. */
+mg_err_t mg_storage_get_node(mg_storage_t *s, const mg_node_id_t id, mg_node_t *out);
+
+/* Lookup idempotenza */
+mg_err_t mg_storage_node_id_by_hash(mg_storage_t *s, const mg_hash_t h, mg_node_id_t out);
+
+mg_err_t mg_storage_touch_access(mg_storage_t *s, const mg_node_id_t id);
+
+/* === Keywords === */
+/* Upsert. Se esiste ritorna id esistente. Se nuova: calcola embedding (chiamando mg_embed)
+ * - per la fase 1 puoi passare un embedding pre-calcolato dal chiamante via *opt_embedding. */
+mg_err_t mg_storage_upsert_keyword(
+  mg_storage_t *s,
+  const char *text,
+  const float *opt_embedding,    /* puo' essere NULL */
+  mg_keyword_id_t *out_id
+);
+
+mg_err_t mg_storage_get_keyword_text(mg_storage_t *s, mg_keyword_id_t id, char **out);
+
+/* === Vector search === */
+/* Top-k cosine. Risultati ordinati DESC per score. out_count <= k. */
+mg_err_t mg_storage_vector_topk(
+  mg_storage_t *s,
+  const mg_embedding_t query,
+  int k,
+  mg_node_score_t *out, int *out_count
+);
+
+/* Top-k cosine vincolato a nodi che hanno una specifica keyword */
+mg_err_t mg_storage_vector_topk_by_keyword(
+  mg_storage_t *s,
+  const mg_embedding_t query,
+  mg_keyword_id_t kw_id,
+  int k,
+  mg_node_score_t *out, int *out_count
+);
+
+/* === FTS (BM25) === */
+mg_err_t mg_storage_fts_search(
+  mg_storage_t *s,
+  const char *query_text,
+  int k,
+  bool match_summary, bool match_detail,
+  mg_node_score_t *out, int *out_count
+);
+
+/* === Grafo === */
+/* Vicini di un nodo per kind specifico (o tutti se kind=-1). */
+mg_err_t mg_storage_neighbors(
+  mg_storage_t *s,
+  const mg_node_id_t src,
+  int kind_filter,                  /* -1 = tutti */
+  const mg_keyword_id_t *kw_filter, /* NULL = nessun filtro keyword */
+  size_t n_kw,
+  mg_edge_t *out, int max_out, int *out_count
+);
+
+/* === Sample distribuzione (per stats) === */
+mg_err_t mg_storage_record_sample(mg_storage_t *s, int kind, float cosine);
+
+/* Percentili approssimati: out[0]=p25, out[1]=p50, out[2]=p75, out[3]=p90, out[4]=p95, out[5]=p99 */
+mg_err_t mg_storage_distribution_percentiles(mg_storage_t *s, int kind, float out[6]);
+
+/* === Embedding accessor === */
+mg_err_t mg_storage_get_embedding(mg_storage_t *s, const mg_node_id_t id, mg_embedding_t out);
+
+#endif

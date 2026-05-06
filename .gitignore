@@ -1,0 +1,50 @@
+plans/
+
+# Local agent/tool state
+.cache/
+.serena/
+
+# Build outputs
+build/
+cmake-build-*/
+CMakeFiles/
+CMakeCache.txt
+compile_commands.json
+*.o
+*.obj
+*.a
+*.lib
+*.so
+*.dll
+*.dylib
+*.exe
+
+# Runtime data
+memgraph.db
+memgraph.db-*
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+*.log
+
+# Local embedding/reranker models
+models/
+*.gguf
+*.bin
+*.onnx
+*.pt
+*.pth
+*.safetensors
+
+# Editor and OS noise
+.vscode/
+.idea/
+.vs/
+*.user
+*.swp
+*~
+Thumbs.db
+.DS_Store
+

@@ -1,0 +1,12 @@
+[submodule "third_party/BLAKE3"]
+	path = third_party/BLAKE3
+	url = https://github.com/BLAKE3-team/BLAKE3.git
+[submodule "third_party/llama.cpp"]
+	path = third_party/llama.cpp
+	url = https://github.com/ggerganov/llama.cpp.git
+[submodule "third_party/mpack"]
+	path = third_party/mpack
+	url = https://github.com/ludocode/mpack.git
+[submodule "third_party/sqlite-vec"]
+	path = third_party/sqlite-vec
+	url = https://github.com/asg017/sqlite-vec.git
