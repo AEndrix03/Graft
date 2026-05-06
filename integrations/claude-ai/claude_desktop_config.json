@@ -3,11 +3,10 @@
     "memgraph": {
       "command": "python",
       "args": [
-        "C:/Users/redeg/Documents/Progetti/agent-memory/integrations/mcp-server/server.py"
+        "C:/personal/LMemoryGraph/integrations/mcp-server/server.py"
       ],
       "env": {
-        "MEMGRAPH_BIN": "C:/Users/redeg/Documents/Progetti/agent-memory/build/memgraph.exe",
-        "MEMGRAPH_SOCKET": "/tmp/memgraph.sock"
+        "MEMGRAPH_BIN": "C:/Users/aredegalli/.lmemorygraph/bin/memgraph.exe"
       }
     }
   }

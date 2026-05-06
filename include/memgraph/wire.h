@@ -24,7 +24,8 @@ typedef enum {
   MG_OP_EXPLORE,
   MG_OP_GET,
   MG_OP_STATS,
-  MG_OP_CONSOLIDATE
+  MG_OP_CONSOLIDATE,
+  MG_OP_DELETE
 } mg_op_t;
 
 mg_err_t mg_wire_op_from_string(const char *s, mg_op_t *out);

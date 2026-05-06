@@ -22,6 +22,7 @@
 #include "profile.h"
 #include "../daemon/internal.h"
 #include "memgraph/error.h"
+#include "memgraph/storage.h"
 
 #include <ctype.h>
 #include <stdio.h>
@@ -47,6 +48,29 @@
 #endif
 
 /* ---------- helpers ---------- */
+
+/* Print a string as a JSON-quoted value. Escapes \, ", \n, \r, \t and any
+ * control char < 0x20. Crucial on Windows where paths contain backslashes
+ * — without this the emitted JSON breaks any json.loads on the consumer. */
+static void print_json_str(const char *s) {
+    fputc('"', stdout);
+    if (s) {
+        for (const unsigned char *p = (const unsigned char *)s; *p; p++) {
+            unsigned char c = *p;
+            switch (c) {
+                case '"':  fputs("\\\"", stdout); break;
+                case '\\': fputs("\\\\", stdout); break;
+                case '\n': fputs("\\n",  stdout); break;
+                case '\r': fputs("\\r",  stdout); break;
+                case '\t': fputs("\\t",  stdout); break;
+                default:
+                    if (c < 0x20) printf("\\u%04x", c);
+                    else          fputc((int)c, stdout);
+            }
+        }
+    }
+    fputc('"', stdout);
+}
 
 static int file_exists(const char *p) {
 #ifdef _WIN32
@@ -270,8 +294,9 @@ static int cmd_list(void) {
     snprintf(profiles_dir, sizeof(profiles_dir), "%s%cprofiles", home, MG_PATH_SEP);
     if (!dir_exists(profiles_dir)) (void)mkdir_p(profiles_dir);
 
-    printf("{\n  \"home\": \"%s\",\n  \"active\": \"%s\",\n  \"profiles\": [",
-           home, active);
+    fputs("{\n  \"home\": ", stdout); print_json_str(home);
+    fputs(",\n  \"active\": ", stdout); print_json_str(active);
+    fputs(",\n  \"profiles\": [", stdout);
     int first = 1;
 
 #ifdef _WIN32
@@ -283,7 +308,8 @@ static int cmd_list(void) {
         do {
             if (!(fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)) continue;
             if (!strcmp(fd.cFileName, ".") || !strcmp(fd.cFileName, "..")) continue;
-            printf("%s\n    \"%s\"", first ? "" : ",", fd.cFileName);
+            fputs(first ? "\n    " : ",\n    ", stdout);
+            print_json_str(fd.cFileName);
             first = 0;
         } while (FindNextFileA(h, &fd));
         FindClose(h);
@@ -297,20 +323,23 @@ static int cmd_list(void) {
             char child[1024];
             snprintf(child, sizeof(child), "%s/%s", profiles_dir, de->d_name);
             if (!dir_exists(child)) continue;
-            printf("%s\n    \"%s\"", first ? "" : ",", de->d_name);
+            fputs(first ? "\n    " : ",\n    ", stdout);
+            print_json_str(de->d_name);
             first = 0;
         }
         closedir(d);
     }
 #endif
-    printf("%s]\n}\n", first ? "" : "\n  ");
+    fputs(first ? "]\n}\n" : "\n  ]\n}\n", stdout);
     return 0;
 }
 
 static int cmd_current(void) {
     char active[128];
     mg_profile_active(active, sizeof(active));
-    printf("{\n  \"active\": \"%s\"\n}\n", active);
+    fputs("{\n  \"active\": ", stdout);
+    print_json_str(active);
+    fputs("\n}\n", stdout);
     return 0;
 }
 
@@ -328,7 +357,9 @@ static int cmd_add(const char *name) {
         fprintf(stderr, "failed to create profile dir\n");
         return 1;
     }
-    printf("{\n  \"created\": \"%s\",\n  \"dir\": \"%s\"\n}\n", name, dir);
+    fputs("{\n  \"created\": ", stdout); print_json_str(name);
+    fputs(",\n  \"dir\": ", stdout);     print_json_str(dir);
+    fputs("\n}\n", stdout);
     return 0;
 }
 
@@ -371,7 +402,8 @@ static int cmd_remove(const char *name, int yes) {
         fprintf(stderr, "failed to remove %s\n", dir);
         return 1;
     }
-    printf("{\n  \"removed\": \"%s\"\n}\n", name);
+    fputs("{\n  \"removed\": ", stdout); print_json_str(name);
+    fputs("\n}\n", stdout);
     return 0;
 }
 
@@ -471,8 +503,10 @@ static int cmd_export(const char *name, const char *path) {
         fprintf(stderr, "copy failed: %s -> %s\n", db, path);
         return 1;
     }
-    printf("{\n  \"exported\": \"%s\",\n  \"from\": \"%s\",\n  \"to\": \"%s\"\n}\n",
-           name, db, path);
+    fputs("{\n  \"exported\": ", stdout); print_json_str(name);
+    fputs(",\n  \"from\": ", stdout);     print_json_str(db);
+    fputs(",\n  \"to\": ", stdout);       print_json_str(path);
+    fputs("\n}\n", stdout);
     return 0;
 }
 
@@ -513,8 +547,84 @@ static int cmd_import(const char *name, const char *path, int force) {
         fprintf(stderr, "copy failed: %s -> %s\n", path, db);
         return 1;
     }
-    printf("{\n  \"imported\": \"%s\",\n  \"from\": \"%s\",\n  \"to\": \"%s\"\n}\n",
-           name, path, db);
+    fputs("{\n  \"imported\": ", stdout); print_json_str(name);
+    fputs(",\n  \"from\": ", stdout);     print_json_str(path);
+    fputs(",\n  \"to\": ", stdout);       print_json_str(db);
+    fputs("\n}\n", stdout);
+    return 0;
+}
+
+static int cmd_merge(const char *into_name, const char *from_path, int overwrite) {
+    if (mg_profile_name_valid(into_name) != 0) {
+        fprintf(stderr, "invalid target profile name\n");
+        return 2;
+    }
+    if (!from_path || !*from_path || !file_exists(from_path)) {
+        fprintf(stderr, "--from does not exist: %s\n", from_path ? from_path : "(none)");
+        return 1;
+    }
+    if (!looks_like_sqlite(from_path)) {
+        fprintf(stderr,
+            "--from is not a memgraph profile file (missing SQLite header)\n");
+        return 1;
+    }
+    if (!mg_profile_exists(into_name)) {
+        fprintf(stderr,
+            "target profile '%s' does not exist (run: memgraph profile add %s)\n",
+            into_name, into_name);
+        return 1;
+    }
+
+    /* Refuse if a daemon owns the target — we'd corrupt the WAL. */
+    char sock[1024];
+    if (mg_profile_socket_path(into_name, sock, sizeof(sock), 0) == 0
+        && daemon_running(sock)) {
+        fprintf(stderr,
+            "daemon for profile '%s' is running — stop it first\n", into_name);
+        return 1;
+    }
+
+    char db[1024];
+    if (mg_profile_db_path(into_name, db, sizeof(db), 1) != 0) return 1;
+
+    mg_storage_t *s = NULL;
+    if (mg_storage_open(db, &s) != MG_OK) {
+        fprintf(stderr, "cannot open target DB: %s\n", db);
+        return 1;
+    }
+    if (mg_storage_apply_schema(s) != MG_OK) {
+        fprintf(stderr, "schema apply failed on target\n");
+        mg_storage_close(s);
+        return 1;
+    }
+
+    int64_t n_before = 0, kw_before = 0, e_before = 0;
+    (void)mg_storage_count(s, MG_STORAGE_COUNT_NODES,    &n_before);
+    (void)mg_storage_count(s, MG_STORAGE_COUNT_KEYWORDS, &kw_before);
+    (void)mg_storage_count(s, MG_STORAGE_COUNT_EDGES,    &e_before);
+
+    mg_err_t err = mg_storage_merge_from(s, from_path, overwrite);
+
+    int64_t n_after = 0, kw_after = 0, e_after = 0;
+    (void)mg_storage_count(s, MG_STORAGE_COUNT_NODES,    &n_after);
+    (void)mg_storage_count(s, MG_STORAGE_COUNT_KEYWORDS, &kw_after);
+    (void)mg_storage_count(s, MG_STORAGE_COUNT_EDGES,    &e_after);
+    mg_storage_close(s);
+
+    if (err != MG_OK) {
+        fprintf(stderr, "merge failed: %s\n", mg_strerror(err));
+        return 1;
+    }
+
+    fputs("{\n  \"merged_into\": ", stdout); print_json_str(into_name);
+    fputs(",\n  \"from\": ", stdout);        print_json_str(from_path);
+    fputs(",\n  \"on_conflict\": ", stdout); print_json_str(overwrite ? "overwrite" : "skip");
+    printf(",\n  \"added\": {\"nodes\": %lld, \"keywords\": %lld, \"edges\": %lld},\n"
+           "  \"target_totals\": {\"nodes\": %lld, \"keywords\": %lld, \"edges\": %lld}\n}\n",
+           (long long)(n_after - n_before),
+           (long long)(kw_after - kw_before),
+           (long long)(e_after - e_before),
+           (long long)n_after, (long long)kw_after, (long long)e_after);
     return 0;
 }
 
@@ -529,7 +639,8 @@ static int profile_usage(void) {
         "  memgraph profile remove <name> [--yes]\n"
         "  memgraph profile set    <name> [--shell bash|zsh|fish|powershell|cmd]\n"
         "  memgraph profile export <name> --path <file>\n"
-        "  memgraph profile import --name <name> --file <file> [--force]\n");
+        "  memgraph profile import --name <name> --file <file> [--force]\n"
+        "  memgraph profile merge  --into <name> --from <file> [--overwrite]\n");
     return 2;
 }
 
@@ -581,6 +692,17 @@ int mg_profile_cmd(int argc, char **argv) {
         }
         if (!name || !path) return profile_usage();
         return cmd_import(name, path, force);
+    }
+    if (!strcmp(sub, "merge")) {
+        const char *into = NULL, *from = NULL;
+        int overwrite = 0;
+        for (int i = 3; i < argc; i++) {
+            if      (!strcmp(argv[i], "--into") && i + 1 < argc) into = argv[++i];
+            else if (!strcmp(argv[i], "--from") && i + 1 < argc) from = argv[++i];
+            else if (!strcmp(argv[i], "--overwrite")) overwrite = 1;
+        }
+        if (!into || !from) return profile_usage();
+        return cmd_merge(into, from, overwrite);
     }
     return profile_usage();
 }

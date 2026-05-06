@@ -3,6 +3,7 @@
 #include <sqlite3.h>
 
 #include <math.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
@@ -566,6 +567,141 @@ mg_err_t mg_storage_count(mg_storage_t *s, int kind, int64_t *out) {
   }
   sqlite3_finalize(stmt);
   return MG_ERR_STORAGE;
+}
+
+mg_err_t mg_storage_delete_node(mg_storage_t *s, const mg_node_id_t id) {
+  if (!s || !id) return MG_ERR_INVALID_ARG;
+
+  mg_err_t err = exec_sql(s->db, "BEGIN IMMEDIATE;");
+  if (err != MG_OK) return err;
+
+  /* node_vec uses sqlite-vec's vec0 virtual table, which does not honor
+   * SQL foreign keys — clean it up explicitly first. */
+  sqlite3_stmt *stmt = NULL;
+  err = prepare(s->db, "DELETE FROM node_vec WHERE id = ?;", &stmt);
+  if (err != MG_OK) goto rollback;
+  sqlite3_bind_blob(stmt, 1, id, MG_NODE_ID_BYTES, SQLITE_STATIC);
+  err = step_done(stmt);
+  sqlite3_finalize(stmt);
+  if (err != MG_OK && err != MG_ERR_DUPLICATE) goto rollback;
+
+  /* nodes: deleting cascades node_keywords + edges; the nodes_ad trigger
+   * removes the FTS row. */
+  err = prepare(s->db, "DELETE FROM nodes WHERE id = ?;", &stmt);
+  if (err != MG_OK) goto rollback;
+  sqlite3_bind_blob(stmt, 1, id, MG_NODE_ID_BYTES, SQLITE_STATIC);
+  int rc = sqlite3_step(stmt);
+  int changes = sqlite3_changes(s->db);
+  sqlite3_finalize(stmt);
+  if (rc != SQLITE_DONE) {
+    err = MG_ERR_STORAGE;
+    goto rollback;
+  }
+  if (changes == 0) {
+    /* nothing to delete — surface NOT_FOUND but still commit (node_vec
+     * cleanup above is harmless on a non-existent id). */
+    (void)exec_sql(s->db, "COMMIT;");
+    return MG_ERR_NOT_FOUND;
+  }
+  return exec_sql(s->db, "COMMIT;");
+
+rollback:
+  (void)exec_sql(s->db, "ROLLBACK;");
+  return err;
+}
+
+mg_err_t mg_storage_merge_from(mg_storage_t *s, const char *source_path,
+                               int overwrite) {
+  /* Strategy: ATTACH the source DB read-only to our existing connection (so
+   * sqlite-vec is already loaded), copy in dependency order with SQL set-
+   * operations, then DETACH. Idempotency comes from the content_hash UNIQUE
+   * constraint on nodes and the (src,dst,kind,coalesce(kw,-1)) index on
+   * edges. Keyword ids are remapped by text since keywords.text is UNIQUE
+   * COLLATE NOCASE. The whole thing runs in one transaction so a failure
+   * leaves the target untouched.
+   *
+   * Note about overwrite semantics: nodes are deduplicated by content_hash
+   * (which hashes summary+detail+keywords). If two nodes have the same
+   * content_hash, they are by definition identical — so "overwrite" only
+   * matters for fields the hash does not cover (created_at, last_access,
+   * access_count). With overwrite=1 we adopt the source's metadata; with
+   * overwrite=0 we keep what the target already has. */
+  if (!s || !source_path) return MG_ERR_INVALID_ARG;
+
+  sqlite3_stmt *stmt = NULL;
+  if (sqlite3_prepare_v2(s->db, "ATTACH DATABASE ? AS src", -1, &stmt, NULL)
+      != SQLITE_OK) return MG_ERR_STORAGE;
+  sqlite3_bind_text(stmt, 1, source_path, -1, SQLITE_STATIC);
+  int rc = sqlite3_step(stmt);
+  sqlite3_finalize(stmt);
+  if (rc != SQLITE_DONE) return MG_ERR_STORAGE;
+
+  mg_err_t err = exec_sql(s->db, "BEGIN IMMEDIATE;");
+  if (err != MG_OK) {
+    (void)exec_sql(s->db, "DETACH DATABASE src;");
+    return err;
+  }
+
+  const char *node_verb = overwrite ? "INSERT OR REPLACE" : "INSERT OR IGNORE";
+  char sql[1024];
+
+  /* 1. nodes (idempotent on content_hash UNIQUE) */
+  snprintf(sql, sizeof(sql),
+    "%s INTO main.nodes(id, content_hash, summary, detail, "
+    "                   created_at, last_access, access_count, state) "
+    "SELECT id, content_hash, summary, detail, "
+    "       created_at, last_access, access_count, state FROM src.nodes;",
+    node_verb);
+  err = exec_sql(s->db, sql);
+  if (err != MG_OK) goto rollback;
+
+  /* 2. node_vec (only for nodes that ended up in main; same id) */
+  err = exec_sql(s->db,
+    "INSERT OR IGNORE INTO main.node_vec(id, embedding) "
+    "SELECT id, embedding FROM src.node_vec "
+    "WHERE id IN (SELECT id FROM main.nodes);");
+  if (err != MG_OK) goto rollback;
+
+  /* 3. keywords (UNIQUE on text COLLATE NOCASE → idempotent) */
+  err = exec_sql(s->db,
+    "INSERT OR IGNORE INTO main.keywords(text, embedding) "
+    "SELECT text, embedding FROM src.keywords;");
+  if (err != MG_OK) goto rollback;
+
+  /* 4. node_keywords with id remap via text */
+  err = exec_sql(s->db,
+    "INSERT OR IGNORE INTO main.node_keywords(node_id, keyword_id) "
+    "SELECT nk.node_id, m_kw.id "
+    "FROM src.node_keywords AS nk "
+    "JOIN src.keywords AS s_kw ON s_kw.id = nk.keyword_id "
+    "JOIN main.keywords AS m_kw ON m_kw.text = s_kw.text COLLATE NOCASE "
+    "WHERE EXISTS (SELECT 1 FROM main.nodes WHERE id = nk.node_id);");
+  if (err != MG_OK) goto rollback;
+
+  /* 5. edges with optional keyword_id remap; restrict to endpoints in main */
+  snprintf(sql, sizeof(sql),
+    "%s INTO main.edges(src, dst, kind, keyword_id, weight) "
+    "SELECT e.src, e.dst, e.kind, "
+    "       CASE WHEN e.keyword_id IS NULL THEN NULL ELSE m_kw.id END, "
+    "       e.weight "
+    "FROM src.edges AS e "
+    "LEFT JOIN src.keywords AS s_kw ON s_kw.id = e.keyword_id "
+    "LEFT JOIN main.keywords AS m_kw ON m_kw.text = s_kw.text COLLATE NOCASE "
+    "WHERE EXISTS (SELECT 1 FROM main.nodes WHERE id = e.src) "
+    "  AND EXISTS (SELECT 1 FROM main.nodes WHERE id = e.dst);",
+    overwrite ? "INSERT OR REPLACE" : "INSERT OR IGNORE");
+  err = exec_sql(s->db, sql);
+  if (err != MG_OK) goto rollback;
+
+  err = exec_sql(s->db, "COMMIT;");
+  if (err != MG_OK) goto rollback;
+  (void)exec_sql(s->db, "DETACH DATABASE src;");
+  return MG_OK;
+
+rollback:
+  (void)exec_sql(s->db, "ROLLBACK;");
+  (void)exec_sql(s->db, "DETACH DATABASE src;");
+  return err;
 }
 
 mg_err_t mg_storage_node_keywords(mg_storage_t *s,

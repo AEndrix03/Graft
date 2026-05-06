@@ -26,6 +26,14 @@ mg_err_t mg_storage_insert_node_with_edges(
 /* Recupera nodo. Il chiamante deve fare mg_node_free su out->summary/detail. */
 mg_err_t mg_storage_get_node(mg_storage_t *s, const mg_node_id_t id, mg_node_t *out);
 
+/* Cancella un nodo e tutto il contenuto associato. Cascades:
+ *   - node_keywords (FK ON DELETE CASCADE)
+ *   - edges (FK ON DELETE CASCADE su src e dst)
+ *   - node_fts (trigger nodes_ad)
+ *   - node_vec (manuale, virtual table senza FK)
+ * Returns MG_ERR_NOT_FOUND se l'id non esiste. */
+mg_err_t mg_storage_delete_node(mg_storage_t *s, const mg_node_id_t id);
+
 /* Lookup idempotenza */
 mg_err_t mg_storage_node_id_by_hash(mg_storage_t *s, const mg_hash_t h, mg_node_id_t out);
 
@@ -106,5 +114,15 @@ mg_err_t mg_storage_node_keywords(
   const mg_node_id_t node_id,
   mg_keyword_id_t *out_ids, int max_out, int *out_count
 );
+
+/* === Merge another profile's DB into this one === */
+/* Imports nodes / keywords / edges from `source_path` (a SQLite file from
+ * `memgraph profile export`) into the connected DB. Idempotent on
+ * content_hash: nodes already in the target are skipped (overwrite=0) or
+ * replaced (overwrite=1). Keyword ids are remapped by text (keywords.text
+ * is UNIQUE COLLATE NOCASE), so the source's auto-increment ids don't
+ * leak into the target. */
+mg_err_t mg_storage_merge_from(mg_storage_t *s, const char *source_path,
+                               int overwrite);
 
 #endif

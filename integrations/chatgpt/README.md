@@ -34,15 +34,20 @@ The exact streamable-http snippet evolves with the MCP SDK; see <https://modelco
 
 ## Tool list
 
-Same set as Claude AI:
-- `memgraph_query`, `memgraph_retrieve`, `memgraph_explore`
-- `memgraph_insert`, `memgraph_classify`, `memgraph_get`, `memgraph_stats`
+Same 16 tools as Claude AI (Desktop):
+
+**Search**: `memgraph_query`, `memgraph_retrieve`, `memgraph_explore`
+**Save**: `memgraph_classify`, `memgraph_insert`
+**Maintain**: `memgraph_get`, `memgraph_delete`, `memgraph_stats`, `memgraph_analytics`
+**Profiles**: `memgraph_profile_list`, `memgraph_profile_current`, `memgraph_profile_add`, `memgraph_profile_remove`, `memgraph_profile_export`, `memgraph_profile_import`, `memgraph_profile_merge`
+
+Each search/save/maintenance tool accepts an optional `profile=<name>` to target a tenant per call.
 
 ## Custom GPT instructions snippet
 
 Paste in the GPT's "Instructions":
 
-> You have access to a long-term memory via the `memgraph_*` MCP tools. Before solving any non-trivial technical problem, call `memgraph_query` with a concise restatement of the user's request. If you get a STRONG hit, reuse the answer; on MISS, proceed and consider `memgraph_insert` after solving. Use `memgraph_classify` to suggest keywords before insert.
+> You have access to a long-term memory graph via `memgraph_*` MCP tools. Before solving any non-trivial technical problem, call `memgraph_query` with a concise restatement of the user's request. If you get STRONG hit, reuse the answer; on MISS, proceed and consider `memgraph_insert` after solving (with `memgraph_classify` to align keywords). When you find an obsolete or wrong node, `memgraph_delete` it; to "modify" a node, fetch with `memgraph_get`, delete, then re-insert with corrected fields — the system rebuilds embeddings and edges automatically.
 
 ## Troubleshooting
 

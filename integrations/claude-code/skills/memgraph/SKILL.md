@@ -99,6 +99,7 @@ MEMGRAPH_PROFILE=work memgraph query "deployment workflow"
 | Save knowledge                        | `memgraph insert --summary S --detail D --keyword K`                 |
 | Suggest keywords for a summary        | `memgraph classify --summary "<text>"`                               |
 | Fetch node by id                      | `memgraph get <hex_id>`                                              |
+| Delete node by id                     | `memgraph delete <hex_id>`                                           |
 | Distribution percentiles              | `memgraph stats`                                                     |
 | Usage report (hit-rate, est. saved)   | `memgraph analytics [--since 7d] [--seconds-per-hit 60]`             |
 | Profile management                    | `memgraph profile <list\|current\|add\|remove\|set\|export\|import>` |
@@ -154,6 +155,28 @@ Run `/memory-audit` periodically (or after a long session). The graph is paying 
 - A small number of nodes account for most STRONG hits (Pareto = good; means high-leverage knowledge is concentrated).
 
 If those signals look bad, the typical fix is **better summaries** (the retrieval anchor) — re-save with phrasing that matches how you'd search, not how you solved it.
+
+## When you find a wrong / obsolete node
+
+If a `/recall` or a `get` surfaces a node whose content you can verify is **wrong** (stale, contradicted by current code, factually incorrect), you have two paths:
+
+1. **Remove only** — the node is just noise, no replacement needed:
+   ```bash
+   memgraph delete <hex_id>
+   ```
+
+2. **Modify (= delete + re-insert)** — the underlying knowledge is real but the saved node is broken:
+   ```
+   1. fetch:    memgraph get <hex_id>
+   2. redesign: write new summary / detail / keywords
+   3. delete:   memgraph delete <hex_id>
+   4. re-save:  memgraph insert --summary S --detail D --keyword K1 --keyword K2 …
+   ```
+   The insert pipeline rebuilds embedding + edges automatically. Content-hash dedup means re-running the same insert is safe (returns the existing id).
+
+**Don't** silently leave wrong nodes in the graph hoping they won't get retrieved — they will, and they'll mislead future-you. Trust the agent's verdict when it says "this is contradicted by current code".
+
+When in doubt (the node looks suspicious but you're not sure), **demote** rather than delete: re-save with a `wip` or `unsure` keyword and a detail that flags the uncertainty.
 
 ## Skill chain in a typical session
 

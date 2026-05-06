@@ -228,7 +228,8 @@ int mg_usage_analytics(int argc, char **argv) {
     }
     FILE *f = fopen(path, "rb");
     if (!f) {
-        printf("{\n  \"path\": \"%s\",\n  \"events\": 0,\n  \"note\": \"no log yet — run any memgraph command first\"\n}\n", path);
+        fputs("{\n  \"path\": ", stdout); write_quoted(stdout, path);
+        fputs(",\n  \"events\": 0,\n  \"note\": \"no log yet - run any memgraph command first\"\n}\n", stdout);
         return 0;
     }
 
@@ -303,8 +304,9 @@ int mg_usage_analytics(int argc, char **argv) {
         ? (double)sum_query_latency_ms / (double)n_query
         : 0.0;
 
-    printf("{\n");
-    printf("  \"path\": \"%s\",\n", path);
+    fputs("{\n  \"path\": ", stdout);
+    write_quoted(stdout, path);
+    fputs(",\n", stdout);
     printf("  \"window\": {\"first_ts\": %lld, \"last_ts\": %lld, \"since_seconds\": %lld},\n",
            first_ts, last_ts, since_seconds);
     printf("  \"events\": {\"total\": %lld, \"errors\": %lld},\n", n_total, n_errors);

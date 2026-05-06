@@ -156,6 +156,7 @@ static int usage(void) {
         "  memgraph retrieve <text> [--top-k N]\n"
         "  memgraph explore <text> [--keyword K]... [--depth N] [--beam N]\n"
         "  memgraph get <hex_id>\n"
+        "  memgraph delete <hex_id>\n"
         "  memgraph classify --summary S\n"
         "  memgraph stats\n"
         "  memgraph consolidate\n"
@@ -310,6 +311,7 @@ int main(int argc, char **argv) {
     else if (!strcmp(cmd, "retrieve"))    build_rc = build_retrieve(argc, argv, &w);
     else if (!strcmp(cmd, "explore"))     build_rc = build_explore (argc, argv, &w);
     else if (!strcmp(cmd, "get"))         build_rc = build_get     (argc, argv, &w);
+    else if (!strcmp(cmd, "delete"))      build_rc = build_get     (argc, argv, &w);
     else if (!strcmp(cmd, "classify"))    build_rc = build_classify(argc, argv, &w);
     else if (!strcmp(cmd, "stats"))       build_rc = build_empty   (&w);
     else if (!strcmp(cmd, "consolidate")) build_rc = build_empty   (&w);

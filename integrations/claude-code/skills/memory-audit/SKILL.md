@@ -128,9 +128,9 @@ Items 1, 2, 3 are concrete enough that you can act on them in the next turn with
 
 ## What this skill does NOT do
 
-- It does **not** delete nodes (memgraph CLI doesn't expose delete yet; that's a roadmap item).
+- It does **not** delete nodes by itself — even when a node is clearly wrong, the action menu proposes the deletion, the user approves, then `memgraph delete <id>` runs as a follow-up step.
 - It does **not** re-classify keywords without explicit user approval.
 - It does **not** modify the active profile.
 - It does **not** export/import — the user owns those.
 
-When you want to act on a finding, route through `/memoryze` (for re-saves with better summaries) or instruct the user to use `memgraph profile export/import` for backups.
+When you want to act on a finding, route through `/memoryze` (for re-saves with better summaries), `memgraph delete <id>` (when the user confirms a node should go), or instruct the user to use `memgraph profile export/import` for backups.

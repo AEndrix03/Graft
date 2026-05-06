@@ -38,6 +38,7 @@ mg_err_t mg_wire_op_from_string(const char *s, mg_op_t *out) {
     if (!strcmp(s, "get"))         { *out = MG_OP_GET;         return MG_OK; }
     if (!strcmp(s, "stats"))       { *out = MG_OP_STATS;       return MG_OK; }
     if (!strcmp(s, "consolidate")) { *out = MG_OP_CONSOLIDATE; return MG_OK; }
+    if (!strcmp(s, "delete"))      { *out = MG_OP_DELETE;      return MG_OK; }
     return MG_ERR_INVALID_ARG;
 }
 
@@ -51,6 +52,7 @@ const char *mg_wire_op_to_string(mg_op_t op) {
         case MG_OP_GET:         return "get";
         case MG_OP_STATS:       return "stats";
         case MG_OP_CONSOLIDATE: return "consolidate";
+        case MG_OP_DELETE:      return "delete";
     }
     return NULL;
 }
