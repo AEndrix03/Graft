@@ -73,9 +73,16 @@ static void write_miss(mg_ctx_t *ctx,
     mpack_write_cstr(result, "MISS");
 
     mpack_write_cstr(result, "fallback_retrieve");
-    /* Run RRF; if it fails internally we still want a map placeholder. */
+    /* Run RRF; if it fails internally we still want a map placeholder.
+     * Use a tighter cap than the standalone retrieve op: a MISS fallback is a
+     * "by the way" hint, not the answer, and a wide list of neighbors can blow
+     * the agent's context on broad queries (e.g. single-keyword lookups). */
+    int fallback_k = ctx->config->query_fallback_top_k;
+    if (fallback_k <= 0) fallback_k = 5;
+    if (fallback_k > ctx->config->retrieve_top_k && ctx->config->retrieve_top_k > 0)
+        fallback_k = ctx->config->retrieve_top_k;
     if (mg_retrieve_run_rrf(ctx, text, q,
-                            ctx->config->retrieve_top_k, result) != MG_OK) {
+                            fallback_k, result) != MG_OK) {
         /* run_rrf may have left writer in error state. Best-effort: write nil. */
         mpack_write_nil(result);
     }

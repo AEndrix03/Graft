@@ -21,6 +21,7 @@ cache:
 retrieval:
   top_k: 25
   rrf_k_const: 60
+  query_fallback_top_k: 5  # cap sui risultati restituiti nel fallback_retrieve di un cache MISS
 
 edges:
   edge_keyword_min: 0.5

@@ -54,6 +54,7 @@ void mg_config_defaults(mg_config_t *cfg) {
   cfg->min_lex_overlap = 0.05f;
   cfg->retrieve_top_k = 25;
   cfg->rrf_k_const = 60;
+  cfg->query_fallback_top_k = 5;
   cfg->edge_keyword_min = 0.5f;
   cfg->edge_semantic_min = 0.6f;
   cfg->edge_keyword_topk = 5;
@@ -171,6 +172,7 @@ static mg_err_t mg_config_apply(mg_config_t *cfg,
   } else if (strcmp(section, "retrieval") == 0) {
     if (strcmp(key, "top_k") == 0 && mg_parse_int(value, &cfg->retrieve_top_k)) return MG_OK;
     if (strcmp(key, "rrf_k_const") == 0 && mg_parse_int(value, &cfg->rrf_k_const)) return MG_OK;
+    if (strcmp(key, "query_fallback_top_k") == 0 && mg_parse_int(value, &cfg->query_fallback_top_k)) return MG_OK;
   } else if (strcmp(section, "edges") == 0) {
     if (strcmp(key, "edge_keyword_min") == 0 && mg_parse_float(value, &cfg->edge_keyword_min)) return MG_OK;
     if (strcmp(key, "edge_semantic_min") == 0 && mg_parse_float(value, &cfg->edge_semantic_min)) return MG_OK;
