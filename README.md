@@ -24,6 +24,18 @@ pwsh scripts/install.ps1       # Windows (autoinstalla MSYS2 se serve)
 
 Lo script è interattivo, ti chiede solo l'essenziale (3 prompt totali) e fa tutto il resto in automatico: dipendenze di sistema, submodules, build di llama.cpp, download del modello BGE-M3 (~600 MB), build di memgraph e smoke test. È idempotente: ri-eseguirlo non ripete lavoro già fatto.
 
+#### Accelerazione hardware (GPU)
+
+Default CPU. Per build su GPU passa `MEMGRAPH_GPU` allo script (NVIDIA: `cuda`, AMD ROCm 6/7: `hip`):
+
+```bash
+MEMGRAPH_GPU=cuda  bash scripts/install.sh           # NVIDIA CUDA
+MEMGRAPH_GPU=hip   bash scripts/install.sh           # AMD ROCm
+pwsh scripts/install.ps1 -Gpu cuda                   # equivalente PowerShell
+```
+
+Lo script aggiunge `-DGGML_CUDA=ON` (o `-DGGML_HIP=ON`) alla cmake di `third_party/llama.cpp`. Se la build di llama.cpp esiste già, viene riutilizzata: per cambiare backend rimuovi prima `third_party/llama.cpp/build`. Una volta compilato il backend, abilita l'offload con `embedding.hardware_accel: true` nel `config.yaml` — vedi sezione [Configurazione](#configurazione). Il daemon rifiuta lo startup con un messaggio chiaro se chiedi `hardware_accel: true` su un build CPU-only, così non finisci silenziosamente a girare su CPU.
+
 ### Opzione manuale
 
 #### 1. Prerequisiti
@@ -238,8 +250,10 @@ Le **skill istruiscono l'LLM** a:
 
 Parametri chiave:
 - `embedding.threads` (default 4)
+- `embedding.hardware_accel` (default `false`) — se `true`, offload completo del modello su GPU. Richiede llama.cpp compilato con `-DGGML_CUDA=ON` o `-DGGML_HIP=ON`; vedi [Accelerazione hardware (GPU)](#accelerazione-hardware-gpu). Su build CPU-only il daemon rifiuta lo startup con un errore esplicito.
 - `cache.weak_hit_min_vec` (0.85) e `cache.strong_hit_min_lex` (0.15) — soglie del gating
-- `retrieval.top_k` (25)
+- `retrieval.top_k` (25) — top-k per `memgraph retrieve`
+- `retrieval.query_fallback_top_k` (5) — cap dei risultati nel `fallback_retrieve` di un cache MISS, separato da `top_k` per evitare che query troppo generiche saturino il context dell'agent
 - `edges.edge_semantic_min` (0.6) — soglia per creare un arco semantico
 
 ---
