@@ -179,6 +179,14 @@ if [ ${#NEEDED_PKGS[@]} -gt 0 ] && [ -n "$PKG" ]; then
   fi
 fi
 
+# ---------- git hooks ----------
+
+if [ -d .git ] && [ -d scripts/git-hooks ]; then
+  step "Activating git hooks (commit-msg policy)…"
+  git config core.hooksPath scripts/git-hooks
+  ok "core.hooksPath -> scripts/git-hooks"
+fi
+
 # ---------- git submodules ----------
 
 step "Initializing third-party submodules…"

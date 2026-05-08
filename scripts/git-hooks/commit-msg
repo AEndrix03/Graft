@@ -1,0 +1,79 @@
+#!/usr/bin/env bash
+# Enforced policy for memgraph commit messages.
+#
+#   1. Conventional Commits subject:
+#        <type>(<scope>)?!?: <description>
+#      type ∈ feat|fix|chore|docs|style|refactor|test|perf|build|ci|revert
+#   2. Subject only — no body, no extended description.
+#   3. Total length ≤ 70 characters (after stripping comments and trailing
+#      whitespace).
+#   4. ASCII only — proxy for "write in English". This blocks è/à/ò/ù/ì etc.
+#      English text without accents passes; Italian/Spanish/French with
+#      accents does not.
+#   5. No `Co-Authored-By:` trailers.
+#
+# Activated via `git config core.hooksPath scripts/git-hooks` (the install
+# script does this for you on fresh clones).
+
+set -eu
+
+msg_file="$1"
+
+# Strip git-injected comment lines and CRs, drop trailing blank lines.
+content=$(grep -v '^#' "$msg_file" | tr -d '\r' | awk '
+  { lines[NR] = $0 }
+  END {
+    last = NR
+    while (last > 0 && lines[last] ~ /^[[:space:]]*$/) last--
+    for (i = 1; i <= last; ++i) print lines[i]
+  }
+')
+
+# Skip auto-generated merge / revert / fixup / squash messages.
+first_line=$(printf '%s\n' "$content" | head -n 1)
+case "$first_line" in
+  "Merge "*|"Revert "*|"fixup! "*|"squash! "*|"amend! "*) exit 0 ;;
+esac
+
+err() {
+  printf 'commit-msg: %s\n' "$1" >&2
+}
+
+# (1) Conventional Commits subject.
+if ! printf '%s' "$first_line" | grep -qE '^(feat|fix|chore|docs|style|refactor|test|perf|build|ci|revert)(\([a-z0-9_./-]+\))?!?: [^[:space:]].*$'; then
+  err "subject does not match Conventional Commits."
+  err "  expected: <type>(<scope>)?!?: <description>"
+  err "  type ∈ feat|fix|chore|docs|style|refactor|test|perf|build|ci|revert"
+  err "  got: $first_line"
+  exit 1
+fi
+
+# (2) No body.
+line_count=$(printf '%s\n' "$content" | grep -c '^' || true)
+if [ "$line_count" -gt 1 ]; then
+  err "only the subject line is allowed — no body, no extended description."
+  exit 1
+fi
+
+# (3) Total length ≤ 70.
+total_len=$(printf '%s' "$content" | wc -c | tr -d ' ')
+if [ "$total_len" -gt 70 ]; then
+  err "message is $total_len chars, max 70."
+  exit 1
+fi
+
+# (4) ASCII only (English proxy).
+if printf '%s' "$content" | LC_ALL=C grep -q '[^[:print:]]'; then
+  err "non-ASCII character detected. Write in English without accents."
+  exit 1
+fi
+
+# (5) No Co-Authored-By trailer (defensive — body is already rejected, but a
+#     Co-Authored-By line could be smuggled in by tooling that bypasses the
+#     body check, e.g. a `--trailer` flag added by an editor template).
+if printf '%s\n' "$content" | grep -qiE '^Co-Authored-By:'; then
+  err "Co-Authored-By: trailers are not allowed."
+  exit 1
+fi
+
+exit 0

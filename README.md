@@ -24,6 +24,8 @@ pwsh scripts/install.ps1       # Windows (autoinstalla MSYS2 se serve)
 
 Lo script è interattivo, ti chiede solo l'essenziale (3 prompt totali) e fa tutto il resto in automatico: dipendenze di sistema, submodules, build di llama.cpp, download del modello BGE-M3 (~600 MB), build di memgraph e smoke test. È idempotente: ri-eseguirlo non ripete lavoro già fatto.
 
+Lo script attiva anche un hook `commit-msg` (`scripts/git-hooks/commit-msg`) tramite `core.hooksPath`: enforce dei [Conventional Commits](https://www.conventionalcommits.org/), subject ≤ 70 char, ASCII-only (proxy per "scrivi in inglese"), niente body né `Co-Authored-By:`. Per attivarlo a mano: `git config core.hooksPath scripts/git-hooks`.
+
 #### Accelerazione hardware (GPU)
 
 Default CPU. Per build su GPU passa `MEMGRAPH_GPU` allo script (NVIDIA: `cuda`, AMD ROCm 6/7: `hip`):
