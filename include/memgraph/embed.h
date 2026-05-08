@@ -1,12 +1,18 @@
 #ifndef MEMGRAPH_EMBED_H
 #define MEMGRAPH_EMBED_H
 
+#include <stdbool.h>
+
 #include "memgraph/types.h"
 #include "memgraph/error.h"
 
 typedef struct mg_embed_ctx mg_embed_ctx_t;
 
-mg_err_t mg_embed_init(const char *model_path, int threads, int ctx_size, mg_embed_ctx_t **out);
+/* If hardware_accel is true, all model layers are offloaded to GPU (CUDA on
+ * NVIDIA, HIP on ROCm 6/7). Requires llama.cpp to have been built with the
+ * matching backend; otherwise init returns MG_ERR_CONFIG with a clear log. */
+mg_err_t mg_embed_init(const char *model_path, int threads, int ctx_size,
+                       bool hardware_accel, mg_embed_ctx_t **out);
 void     mg_embed_shutdown(mg_embed_ctx_t *ctx);
 
 /* Calcola embedding di testo. out e' L2-normalized. Thread-safe. */

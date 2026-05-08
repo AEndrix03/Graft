@@ -213,9 +213,29 @@ step "Building llama.cpp…"
 LLAMA_LIB_GLOB=(third_party/llama.cpp/build/bin/libllama* third_party/llama.cpp/build/bin/llama.dll)
 LLAMA_BUILT=0
 for f in "${LLAMA_LIB_GLOB[@]}"; do [ -e "$f" ] && LLAMA_BUILT=1 && break; done
+
+# GPU backend selection: opt-in via MEMGRAPH_GPU={cuda,hip,none}. Default none
+# (CPU build). Set to cuda for NVIDIA, hip for AMD ROCm 6 or 7.
+GPU_BACKEND="${MEMGRAPH_GPU:-none}"
+GPU_FLAGS=()
+case "$GPU_BACKEND" in
+  none|cpu)
+    ;;
+  cuda)
+    GPU_FLAGS=(-DGGML_CUDA=ON)
+    ;;
+  hip|rocm)
+    GPU_FLAGS=(-DGGML_HIP=ON)
+    ;;
+  *)
+    fail "MEMGRAPH_GPU='$GPU_BACKEND' invalid. Use cuda, hip, or none."
+    ;;
+esac
+
 if [ "$LLAMA_BUILT" = 1 ]; then
-  ok "llama.cpp already built"
+  ok "llama.cpp already built (set MEMGRAPH_GPU and remove third_party/llama.cpp/build to rebuild with a different backend)"
 else
+  [ "$GPU_BACKEND" != "none" ] && step "  -> with $GPU_BACKEND backend"
   pushd third_party/llama.cpp >/dev/null
   CMAKE_GEN=()
   [ "$OS" = "msys2" ] && CMAKE_GEN=(-G Ninja)
@@ -224,10 +244,11 @@ else
     -DLLAMA_CURL=OFF -DLLAMA_BUILD_SERVER=OFF \
     -DLLAMA_BUILD_TOOLS=OFF -DLLAMA_BUILD_EXAMPLES=OFF \
     -DLLAMA_BUILD_TESTS=OFF -DLLAMA_BUILD_COMMON=OFF \
-    -DCMAKE_BUILD_TYPE=Release
+    -DCMAKE_BUILD_TYPE=Release \
+    "${GPU_FLAGS[@]}"
   cmake --build build -j
   popd >/dev/null
-  ok "llama.cpp built"
+  ok "llama.cpp built ($GPU_BACKEND)"
 fi
 
 # ---------- model ----------

@@ -112,6 +112,7 @@ target_link_libraries(memgraph_core
   blake3
   llama
   ggml
+  ggml-base
   m
   pthread
   ${MG_PLATFORM_LIBS}

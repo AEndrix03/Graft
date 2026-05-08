@@ -4,6 +4,7 @@
 #include <limits.h>
 #include <math.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -14,6 +15,7 @@
 #endif
 
 #include <llama.h>
+#include <ggml-backend.h>
 
 #if defined(_WIN32) && !defined(__MINGW32__) && !defined(__MINGW64__)
 typedef SRWLOCK mg_mutex_t;
@@ -127,7 +129,8 @@ static mg_err_t mg_normalize(const float *src, int dim, mg_embedding_t out) {
   return MG_OK;
 }
 
-mg_err_t mg_embed_init(const char *model_path, int threads, int ctx_size, mg_embed_ctx_t **out) {
+mg_err_t mg_embed_init(const char *model_path, int threads, int ctx_size,
+                       bool hardware_accel, mg_embed_ctx_t **out) {
   mg_err_t err;
   mg_embed_ctx_t *ctx;
   struct llama_model_params model_params;
@@ -145,6 +148,35 @@ mg_err_t mg_embed_init(const char *model_path, int threads, int ctx_size, mg_emb
     return err;
   }
 
+  if (hardware_accel) {
+    /* Enumerate ggml devices and require at least one real accelerator (GPU,
+     * iGPU, or ACCEL). llama_supports_gpu_offload() is too permissive — it
+     * can return true on CPU-only builds — so we check the device list
+     * directly. */
+    ggml_backend_dev_t accel_dev = NULL;
+    size_t n_devs = ggml_backend_dev_count();
+    for (size_t i = 0; i < n_devs; ++i) {
+      ggml_backend_dev_t d = ggml_backend_dev_get(i);
+      enum ggml_backend_dev_type t = ggml_backend_dev_type(d);
+      if (t == GGML_BACKEND_DEVICE_TYPE_GPU ||
+          t == GGML_BACKEND_DEVICE_TYPE_IGPU ||
+          t == GGML_BACKEND_DEVICE_TYPE_ACCEL) {
+        accel_dev = d;
+        break;
+      }
+    }
+    if (!accel_dev) {
+      fprintf(stderr,
+              "embed: hardware_accel=true but no GPU/accelerator device is "
+              "available. Rebuild llama.cpp with -DGGML_CUDA=ON (NVIDIA) or "
+              "-DGGML_HIP=ON (ROCm 6/7), or set hardware_accel: false.\n");
+      mg_backend_release();
+      return MG_ERR_CONFIG;
+    }
+    fprintf(stderr, "embed: hardware_accel=true, using device '%s'\n",
+            ggml_backend_dev_name(accel_dev));
+  }
+
   ctx = (mg_embed_ctx_t *)calloc(1, sizeof(*ctx));
   if (!ctx) {
     mg_backend_release();
@@ -158,6 +190,10 @@ mg_err_t mg_embed_init(const char *model_path, int threads, int ctx_size, mg_emb
   }
 
   model_params = llama_model_default_params();
+  /* Negative n_gpu_layers means "all layers". 0 forces CPU even if a GPU
+   * backend is compiled in, which is the safer default for users who don't
+   * opt in. */
+  model_params.n_gpu_layers = hardware_accel ? -1 : 0;
   ctx->model = llama_model_load_from_file(model_path, model_params);
   if (!ctx->model) {
     mg_embed_ctx_free_partial(ctx, 1);

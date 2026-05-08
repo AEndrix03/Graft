@@ -13,6 +13,7 @@ typedef struct {
   char *embed_model_path;
   int   embed_threads;
   int   embed_ctx_size;
+  bool  hardware_accel;          /* offload model to GPU (CUDA/ROCm) — requires llama.cpp built with the matching backend */
 
   /* verification (feature flags) */
   bool  cross_encoder_enabled;

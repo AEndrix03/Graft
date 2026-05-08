@@ -11,7 +11,9 @@
 
 [CmdletBinding()]
 param(
-    [string]$Msys2Root = $env:MSYS2_ROOT
+    [string]$Msys2Root = $env:MSYS2_ROOT,
+    [ValidateSet("none","cuda","hip")]
+    [string]$Gpu = $(if ($env:MEMGRAPH_GPU) { $env:MEMGRAPH_GPU } else { "none" })
 )
 
 $ErrorActionPreference = "Stop"
@@ -67,11 +69,13 @@ $rest  = $repo.Substring(2) -replace '\\', '/'
 $repoMsys = "/$drive$rest"
 
 Write-Step "Launching MSYS2 MINGW64 shell to run install.sh..."
+if ($Gpu -ne "none") { Write-Host "  GPU backend: $Gpu" -ForegroundColor Cyan }
 $bash = "$found\usr\bin\bash.exe"
 $env:CHERE_INVOKING = "1"
 $env:MSYSTEM        = "MINGW64"
+$env:MEMGRAPH_GPU   = $Gpu
 
-& $bash -lc "cd '$repoMsys'; bash scripts/install.sh --yes"
+& $bash -lc "cd '$repoMsys'; MEMGRAPH_GPU='$Gpu' bash scripts/install.sh --yes"
 
 if ($LASTEXITCODE -ne 0) { Write-Err "install.sh exited with code $LASTEXITCODE" }
 
