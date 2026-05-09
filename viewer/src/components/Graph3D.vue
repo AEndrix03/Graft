@@ -39,7 +39,12 @@ const NODE_R_MIN        = 0.08;
 const NODE_R_MAX        = 0.30;
 const NODE_R_LOG_FACTOR = 0.07;  // delta per ln(body_len)
 const LABEL_NEAR_DIST   = 12.0;  // scaled with the wider spread to keep the same "feel"
-const EDGE_LINEWIDTH    = 1.6;   // pixel-thick edges via Line2 (less screen weight at this scale)
+/* Edge thickness scales with weight. We bucket by quartile of the visible
+ * weight range (per kind) so we still get just a few LineSegments2 objects
+ * per kind instead of one per edge. */
+const EDGE_LW_MIN       = 0.8;
+const EDGE_LW_MAX       = 3.6;
+const EDGE_LW_BUCKETS   = 4;
 
 const COLOR = {
   bg:             0x0e1014,
@@ -172,17 +177,13 @@ function rebuildEdges() {
   }
   edgeLineObjects = [];
 
-  const buckets = {
-    semantic:   { positions: [], edges: [], color: COLOR.edgeSemantic,   opacity: 0.7 },
-    keyword:    { positions: [], edges: [], color: COLOR.edgeKeyword,    opacity: 0.55 },
-    supersedes: { positions: [], edges: [], color: COLOR.edgeSupersedes, opacity: 0.85 },
-  };
-
   const highlightedSet = new Set(props.highlightedIds || []);
   const keyOf = (e) => `${e.src}|${e.dst}|${e.kind}`;
   const semanticVisible = new Set(chooseTopEdges(props.edges, 'semantic', highlightedSet).map(keyOf));
   const keywordVisible  = new Set(chooseTopEdges(props.edges, 'keyword',  highlightedSet).map(keyOf));
 
+  /* Group visible edges by kind */
+  const visiblePerKind = { semantic: [], keyword: [], supersedes: [] };
   for (const e of props.edges) {
     const a = nodeMeshes.value.get(e.src);
     const b = nodeMeshes.value.get(e.dst);
@@ -193,37 +194,71 @@ function rebuildEdges() {
     } else if (e.kind === 'keyword') {
       if (!props.showKeyword) continue;
       if (!keywordVisible.has(keyOf(e))) continue;
+    } else if (e.kind !== 'supersedes') {
+      continue;
     }
-    const bucket = buckets[e.kind];
-    if (!bucket) continue;
-    bucket.positions.push(
-      a.position.x, a.position.y, a.position.z,
-      b.position.x, b.position.y, b.position.z,
-    );
-    bucket.edges.push(e);
+    visiblePerKind[e.kind].push(e);
   }
+
+  const KIND_STYLE = {
+    semantic:   { color: COLOR.edgeSemantic,   opacity: 0.7  },
+    keyword:    { color: COLOR.edgeKeyword,    opacity: 0.55 },
+    supersedes: { color: COLOR.edgeSupersedes, opacity: 0.85 },
+  };
 
   const w = renderer.domElement.clientWidth;
   const h = renderer.domElement.clientHeight;
-  for (const k of Object.keys(buckets)) {
-    const b = buckets[k];
-    if (!b.positions.length) continue;
-    const geom = new LineSegmentsGeometry();
-    geom.setPositions(b.positions);
-    const mat = new LineMaterial({
-      color: b.color,
-      linewidth: EDGE_LINEWIDTH,
-      transparent: true,
-      opacity: b.opacity,
-      worldUnits: false,
-      dashed: false,
-    });
-    mat.resolution.set(w, h);
-    const lines = new LineSegments2(geom, mat);
-    lines.computeLineDistances();
-    lines.userData = { kind: k, segments: b.edges };
-    edgeGroup.add(lines);
-    edgeLineObjects.push({ obj: lines, perSegment: b.edges });
+
+  /* For each kind: bucket edges by weight quartile, build one LineSegments2
+   * per non-empty bucket with linewidth proportional to the bucket index.
+   * Result: edges with higher weight render visibly thicker. */
+  for (const kind of Object.keys(visiblePerKind)) {
+    const list = visiblePerKind[kind];
+    if (!list.length) continue;
+    const style = KIND_STYLE[kind];
+
+    let wMin = Infinity, wMax = -Infinity;
+    for (const e of list) {
+      const ww = e.weight ?? 0;
+      if (ww < wMin) wMin = ww;
+      if (ww > wMax) wMax = ww;
+    }
+    const span = wMax - wMin;
+
+    const buckets = Array.from({ length: EDGE_LW_BUCKETS }, () => ({ positions: [], edges: [] }));
+    for (const e of list) {
+      const t = span > 1e-6 ? ((e.weight ?? 0) - wMin) / span : 0.5;
+      const bi = Math.min(EDGE_LW_BUCKETS - 1, Math.floor(t * EDGE_LW_BUCKETS));
+      const a = nodeMeshes.value.get(e.src);
+      const b = nodeMeshes.value.get(e.dst);
+      buckets[bi].positions.push(
+        a.position.x, a.position.y, a.position.z,
+        b.position.x, b.position.y, b.position.z,
+      );
+      buckets[bi].edges.push(e);
+    }
+
+    for (let i = 0; i < EDGE_LW_BUCKETS; ++i) {
+      const b = buckets[i];
+      if (!b.positions.length) continue;
+      const lw = EDGE_LW_MIN + (i / Math.max(1, EDGE_LW_BUCKETS - 1)) * (EDGE_LW_MAX - EDGE_LW_MIN);
+      const geom = new LineSegmentsGeometry();
+      geom.setPositions(b.positions);
+      const mat = new LineMaterial({
+        color: style.color,
+        linewidth: lw,
+        transparent: true,
+        opacity: style.opacity,
+        worldUnits: false,
+        dashed: false,
+      });
+      mat.resolution.set(w, h);
+      const lines = new LineSegments2(geom, mat);
+      lines.computeLineDistances();
+      lines.userData = { kind, segments: b.edges };
+      edgeGroup.add(lines);
+      edgeLineObjects.push({ obj: lines, perSegment: b.edges });
+    }
   }
 }
 
