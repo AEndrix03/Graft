@@ -299,7 +299,7 @@ const stats = computed(() => `${nodes.value.length} nodes · ${edges.value.lengt
         </div>
         <div v-if="selectedScore != null" class="score-box">
           <span class="score-label">score</span>
-          <span class="score-pct">{{ selectedScorePct.toFixed(0) }}%</span>
+          <span class="score-pct">{{ selectedScorePct.toFixed(2) }}%</span>
           <span class="score-sep">·</span>
           <span class="score-abs">{{ selectedScore.toFixed(4) }}</span>
         </div>
