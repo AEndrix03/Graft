@@ -7,6 +7,12 @@ Due livelli di integrazione:
 
 ## Install AGENTS.md
 
+Installazione user-scoped automatica di istruzioni, skill compatibili e hook:
+
+```bash
+memgraph setup codex
+```
+
 Codex (OpenAI's coding agent) reads `AGENTS.md` files at the repo root or in subdirs as context for the model.
 
 ```bash

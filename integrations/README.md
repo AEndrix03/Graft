@@ -42,6 +42,15 @@ I CLI assistant (Claude Code, Codex, …) chiamano direttamente il binario `memg
 2. `memgraphd --config config.example.yaml` deve essere in esecuzione.
 3. La env var `MEMGRAPH_SOCKET` punta al socket (default `/tmp/memgraph.sock`).
 
+## Setup CLI assistant
+
+Per installare skill/istruzioni e hook nel profilo utente dell'assistant:
+
+```bash
+memgraph setup claudecode
+memgraph setup codex
+```
+
 ## Mapping operazioni → tool name
 
 Tutti gli adapter espongono lo **stesso set di operazioni** sotto nomi consistenti:

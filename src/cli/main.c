@@ -23,6 +23,7 @@
 #include "autostart.h"
 #include "usage_log.h"
 #include "profile.h"
+#include "setup.h"
 
 #ifdef _WIN32
 #  define mg_setenv(k, v) _putenv_s((k), (v))
@@ -166,6 +167,7 @@ static int usage(void) {
         "  memgraph consolidate\n"
         "  memgraph analytics [--since 7d|24h] [--seconds-per-hit 60]\n"
         "  memgraph profile <list|current|add|remove|set|import|export> ...\n"
+        "  memgraph setup <claudecode|codex>\n"
         "  memgraph view [--port 9977]   (opens 3D viewer in browser; needs http.enabled)\n");
     return 2;
 }
@@ -445,6 +447,9 @@ int main(int argc, char **argv) {
     }
     if (!strcmp(cmd, "profile")) {
         return mg_profile_cmd(argc, argv);
+    }
+    if (!strcmp(cmd, "setup")) {
+        return mg_setup_cmd(argc, argv);
     }
     /* `view` opens the browser at the daemon's HTTP layer. The HTTP layer
      * has to be enabled in config.yaml — we don't reach into the config

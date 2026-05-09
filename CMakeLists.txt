@@ -128,6 +128,7 @@ add_executable(memgraph
   src/cli/autostart.c
   src/cli/usage_log.c
   src/cli/profile.c
+  src/cli/setup.c
 )
 target_link_libraries(memgraph memgraph_core)
 

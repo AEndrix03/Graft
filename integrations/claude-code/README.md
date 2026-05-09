@@ -20,6 +20,12 @@ Sei skill collaborano:
 
 ## Installazione
 
+Installazione user-scoped automatica:
+
+```bash
+memgraph setup claudecode
+```
+
 Copia tutta la directory `skills/` (le 4 sotto-cartelle) nella skill folder di Claude Code:
 
 ```bash
