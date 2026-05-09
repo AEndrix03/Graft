@@ -1,5 +1,12 @@
 # Claude Code — memgraph skill suite
 
+Due livelli di integrazione:
+
+- **Skill** (`skills/`) — slash command + auto-invocation in base al contesto. L'agent decide quando usarli.
+- **Hooks** (`hooks/`) — eseguiti dal harness in modo deterministico su `UserPromptSubmit` / `PostToolUse` / `Stop`. Non dipendono dal modello che si ricorda di usarli. Vedi [`hooks/README.md`](./hooks/README.md) per il setup.
+
+## Skill
+
 Sei skill collaborano:
 
 | Skill              | Trigger                                           | Cosa fa                                                                  |
