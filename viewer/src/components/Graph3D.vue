@@ -293,11 +293,11 @@ function rebuildEdges() {
 /* Rank ramp: deep red → light orange, sharp tier-stepped. Discrete buckets
  * give a more decisive visual stratification than a smooth gradient. */
 const RANK_COLORS = [
-  '#a31919', // 1: deep crimson — most relevant
-  '#d94a1a', // 2: red-orange
-  '#ea7c1e', // 3: orange
-  '#f5a572', // 4: light orange
-  '#f9d4a8', // 5: pale peach — least relevant
+  '#b30000', // 1: vivid dark red — most relevant
+  '#e63b00', // 2: punchy red-orange
+  '#ff7f00', // 3: full orange
+  '#ffb84d', // 4: bright light orange
+  '#ffe0b3', // 5: pale peach — least relevant
 ];
 function rankColorOrange(idx, total) {
   if (total <= 0) return new THREE.Color(RANK_COLORS[0]);

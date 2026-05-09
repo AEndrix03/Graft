@@ -22,9 +22,20 @@ const edgeTooltip   = ref(null);  // { kind, weight, keyword?, x, y }
 const dimMode       = ref(false);
 const colorRamp     = ref(null);  // 'orange' or null — controls the rank coloring
 const searchMode    = ref(null);  // 'match'|'search'|'explore' or null — for prev/next visibility
+const searchScores  = ref(new Map());  // id_hex -> raw RRF score (Retrieve only)
+const topScore      = ref(0);          // highest score in the current Retrieve result set
 const selectedIdx = computed(() => {
   if (!selectedId.value) return -1;
   return highlightedIds.value.indexOf(selectedId.value);
+});
+const selectedScore = computed(() => {
+  if (!selectedId.value) return null;
+  const s = searchScores.value.get(selectedId.value);
+  return typeof s === 'number' ? s : null;
+});
+const selectedScorePct = computed(() => {
+  if (selectedScore.value == null || topScore.value <= 0) return null;
+  return (selectedScore.value / topScore.value) * 100;
 });
 const matchFeedback = ref(null);  // { hit: 'MISS'|'WEAK', tone: 'warn'|'info', text: string }
 let matchFeedbackTimer = null;
@@ -88,9 +99,16 @@ async function onSearch({ mode, text, top_k, depth, beam }) {
       }
     } else if (mode === 'search') {
       const r = unwrap(await api.search(text, top_k));
-      const ids = (r?.results || []).map((x) => x.id_hex);
+      const items = r?.results || [];
+      const ids = items.map((x) => x.id_hex);
       highlightedIds.value = ids;
       selectedId.value = ids[0] || null;
+      const map = new Map();
+      for (const it of items) {
+        if (it && typeof it.score === 'number') map.set(it.id_hex, it.score);
+      }
+      searchScores.value = map;
+      topScore.value = items.length ? (items[0].score ?? 0) : 0;
       dimMode.value = ids.length > 0;
       colorRamp.value = 'orange';
       searchMode.value = 'search';
@@ -113,6 +131,8 @@ function onClear() {
   dimMode.value = false;
   colorRamp.value = null;
   searchMode.value = null;
+  searchScores.value = new Map();
+  topScore.value = 0;
 }
 
 function navigateResult(delta) {
@@ -219,14 +239,22 @@ const stats = computed(() => `${nodes.value.length} nodes · ${edges.value.lengt
     />
 
     <transition name="fade-down">
-      <div v-if="searchMode === 'search' && highlightedIds.length > 1" class="result-nav">
-        <button class="nav-btn" @click="navigateResult(-1)" title="Previous (←)">‹</button>
-        <span class="counter">
-          <span class="rank">{{ selectedIdx >= 0 ? selectedIdx + 1 : '–' }}</span>
-          <span class="sep">/</span>
-          <span class="total">{{ highlightedIds.length }}</span>
-        </span>
-        <button class="nav-btn" @click="navigateResult(1)" title="Next (→)">›</button>
+      <div v-if="searchMode === 'search' && highlightedIds.length > 0" class="result-nav-wrap">
+        <div v-if="highlightedIds.length > 1" class="result-nav">
+          <button class="nav-btn" @click="navigateResult(-1)" title="Previous (←)">‹</button>
+          <span class="counter">
+            <span class="rank">{{ selectedIdx >= 0 ? selectedIdx + 1 : '–' }}</span>
+            <span class="sep">/</span>
+            <span class="total">{{ highlightedIds.length }}</span>
+          </span>
+          <button class="nav-btn" @click="navigateResult(1)" title="Next (→)">›</button>
+        </div>
+        <div v-if="selectedScore != null" class="score-box">
+          <span class="score-label">score</span>
+          <span class="score-pct">{{ selectedScorePct.toFixed(0) }}%</span>
+          <span class="score-sep">·</span>
+          <span class="score-abs">{{ selectedScore.toFixed(4) }}</span>
+        </div>
       </div>
     </transition>
 
@@ -332,7 +360,7 @@ const stats = computed(() => `${nodes.value.length} nodes · ${edges.value.lengt
   z-index: 20;
 }
 
-.result-nav {
+.result-nav-wrap {
   position: absolute;
   top: 76px;
   left: 50%;
@@ -340,17 +368,24 @@ const stats = computed(() => `${nodes.value.length} nodes · ${edges.value.lengt
   z-index: 9;
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 4px 10px;
-  background: var(--bg-overlay);
-  border: 1px solid var(--border);
+  gap: 8px;
+}
+.result-nav, .score-box {
+  display: flex;
+  align-items: center;
+  /* Brighter than the global overlay so these read at a glance */
+  background: rgba(34, 38, 50, 0.95);
+  border: 1px solid rgba(122, 162, 247, 0.32);
   border-radius: 999px;
   backdrop-filter: blur(8px);
-  box-shadow: var(--shadow);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(122, 162, 247, 0.05);
   font-family: var(--mono);
   font-size: 13px;
   color: var(--text);
 }
+.result-nav { gap: 6px; padding: 4px 10px; }
+.score-box  { gap: 6px; padding: 6px 12px; }
+
 .result-nav .nav-btn {
   width: 28px;
   height: 28px;
@@ -362,15 +397,30 @@ const stats = computed(() => `${nodes.value.length} nodes · ${edges.value.lengt
   border-radius: 999px;
   font-size: 18px;
   line-height: 1;
-  color: var(--text-dim);
+  color: var(--text);
   cursor: pointer;
   padding: 0;
 }
-.result-nav .nav-btn:hover { color: var(--text); border-color: var(--border); }
+.result-nav .nav-btn:hover {
+  background: rgba(122, 162, 247, 0.14);
+  border-color: rgba(122, 162, 247, 0.45);
+}
 .result-nav .counter { padding: 0 4px; min-width: 56px; text-align: center; }
-.result-nav .rank { color: #f5a572; font-weight: 600; }
+.result-nav .rank { color: #ff8c4d; font-weight: 700; }
 .result-nav .sep { color: var(--text-muted); margin: 0 4px; }
 .result-nav .total { color: var(--text-dim); }
+
+.score-box .score-label {
+  font-family: var(--font);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  margin-right: 2px;
+}
+.score-box .score-pct { color: #ff8c4d; font-weight: 700; }
+.score-box .score-sep { color: var(--text-muted); }
+.score-box .score-abs { color: var(--text-dim); }
 
 .match-banner {
   margin-top: 8px;
@@ -379,11 +429,11 @@ const stats = computed(() => `${nodes.value.length} nodes · ${edges.value.lengt
   gap: 10px;
   padding: 8px 12px;
   font-size: 12.5px;
-  background: var(--bg-overlay);
-  border: 1px solid var(--border);
+  background: rgba(34, 38, 50, 0.95);
+  border: 1px solid rgba(122, 162, 247, 0.28);
   border-radius: var(--radius);
   backdrop-filter: blur(8px);
-  box-shadow: var(--shadow);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
   color: var(--text);
 }
 .match-banner.warn { border-color: rgba(249, 226, 175, 0.5); }
