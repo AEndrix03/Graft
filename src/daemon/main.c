@@ -23,6 +23,7 @@
 #include "memgraph/verify.h"
 #include "memgraph/config.h"
 #include "memgraph/error.h"
+#include "memgraph/http.h"
 #include "internal.h"
 
 #include <pthread.h>
@@ -87,6 +88,7 @@ static void ensure_parent_dir(const char *path) {
 
 static volatile sig_atomic_t g_shutdown  = 0;
 static int                   g_listen_fd = -1;
+static mg_http_server_t     *g_http_srv  = NULL;
 
 static void on_signal(int sig) {
     (void)sig;
@@ -203,6 +205,12 @@ int main(int argc, char **argv) {
     }
     fprintf(stderr, "memgraphd: listening on %s\n", cfg.socket_path);
 
+    /* Optional HTTP layer — off by default. */
+    if (mg_http_start(&ctx, &g_http_srv) != MG_OK) {
+        fprintf(stderr, "http: start failed\n");
+        goto cleanup;
+    }
+
     while (!g_shutdown) {
         int cfd = mg_daemon_socket_accept(g_listen_fd);
         if (cfd < 0) break;
@@ -222,6 +230,10 @@ int main(int argc, char **argv) {
     }
 
     fprintf(stderr, "memgraphd: shutting down\n");
+    if (g_http_srv) {
+        mg_http_stop(g_http_srv);
+        g_http_srv = NULL;
+    }
     if (g_listen_fd >= 0) {
         mg_daemon_socket_close(g_listen_fd);
         g_listen_fd = -1;

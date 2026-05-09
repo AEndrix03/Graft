@@ -93,6 +93,7 @@ file(GLOB MEMGRAPH_SRC CONFIGURE_DEPENDS
   src/verify/*.c
   src/stats/*.c
   src/config/*.c
+  src/http/*.c
   src/daemon/wire.c
   src/daemon/dispatch.c
   src/daemon/socket.c

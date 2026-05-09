@@ -43,6 +43,19 @@ typedef struct {
   int   explore_default_depth;
   float explore_decay_gamma;
   float explore_alpha;          /* peso semantic vs edge */
+
+  /* http (REST + viewer; off by default) */
+  bool   http_enabled;
+  char  *http_bind;             /* default "127.0.0.1" — local-first */
+  int    http_port;             /* default 9977 */
+  char  *http_api_key;          /* NULL = no auth; if set, Bearer required */
+  bool   http_ep_match;
+  bool   http_ep_search;
+  bool   http_ep_explore;
+  bool   http_ep_classify;
+  bool   http_ep_insert;
+  bool   http_ep_delete;        /* default false — sensitive */
+  bool   http_ep_view;
 } mg_config_t;
 
 mg_err_t mg_config_load(const char *path, mg_config_t *out);

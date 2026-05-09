@@ -65,6 +65,17 @@ void mg_config_defaults(mg_config_t *cfg) {
   cfg->explore_default_depth = 3;
   cfg->explore_decay_gamma = 0.85f;
   cfg->explore_alpha = 0.5f;
+  cfg->http_enabled = false;
+  cfg->http_bind = mg_config_strdup("127.0.0.1");
+  cfg->http_port = 9977;
+  cfg->http_api_key = NULL;
+  cfg->http_ep_match = true;
+  cfg->http_ep_search = true;
+  cfg->http_ep_explore = true;
+  cfg->http_ep_classify = true;
+  cfg->http_ep_insert = true;
+  cfg->http_ep_delete = false;
+  cfg->http_ep_view = true;
 }
 
 void mg_config_free(mg_config_t *cfg) {
@@ -76,6 +87,8 @@ void mg_config_free(mg_config_t *cfg) {
   free(cfg->db_path);
   free(cfg->embed_model_path);
   free(cfg->cross_encoder_model_path);
+  free(cfg->http_bind);
+  free(cfg->http_api_key);
   memset(cfg, 0, sizeof(*cfg));
 }
 
@@ -189,6 +202,25 @@ static mg_err_t mg_config_apply(mg_config_t *cfg,
     if (strcmp(key, "default_depth") == 0 && mg_parse_int(value, &cfg->explore_default_depth)) return MG_OK;
     if (strcmp(key, "decay_gamma") == 0 && mg_parse_float(value, &cfg->explore_decay_gamma)) return MG_OK;
     if (strcmp(key, "alpha") == 0 && mg_parse_float(value, &cfg->explore_alpha)) return MG_OK;
+  } else if (strcmp(section, "http") == 0) {
+    if (strcmp(key, "enabled") == 0 && mg_parse_bool(value, &b)) {
+      cfg->http_enabled = b;
+      return MG_OK;
+    }
+    if (strcmp(key, "bind") == 0) {
+      return mg_config_set_string(&cfg->http_bind, value);
+    }
+    if (strcmp(key, "port") == 0 && mg_parse_int(value, &cfg->http_port)) return MG_OK;
+    if (strcmp(key, "api_key") == 0) {
+      return mg_config_set_string(&cfg->http_api_key, value);
+    }
+    if (strcmp(key, "endpoint_match")    == 0 && mg_parse_bool(value, &b)) { cfg->http_ep_match = b; return MG_OK; }
+    if (strcmp(key, "endpoint_search")   == 0 && mg_parse_bool(value, &b)) { cfg->http_ep_search = b; return MG_OK; }
+    if (strcmp(key, "endpoint_explore")  == 0 && mg_parse_bool(value, &b)) { cfg->http_ep_explore = b; return MG_OK; }
+    if (strcmp(key, "endpoint_classify") == 0 && mg_parse_bool(value, &b)) { cfg->http_ep_classify = b; return MG_OK; }
+    if (strcmp(key, "endpoint_insert")   == 0 && mg_parse_bool(value, &b)) { cfg->http_ep_insert = b; return MG_OK; }
+    if (strcmp(key, "endpoint_delete")   == 0 && mg_parse_bool(value, &b)) { cfg->http_ep_delete = b; return MG_OK; }
+    if (strcmp(key, "endpoint_view")     == 0 && mg_parse_bool(value, &b)) { cfg->http_ep_view = b; return MG_OK; }
   }
 
   return MG_OK;
