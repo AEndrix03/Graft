@@ -38,7 +38,7 @@ const NODE_R_BASE       = 0.12;  // sphere radius for an "average" body
 const NODE_R_MIN        = 0.08;
 const NODE_R_MAX        = 0.30;
 const NODE_R_LOG_FACTOR = 0.07;  // delta per ln(body_len)
-const LABEL_NEAR_DIST   = 14.0;  // mid-zoom: not too generous, not glued to the node
+const LABEL_NEAR_DIST   = 8.0;   // close-zoom only — labels appear when actually inspecting a node
 const EDGE_LINEWIDTH    = 1.6;   // pixel-thick edges via Line2 (less screen weight at this scale)
 
 const COLOR = {
@@ -126,6 +126,41 @@ function rebuildNodes() {
   }
 }
 
+/* Pick the semantic edges to render. By default we keep only the top-2
+ * outgoing semantic edges per source node — this drops the visual clutter
+ * dramatically without losing the dominant relationships. When a search
+ * highlight is active, we also keep semantic edges that connect two
+ * highlighted nodes, so the user sees the relevant subgraph at full
+ * fidelity even if those edges aren't in the top-2. */
+const SEMANTIC_TOP_PER_SRC = 2;
+function chooseSemanticEdges(allEdges, highlightedSet) {
+  const bySrc = new Map();
+  for (const e of allEdges) {
+    if (e.kind !== 'semantic') continue;
+    if (!bySrc.has(e.src)) bySrc.set(e.src, []);
+    bySrc.get(e.src).push(e);
+  }
+  const seen = new Set();
+  const out = [];
+  const keyOf = (e) => `${e.src}|${e.dst}|${e.kind}`;
+  for (const list of bySrc.values()) {
+    list.sort((a, b) => (b.weight ?? 0) - (a.weight ?? 0));
+    for (const e of list.slice(0, SEMANTIC_TOP_PER_SRC)) {
+      const k = keyOf(e);
+      if (!seen.has(k)) { seen.add(k); out.push(e); }
+    }
+  }
+  if (highlightedSet && highlightedSet.size > 1) {
+    for (const e of allEdges) {
+      if (e.kind !== 'semantic') continue;
+      if (!highlightedSet.has(e.src) || !highlightedSet.has(e.dst)) continue;
+      const k = keyOf(e);
+      if (!seen.has(k)) { seen.add(k); out.push(e); }
+    }
+  }
+  return out;
+}
+
 function rebuildEdges() {
   // Dispose previous line objects
   for (const e of edgeLineObjects) {
@@ -141,12 +176,20 @@ function rebuildEdges() {
     supersedes: { positions: [], edges: [], color: COLOR.edgeSupersedes, opacity: 0.85 },
   };
 
+  const highlightedSet = new Set(props.highlightedIds || []);
+  const semanticVisible = new Set(
+    chooseSemanticEdges(props.edges, highlightedSet)
+      .map((e) => `${e.src}|${e.dst}|${e.kind}`)
+  );
+
   for (const e of props.edges) {
     const a = nodeMeshes.value.get(e.src);
     const b = nodeMeshes.value.get(e.dst);
     if (!a || !b) continue;
-    if (e.kind === 'semantic' && !props.showSemantic) continue;
-    if (e.kind === 'keyword' && !props.showKeyword) continue;
+    if (e.kind === 'semantic') {
+      if (!props.showSemantic) continue;
+      if (!semanticVisible.has(`${e.src}|${e.dst}|${e.kind}`)) continue;
+    } else if (e.kind === 'keyword' && !props.showKeyword) continue;
     const bucket = buckets[e.kind];
     if (!bucket) continue;
     bucket.positions.push(
@@ -427,7 +470,7 @@ watch(() => props.edges,    () => rebuildEdges());
 watch(() => props.showSemantic, () => rebuildEdges());
 watch(() => props.showKeyword,  () => rebuildEdges());
 watch(() => props.selectedId, () => { applyHighlights(); focusOnSelected(); });
-watch(() => props.highlightedIds, applyHighlights, { deep: true });
+watch(() => props.highlightedIds, () => { applyHighlights(); rebuildEdges(); }, { deep: true });
 </script>
 
 <template>
