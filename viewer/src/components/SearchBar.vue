@@ -11,8 +11,8 @@ const emit = defineEmits(['search', 'clear']);
 const mode  = ref('match');
 const text  = ref('');
 const topK  = ref(10);
-const depth = ref(3);
-const beam  = ref(4);
+const depth = ref(5);
+const beam  = ref(1);
 
 /* Explore-only keyword chips + autocomplete */
 const kwInput = ref('');
