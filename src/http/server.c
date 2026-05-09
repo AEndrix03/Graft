@@ -86,6 +86,11 @@ static void *handle_client(void *arg) {
     goto send;
   }
 
+  /* Static SPA bundle is served unauthenticated — it's just HTML/JS/CSS
+   * and the SPA itself attaches the bearer token to its own /v1/* fetches.
+   * Try this first so /, /assets/* etc. don't require a key. */
+  if (mg_http_try_static(ctx, &req, &resp)) goto send;
+
   /* Auth check applies to everything except /v1/healthz so liveness probes
    * don't need credentials. */
   if (strcmp(req.path ? req.path : "", "/v1/healthz") != 0

@@ -56,6 +56,7 @@ typedef struct {
   bool   http_ep_insert;
   bool   http_ep_delete;        /* default false — sensitive */
   bool   http_ep_view;
+  char  *http_viewer_path;       /* directory of the static SPA bundle (index.html, assets/) */
 } mg_config_t;
 
 mg_err_t mg_config_load(const char *path, mg_config_t *out);

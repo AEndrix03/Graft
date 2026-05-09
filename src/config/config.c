@@ -76,6 +76,7 @@ void mg_config_defaults(mg_config_t *cfg) {
   cfg->http_ep_insert = true;
   cfg->http_ep_delete = false;
   cfg->http_ep_view = true;
+  cfg->http_viewer_path = mg_config_strdup("viewer/dist");
 }
 
 void mg_config_free(mg_config_t *cfg) {
@@ -89,6 +90,7 @@ void mg_config_free(mg_config_t *cfg) {
   free(cfg->cross_encoder_model_path);
   free(cfg->http_bind);
   free(cfg->http_api_key);
+  free(cfg->http_viewer_path);
   memset(cfg, 0, sizeof(*cfg));
 }
 
@@ -221,6 +223,9 @@ static mg_err_t mg_config_apply(mg_config_t *cfg,
     if (strcmp(key, "endpoint_insert")   == 0 && mg_parse_bool(value, &b)) { cfg->http_ep_insert = b; return MG_OK; }
     if (strcmp(key, "endpoint_delete")   == 0 && mg_parse_bool(value, &b)) { cfg->http_ep_delete = b; return MG_OK; }
     if (strcmp(key, "endpoint_view")     == 0 && mg_parse_bool(value, &b)) { cfg->http_ep_view = b; return MG_OK; }
+    if (strcmp(key, "viewer_path") == 0) {
+      return mg_config_set_string(&cfg->http_viewer_path, value);
+    }
   }
 
   return MG_OK;

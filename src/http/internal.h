@@ -81,4 +81,9 @@ void mg_http_error(mg_http_response_t *resp, int status, const char *msg);
 /* Auth check. Returns true if the request passes (or no key is configured). */
 bool mg_http_auth_ok(const mg_ctx_t *ctx, const mg_http_request_t *req);
 
+/* Static file fallback for the viewer SPA. Returns true when a static asset
+ * was found and the response was populated. False means "not ours, route
+ * to API handlers instead". */
+bool mg_http_try_static(mg_ctx_t *ctx, mg_http_request_t *req, mg_http_response_t *resp);
+
 #endif
