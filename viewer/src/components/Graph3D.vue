@@ -182,14 +182,22 @@ function rebuildEdges() {
   const highlightedSet = new Set(props.highlightedIds || []);
   const keyOf = (e) => `${e.src}|${e.dst}|${e.kind}`;
 
-  /* Two edge-visibility strategies:
+  /* Edge-visibility strategies:
    *  - DEFAULT: top-2 outgoing per source for semantic + keyword, plus any
    *    edge connecting two highlighted nodes (search-aware top-up).
-   *  - DIM MODE: only edges whose both endpoints are highlighted survive,
-   *    of any kind. Everything else is hidden so the relevant subgraph
-   *    reads cleanly against the dimmed-out scene. */
+   *  - DIM MODE: edges restricted to the highlighted subgraph. Semantic edges
+   *    are still capped at top-2-per-source within that subgraph (avoids
+   *    clutter when a node has many strong semantic links to results).
+   *    Keyword and supersedes edges show every member of the subgraph. */
   const semanticVisible = new Set(chooseTopEdges(props.edges, 'semantic', highlightedSet).map(keyOf));
   const keywordVisible  = new Set(chooseTopEdges(props.edges, 'keyword',  highlightedSet).map(keyOf));
+  /* Top-2 semantic restricted to the subgraph — used in dim mode. */
+  const subgraphEdges = props.dimNonHighlighted
+    ? props.edges.filter((e) => highlightedSet.has(e.src) && highlightedSet.has(e.dst))
+    : [];
+  const semanticSubgraphTop2 = new Set(
+    chooseTopEdges(subgraphEdges, 'semantic', null).map(keyOf)
+  );
 
   /* Group visible edges by kind */
   const visiblePerKind = { semantic: [], keyword: [], supersedes: [] };
@@ -200,9 +208,14 @@ function rebuildEdges() {
 
     if (props.dimNonHighlighted) {
       if (!highlightedSet.has(e.src) || !highlightedSet.has(e.dst)) continue;
-      if (e.kind === 'semantic' && !props.showSemantic) continue;
-      if (e.kind === 'keyword'  && !props.showKeyword) continue;
-      if (e.kind !== 'semantic' && e.kind !== 'keyword' && e.kind !== 'supersedes') continue;
+      if (e.kind === 'semantic') {
+        if (!props.showSemantic) continue;
+        if (!semanticSubgraphTop2.has(keyOf(e))) continue;
+      } else if (e.kind === 'keyword') {
+        if (!props.showKeyword) continue;
+      } else if (e.kind !== 'supersedes') {
+        continue;
+      }
     } else if (e.kind === 'semantic') {
       if (!props.showSemantic) continue;
       if (!semanticVisible.has(keyOf(e))) continue;
@@ -277,12 +290,21 @@ function rebuildEdges() {
   }
 }
 
-/* Rank-based orange ramp: dark (most relevant) → light. Returns a THREE.Color. */
+/* Rank ramp: deep red → light orange, sharp tier-stepped. Discrete buckets
+ * give a more decisive visual stratification than a smooth gradient. */
+const RANK_COLORS = [
+  '#a31919', // 1: deep crimson — most relevant
+  '#d94a1a', // 2: red-orange
+  '#ea7c1e', // 3: orange
+  '#f5a572', // 4: light orange
+  '#f9d4a8', // 5: pale peach — least relevant
+];
 function rankColorOrange(idx, total) {
-  const t = total > 1 ? idx / (total - 1) : 0;
-  const l = 0.32 + t * 0.40;             // L: 32% (dark) → 72% (light)
-  const s = 0.95 - t * 0.20;             // slightly desaturate as we go lighter
-  return new THREE.Color().setHSL(25 / 360, s, l);
+  if (total <= 0) return new THREE.Color(RANK_COLORS[0]);
+  const denom = Math.max(1, total - 1);
+  const t = idx / denom;
+  const bucket = Math.min(RANK_COLORS.length - 1, Math.floor(t * RANK_COLORS.length));
+  return new THREE.Color(RANK_COLORS[bucket]);
 }
 
 function applyHighlights() {

@@ -126,9 +126,23 @@ function navigateResult(delta) {
 }
 
 function onNodeSelected(id) {
+  edgeTooltip.value = null;
+  /* In Retrieve mode the highlighted set IS the result list. Clicking a
+   * node already in that list just navigates within results (preserves the
+   * dimmed scene). Clicking a non-result node exits Retrieve mode entirely
+   * — same effect as Clear, but keeps the new selection so the user can
+   * inspect what they actually clicked. */
+  if (searchMode.value === 'search') {
+    if (highlightedIds.value.includes(id)) {
+      selectedId.value = id;
+      return;
+    }
+    dimMode.value = false;
+    colorRamp.value = null;
+    searchMode.value = null;
+  }
   selectedId.value = id;
   highlightedIds.value = [id];
-  edgeTooltip.value = null;
 }
 
 function onEdgeSelected(e) {
