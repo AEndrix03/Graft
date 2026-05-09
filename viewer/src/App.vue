@@ -45,9 +45,27 @@ const selectedScore = computed(() => {
   const s = searchScores.value.get(selectedId.value);
   return typeof s === 'number' ? s : null;
 });
+/* Mode-specific absolute normalization. The previous "% of top" was useless
+ * (rank 1 always 100%) — this gives a real signal of match quality.
+ *  - Retrieve uses RRF = Σ 1/(k+rank_i) over 3 ranked lists with k=60. The
+ *    theoretical maximum (a doc that lands at rank 1 in all three) is 3/61.
+ *    A score of 0.025 = ~50% means "halfway to the strongest possible RRF."
+ *  - Explore propagates cosine through edges (cos × gamma^step × edge_w).
+ *    The score is already roughly in [0, 1], so percent = score * 100 is
+ *    directly meaningful as "approximate cosine to the seed."
+ */
+const RRF_THEORETICAL_MAX = 3 / 61;
 const selectedScorePct = computed(() => {
-  if (selectedScore.value == null || topScore.value <= 0) return null;
-  return (selectedScore.value / topScore.value) * 100;
+  if (selectedScore.value == null) return null;
+  let v;
+  if (searchMode.value === 'search') {
+    v = (selectedScore.value / RRF_THEORETICAL_MAX) * 100;
+  } else if (searchMode.value === 'explore') {
+    v = selectedScore.value * 100;
+  } else {
+    return null;
+  }
+  return Math.max(0, Math.min(100, v));
 });
 const matchFeedback = ref(null);  // { hit: 'MISS'|'WEAK', tone: 'warn'|'info', text: string }
 let matchFeedbackTimer = null;
@@ -326,7 +344,7 @@ const stats = computed(() => `${nodes.value.length} nodes · ${edges.value.lengt
             <button class="nav-btn" @click="navigateResult(1)" title="Next (→)">›</button>
           </div>
           <div v-if="selectedScore != null" class="score-box">
-            <span class="score-label">score</span>
+            <span class="score-label">{{ searchMode === 'search' ? 'rrf' : 'cos' }}</span>
             <span class="score-pct">{{ selectedScorePct.toFixed(2) }}%</span>
             <span class="score-sep">·</span>
             <span class="score-abs">{{ selectedScore.toFixed(4) }}</span>
