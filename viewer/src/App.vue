@@ -286,26 +286,6 @@ const stats = computed(() => `${nodes.value.length} nodes · ${edges.value.lengt
       @select-edge="onEdgeSelected"
     />
 
-    <transition name="fade-down">
-      <div v-if="(searchMode === 'search' || searchMode === 'explore') && highlightedIds.length > 0" class="result-nav-wrap">
-        <div v-if="highlightedIds.length > 1" class="result-nav">
-          <button class="nav-btn" @click="navigateResult(-1)" title="Previous (←)">‹</button>
-          <span class="counter">
-            <span class="rank">{{ selectedIdx >= 0 ? selectedIdx + 1 : '–' }}</span>
-            <span class="sep">/</span>
-            <span class="total">{{ highlightedIds.length }}</span>
-          </span>
-          <button class="nav-btn" @click="navigateResult(1)" title="Next (→)">›</button>
-        </div>
-        <div v-if="selectedScore != null" class="score-box">
-          <span class="score-label">score</span>
-          <span class="score-pct">{{ selectedScorePct.toFixed(2) }}%</span>
-          <span class="score-sep">·</span>
-          <span class="score-abs">{{ selectedScore.toFixed(4) }}</span>
-        </div>
-      </div>
-    </transition>
-
     <div
       v-if="edgeTooltip"
       class="edge-tooltip"
@@ -332,6 +312,25 @@ const stats = computed(() => `${nodes.value.length} nodes · ${edges.value.lengt
           <span class="badge" :class="matchFeedback.hit.toLowerCase()">{{ matchFeedback.hit }}</span>
           <span class="msg">{{ matchFeedback.text }}</span>
           <button class="dismiss" @click="setMatchFeedback(null)">×</button>
+        </div>
+      </transition>
+      <transition name="fade-down">
+        <div v-if="(searchMode === 'search' || searchMode === 'explore') && highlightedIds.length > 0" class="result-nav-wrap">
+          <div v-if="highlightedIds.length > 1" class="result-nav">
+            <button class="nav-btn" @click="navigateResult(-1)" title="Previous (←)">‹</button>
+            <span class="counter">
+              <span class="rank">{{ selectedIdx >= 0 ? selectedIdx + 1 : '–' }}</span>
+              <span class="sep">/</span>
+              <span class="total">{{ highlightedIds.length }}</span>
+            </span>
+            <button class="nav-btn" @click="navigateResult(1)" title="Next (→)">›</button>
+          </div>
+          <div v-if="selectedScore != null" class="score-box">
+            <span class="score-label">score</span>
+            <span class="score-pct">{{ selectedScorePct.toFixed(2) }}%</span>
+            <span class="score-sep">·</span>
+            <span class="score-abs">{{ selectedScore.toFixed(4) }}</span>
+          </div>
         </div>
       </transition>
     </div>
@@ -409,12 +408,9 @@ const stats = computed(() => `${nodes.value.length} nodes · ${edges.value.lengt
 }
 
 .result-nav-wrap {
-  position: absolute;
-  top: 76px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 9;
+  margin-top: 8px;
   display: flex;
+  justify-content: center;
   align-items: center;
   gap: 8px;
 }
