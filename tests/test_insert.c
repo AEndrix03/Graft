@@ -51,7 +51,7 @@ static int insert_seed(
   node.last_access = 1;
   node.access_count = 0;
   node.state = MG_NODE_ACTIVE;
-  return mg_storage_insert_node_with_edges(s, &node, emb, &kw_id, 1u, NULL, 0u) == MG_OK ? 0 : 1;
+  return mg_storage_insert_node_with_edges(s, &node, emb, &kw_id, 1u, NULL, 0u, NULL) == MG_OK ? 0 : 1;
 }
 
 int main(void) {

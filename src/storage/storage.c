@@ -198,7 +198,8 @@ mg_err_t mg_storage_insert_node_with_edges(
   const mg_node_t *node,
   const mg_embedding_t embedding,
   const mg_keyword_id_t *keyword_ids, size_t n_keywords,
-  const mg_edge_t *edges, size_t n_edges
+  const mg_edge_t *edges, size_t n_edges,
+  const mg_node_id_t *supersedes_id
 ) {
   sqlite3_stmt *stmt = NULL;
   size_t i;
@@ -267,6 +268,32 @@ mg_err_t mg_storage_insert_node_with_edges(
       err = step_done(stmt);
     }
     sqlite3_finalize(stmt);
+  }
+
+  /* Supersession (atomic with the insert): mark the old node SUPERSEDED and
+   * add a SUPERSEDES edge new -> old. Both happen inside the same tx so an
+   * outside reader never sees an "insert without supersede" intermediate. */
+  if (err == MG_OK && supersedes_id) {
+    err = prepare(s->db,
+      "INSERT OR REPLACE INTO edges(src,dst,kind,keyword_id,weight) VALUES(?,?,?,NULL,1.0);",
+      &stmt);
+    if (err == MG_OK) {
+      sqlite3_bind_blob(stmt, 1, node->id, MG_NODE_ID_BYTES, SQLITE_STATIC);
+      sqlite3_bind_blob(stmt, 2, *supersedes_id, MG_NODE_ID_BYTES, SQLITE_STATIC);
+      sqlite3_bind_int(stmt, 3, (int)MG_EDGE_SUPERSEDES);
+      err = step_done(stmt);
+    }
+    sqlite3_finalize(stmt);
+
+    if (err == MG_OK) {
+      err = prepare(s->db, "UPDATE nodes SET state = ? WHERE id = ?;", &stmt);
+      if (err == MG_OK) {
+        sqlite3_bind_int(stmt, 1, (int)MG_NODE_SUPERSEDED);
+        sqlite3_bind_blob(stmt, 2, *supersedes_id, MG_NODE_ID_BYTES, SQLITE_STATIC);
+        err = step_done(stmt);
+      }
+      sqlite3_finalize(stmt);
+    }
   }
 
   if (err == MG_OK) {
@@ -407,8 +434,15 @@ mg_err_t mg_storage_get_keyword_text(mg_storage_t *s, mg_keyword_id_t id, char *
 
 static mg_err_t topk_scan(mg_storage_t *s, const mg_embedding_t query, int k, mg_keyword_id_t kw_id, int use_kw, mg_node_score_t *out, int *out_count) {
   sqlite3_stmt *stmt = NULL;
-  const char *sql_all = "SELECT id,embedding FROM node_vec;";
-  const char *sql_kw = "SELECT v.id,v.embedding FROM node_vec v JOIN node_keywords nk ON nk.node_id=v.id WHERE nk.keyword_id=?;";
+  /* Exclude superseded nodes (state=2) from semantic search — when a node has
+   * been replaced via the supersession flow it is still addressable via GET
+   * but should not surface as a candidate for query/retrieve/explore seeds. */
+  const char *sql_all = "SELECT v.id,v.embedding FROM node_vec v "
+                        "JOIN nodes n ON n.id=v.id WHERE n.state != 2;";
+  const char *sql_kw  = "SELECT v.id,v.embedding FROM node_vec v "
+                        "JOIN node_keywords nk ON nk.node_id=v.id "
+                        "JOIN nodes n ON n.id=v.id "
+                        "WHERE nk.keyword_id=? AND n.state != 2;";
   int rc;
   if (!s || !query || k < 0 || !out || !out_count) {
     return MG_ERR_INVALID_ARG;
@@ -458,7 +492,7 @@ mg_err_t mg_storage_fts_search(mg_storage_t *s, const char *query_text, int k, b
   }
   (void)match_title;
   (void)match_body;
-  if (prepare(s->db, "SELECT nodes.id, -bm25(node_fts) FROM node_fts JOIN nodes ON nodes.rowid=node_fts.rowid WHERE node_fts MATCH ? ORDER BY bm25(node_fts) LIMIT ?;", &stmt) != MG_OK) {
+  if (prepare(s->db, "SELECT nodes.id, -bm25(node_fts) FROM node_fts JOIN nodes ON nodes.rowid=node_fts.rowid WHERE node_fts MATCH ? AND nodes.state != 2 ORDER BY bm25(node_fts) LIMIT ?;", &stmt) != MG_OK) {
     return MG_ERR_STORAGE;
   }
   sqlite3_bind_text(stmt, 1, query_text, -1, SQLITE_STATIC);

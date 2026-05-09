@@ -14,13 +14,19 @@ mg_err_t mg_storage_apply_schema(mg_storage_t *s);
 
 /* === Nodi === */
 /* Inserisce nodo + embedding. La transazione include anche gli archi
- * passati in input (per atomicita'). edges puo' essere NULL/0 se non si vogliono archi. */
+ * passati in input (per atomicita'). edges puo' essere NULL/0 se non si vogliono archi.
+ *
+ * If supersedes_id is non-NULL, the same transaction also marks that node
+ * as MG_NODE_SUPERSEDED and adds a SUPERSEDES edge from the new node to it.
+ * Atomicity ensures the graph is never observed in an inconsistent state
+ * (i.e. the SUPERSEDES edge always agrees with the old node's state). */
 mg_err_t mg_storage_insert_node_with_edges(
   mg_storage_t *s,
   const mg_node_t *node,
   const mg_embedding_t embedding,
   const mg_keyword_id_t *keyword_ids, size_t n_keywords,
-  const mg_edge_t *edges, size_t n_edges
+  const mg_edge_t *edges, size_t n_edges,
+  const mg_node_id_t *supersedes_id
 );
 
 /* Recupera nodo. Il chiamante deve fare mg_node_free su out->summary/detail. */

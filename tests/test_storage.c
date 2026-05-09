@@ -62,7 +62,7 @@ int main(void) {
   node.state = MG_NODE_ACTIVE;
   make_embedding(emb);
 
-  err = mg_storage_insert_node_with_edges(s, &node, emb, NULL, 0, NULL, 0);
+  err = mg_storage_insert_node_with_edges(s, &node, emb, NULL, 0, NULL, 0, NULL);
   if (err != MG_OK) {
     fprintf(stderr, "insert: %s\n", mg_strerror(err));
     mg_storage_close(s);
@@ -91,7 +91,7 @@ int main(void) {
     return 1;
   }
 
-  err = mg_storage_insert_node_with_edges(s, &node, emb, NULL, 0, NULL, 0);
+  err = mg_storage_insert_node_with_edges(s, &node, emb, NULL, 0, NULL, 0, NULL);
   if (err != MG_ERR_DUPLICATE) {
     fprintf(stderr, "duplicate check failed: %s\n", mg_strerror(err));
     mg_storage_close(s);

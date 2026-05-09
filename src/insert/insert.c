@@ -214,6 +214,8 @@ mg_err_t mg_op_insert(mg_ctx_t *ctx, mpack_node_t args, mpack_writer_t *result) 
   char **keywords = NULL;
   size_t n_keywords = 0u;
   int64_t expires_at = 0;
+  mg_node_id_t supersedes_id;
+  bool has_supersedes = false;
 
   mg_err_t err = copy_msgpack_string(args, "title", &title);
   if (err != MG_OK) {
@@ -239,6 +241,31 @@ mg_err_t mg_op_insert(mg_ctx_t *ctx, mpack_node_t args, mpack_writer_t *result) 
     if (!mpack_node_is_missing(e) && !mpack_node_is_nil(e)) {
       expires_at = (int64_t)mpack_node_i64(e);
       if (expires_at < 0) expires_at = 0;
+    }
+    /* Optional supersedes: hex node id whose content this insert replaces. */
+    mpack_node_t sup = mpack_node_map_cstr_optional(args, "supersedes");
+    if (!mpack_node_is_missing(sup) && !mpack_node_is_nil(sup)
+        && mpack_node_type(sup) == mpack_type_str) {
+      const char *hex = mpack_node_str(sup);
+      uint32_t hex_n  = (uint32_t)mpack_node_strlen(sup);
+      if (hex_n == 2 * MG_NODE_ID_BYTES) {
+        size_t j;
+        bool ok = true;
+        for (j = 0; j < MG_NODE_ID_BYTES; ++j) {
+          int hi = -1, lo = -1;
+          char c = hex[j * 2];
+          if      (c >= '0' && c <= '9') hi = c - '0';
+          else if (c >= 'a' && c <= 'f') hi = c - 'a' + 10;
+          else if (c >= 'A' && c <= 'F') hi = c - 'A' + 10;
+          c = hex[j * 2 + 1];
+          if      (c >= '0' && c <= '9') lo = c - '0';
+          else if (c >= 'a' && c <= 'f') lo = c - 'a' + 10;
+          else if (c >= 'A' && c <= 'F') lo = c - 'A' + 10;
+          if (hi < 0 || lo < 0) { ok = false; break; }
+          supersedes_id[j] = (uint8_t)((hi << 4) | lo);
+        }
+        has_supersedes = ok;
+      }
     }
   }
   err = parse_keywords(args, &keywords, &n_keywords);
@@ -352,7 +379,8 @@ mg_err_t mg_op_insert(mg_ctx_t *ctx, mpack_node_t args, mpack_writer_t *result) 
   node.access_count = 0;
   node.state = MG_NODE_ACTIVE;
 
-  err = mg_storage_insert_node_with_edges(ctx->storage, &node, q, kw_ids, n_keywords, edges, n_edges);
+  err = mg_storage_insert_node_with_edges(ctx->storage, &node, q, kw_ids, n_keywords, edges, n_edges,
+                                           has_supersedes ? (const mg_node_id_t *)&supersedes_id : NULL);
   if (err == MG_OK) {
     write_insert_result(result, node.id, n_kw_edges, n_sem_edges, false);
   }
