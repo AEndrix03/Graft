@@ -163,32 +163,41 @@ def memgraph_explore(
 # === SAVE ===
 
 @mcp.tool()
-def memgraph_classify(summary: str, profile: Optional[str] = None) -> dict:
-    """Suggest keywords semantically related to `summary`.
+def memgraph_classify(title: str, profile: Optional[str] = None) -> dict:
+    """Suggest keywords semantically related to `title`.
 
     Run BEFORE memgraph_insert to keep the keyword vocabulary consistent
     across the graph. Returns up to ~15 suggestions; falls back to inferred
     novel keywords on a sparse graph.
     """
-    return _run(["classify", "--summary", summary], profile=profile)
+    return _run(["classify", "--title", title], profile=profile)
 
 
 @mcp.tool()
 def memgraph_insert(
-    summary: str,
-    detail: str,
+    title: str,
+    body: str,
     keywords: Optional[list[str]] = None,
+    author: Optional[str] = None,
+    expires_at: Optional[int] = None,
     profile: Optional[str] = None,
 ) -> dict:
-    """Save a new node. Idempotent on (summary+detail+sorted keywords).
+    """Save a new node. Idempotent on (title+body+sorted keywords).
 
-    `summary`: title-style 1 line — what future-you searches for. ~80-120 chars.
-    `detail`:  the actual answer / fix / pattern, including the WHY.
+    `title`:    short retrieval anchor — what future-you searches for. ~80-120 chars.
+    `body`:     the actual answer / fix / pattern, including the WHY. Markdown allowed.
     `keywords`: 3-6 lowercase tags. Use memgraph_classify to suggest first.
+    `author`:   optional override; defaults to the CLI-resolved <user>@<host>.
+    `expires_at`: optional unix-ms timestamp after which the node should be
+                considered stale (not currently auto-filtered, just stored).
     """
-    args = ["insert", "--summary", summary, "--detail", detail]
+    args = ["insert", "--title", title, "--body", body]
     for kw in keywords or []:
         args.extend(["--keyword", kw])
+    if author:
+        args.extend(["--author", author])
+    if expires_at:
+        args.extend(["--expires-at", str(expires_at)])
     return _run(args, profile=profile)
 
 
@@ -208,8 +217,8 @@ def memgraph_delete(id_hex: str, profile: Optional[str] = None) -> dict:
     cleaned up automatically. Returns NOT_FOUND if the id doesn't exist.
 
     To 'modify' a node, fetch it (memgraph_get), delete it, then insert a
-    new node with the corrected summary/detail/keywords. The insert
-    pipeline rebuilds the embedding and edges from scratch.
+    new node with the corrected title/body/keywords. The insert pipeline
+    rebuilds the embedding and edges from scratch.
     """
     return _run(["delete", id_hex], profile=profile)
 

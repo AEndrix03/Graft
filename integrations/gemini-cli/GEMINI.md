@@ -10,7 +10,7 @@ memgraph query "<concise restatement of what the user is asking>"
 
 Read `result.hit`:
 - `STRONG`: there's a near-exact match in memory. Cite and reuse: "Last time we hit this, we found that…".
-- `WEAK`: similar; consider `memgraph get <id_hex>` for the full detail.
+- `WEAK`: similar; consider `memgraph get <id_hex>` for the full body.
 - `MISS`: see `result.fallback_retrieve.results[]` for related items.
 
 For broader exploration:
@@ -23,8 +23,8 @@ memgraph explore  "<text>" --keyword K1 --keyword K2 --depth 3
 ## Use it AFTER successfully solving non-trivial problems
 
 ```
-memgraph classify --summary "<one-line restatement>"          # suggested keywords
-memgraph insert --summary "<title>" --detail "<solution + WHY>" \
+memgraph classify --title "<one-line restatement>"          # suggested keywords
+memgraph insert --title "<title>" --body "<solution + WHY>" \
                 --keyword K1 --keyword K2 --keyword K3
 ```
 

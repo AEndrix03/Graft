@@ -50,8 +50,8 @@ memgraph query "<concise restatement of the user's question>"
 
 Read `result.hit`:
 
-- **STRONG** — high confidence near-exact match. Output: cite the node (`summary`, `detail`), state explicitly "this is from a previous session", and stop. Do NOT re-derive the answer.
-- **WEAK** — similar but not identical. Fetch the full detail with `memgraph get <id_hex>`, present it labeled as "WEAK match — review before using". Then proceed to Step 2 to find better candidates.
+- **STRONG** — high confidence near-exact match. Output: cite the node (`title`, `body`), state explicitly "this is from a previous session", and stop. Do NOT re-derive the answer.
+- **WEAK** — similar but not identical. Fetch the full body with `memgraph get <id_hex>`, present it labeled as "WEAK match — review before using". Then proceed to Step 2 to find better candidates.
 - **MISS** — go to Step 2.
 
 ### Step 2 — `retrieve`
@@ -60,7 +60,7 @@ Read `result.hit`:
 memgraph retrieve "<question>" --top-k 10
 ```
 
-Read each result's `summary`. Drop those with low `score`. If 1-3 are clearly relevant: present them ranked. If 0 useful: go to Step 3.
+Read each result's `title`. Drop those with low `score`. If 1-3 are clearly relevant: present them ranked. If 0 useful: go to Step 3.
 
 ### Step 3 — `explore`
 
@@ -91,17 +91,17 @@ Present in **descending confidence**:
 
 ```
 STRONG (cache hit, profile=work):
-  → <summary>
-    <detail trimmed if very long>
+  → <title>
+    <body trimmed if very long>
     [id: <short_hex>]
 
 WEAK (1 candidate, score 0.78):
-  ~ <summary>  ← review before reusing
+  ~ <title>  ← review before reusing
     [id: <short_hex>]
 
 Top-K (retrieve fallback, profile=work):
-  • <summary>  (score 0.62)
-  • <summary>  (score 0.55)
+  • <title>  (score 0.62)
+  • <title>  (score 0.55)
 ```
 
 Avoid wall-of-JSON output. The CLI prints JSON; your job is to summarize it for the human.
@@ -110,4 +110,4 @@ Avoid wall-of-JSON output. The CLI prints JSON; your job is to summarize it for 
 
 - If the result was used as the basis for a new solution that diverges meaningfully, **suggest** `/memoryze` of the new variant.
 - If there were multiple WEAK candidates that all looked redundant, suggest `/memory-audit` — the graph may be accumulating duplicates.
-- If `query` returned MISS but `retrieve` had a great hit, that means the saved summary doesn't match how the user phrases this. Suggest the user re-save with a better summary, or do it yourself with their permission.
+- If `query` returned MISS but `retrieve` had a great hit, that means the saved title doesn't match how the user phrases this. Suggest the user re-save with a better title, or do it yourself with their permission.

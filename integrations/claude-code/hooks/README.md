@@ -4,7 +4,7 @@ Three event hooks that move memgraph from "the agent should remember to use it" 
 
 | Event              | Script                  | What it does                                                                                              |
 | ------------------ | ----------------------- | --------------------------------------------------------------------------------------------------------- |
-| `UserPromptSubmit` | `query_inject.js`       | Runs `memgraph query <prompt>`. STRONG/WEAK hits inject summary (and detail on STRONG). MISS injects only `<memgraph-cache hit="MISS"/>` — no fallback neighbors (see "MISS policy" below). Also surfaces any `<memgraph-proposal>` queued by the previous turn's Stop hook. |
+| `UserPromptSubmit` | `query_inject.js`       | Runs `memgraph query <prompt>`. STRONG/WEAK hits inject title (and body on STRONG). MISS injects only `<memgraph-cache hit="MISS"/>` — no fallback neighbors (see "MISS policy" below). Also surfaces any `<memgraph-proposal>` queued by the previous turn's Stop hook. |
 | `PostToolUse` (matcher `Edit\|Write\|MultiEdit\|NotebookEdit`) | `mark_candidate.js`     | Records the tool call + file path in `~/.claude/hooks/memgraph/state/<session>.candidates`. Silent. |
 | `Stop`             | `propose_memoryze.js`   | If the session accumulated candidates, writes a compact `/memoryze` proposal to `<session>.proposal`. The next `UserPromptSubmit` surfaces it. Proposes, never auto-saves. |
 

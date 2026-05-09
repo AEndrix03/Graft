@@ -48,12 +48,12 @@ Tutti gli adapter espongono lo **stesso set di operazioni** sotto nomi consisten
 
 | Sub-comando CLI    | MCP tool name        | Cosa fa                                   |
 | ------------------ | -------------------- | ----------------------------------------- |
-| `insert`           | `memgraph_insert`    | Salva un nuovo nodo (sintetico+detail)    |
+| `insert`           | `memgraph_insert`    | Salva un nuovo nodo (title+body)    |
 | `query`            | `memgraph_query`     | Cache lookup multi-segnale (STRONG/WEAK/MISS) |
 | `retrieve`         | `memgraph_retrieve`  | RRF lexical+semantic, top-k risultati     |
 | `explore`          | `memgraph_explore`   | Beam search keyword-conditioned           |
 | `get`              | `memgraph_get`       | Fetch nodo per id_hex                     |
-| `classify`         | `memgraph_classify`  | Suggerisci keyword da un summary          |
+| `classify`         | `memgraph_classify`  | Suggerisci keyword da un title          |
 | `stats`            | `memgraph_stats`     | Percentili distribuzione + counts         |
 
 ## Quando usare cosa (linea guida per LLM)

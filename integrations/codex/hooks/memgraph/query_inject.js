@@ -77,8 +77,8 @@ function runMemgraph(args) {
 
   if (r.hit === 'STRONG' || r.hit === 'WEAK') {
     process.stdout.write(`<memgraph-cache hit="${r.hit}">\n`);
-    if (r.summary) process.stdout.write(`summary: ${r.summary}\n`);
-    if (r.hit === 'STRONG' && r.detail) process.stdout.write(`detail: ${r.detail}\n`);
+    if (r.title) process.stdout.write(`title: ${r.title}\n`);
+    if (r.hit === 'STRONG' && r.body) process.stdout.write(`body: ${r.body}\n`);
     process.stdout.write('</memgraph-cache>\n');
     return;
   }

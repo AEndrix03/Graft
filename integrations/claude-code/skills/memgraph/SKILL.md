@@ -96,15 +96,15 @@ MEMGRAPH_PROFILE=work memgraph query "deployment workflow"
 | Cache lookup with STRONG/WEAK/MISS    | `memgraph query "<text>"`                                            |
 | Top-k hybrid (lex + vec via RRF)      | `memgraph retrieve "<text>" --top-k 10`                              |
 | Graph walk from keywords              | `memgraph explore "<text>" --keyword foo --depth 3`                  |
-| Save knowledge                        | `memgraph insert --summary S --detail D --keyword K`                 |
-| Suggest keywords for a summary        | `memgraph classify --summary "<text>"`                               |
+| Save knowledge                        | `memgraph insert --title S --body D --keyword K`                 |
+| Suggest keywords for a title        | `memgraph classify --title "<text>"`                               |
 | Fetch node by id                      | `memgraph get <hex_id>`                                              |
 | Delete node by id                     | `memgraph delete <hex_id>`                                           |
 | Distribution percentiles              | `memgraph stats`                                                     |
 | Usage report (hit-rate, est. saved)   | `memgraph analytics [--since 7d] [--seconds-per-hit 60]`             |
 | Profile management                    | `memgraph profile <list\|current\|add\|remove\|set\|export\|import>` |
 
-`insert` is idempotent: same `summary+detail+keywords` returns `"duplicate": true` with the existing id.
+`insert` is idempotent: same `title+body+keywords` returns `"duplicate": true` with the existing id.
 
 ## Output schema (envelope)
 
@@ -168,15 +168,15 @@ If a `/recall` or a `get` surfaces a node whose content you can verify is **wron
 2. **Modify (= delete + re-insert)** — the underlying knowledge is real but the saved node is broken:
    ```
    1. fetch:    memgraph get <hex_id>
-   2. redesign: write new summary / detail / keywords
+   2. redesign: write new title / body / keywords
    3. delete:   memgraph delete <hex_id>
-   4. re-save:  memgraph insert --summary S --detail D --keyword K1 --keyword K2 …
+   4. re-save:  memgraph insert --title S --body D --keyword K1 --keyword K2 …
    ```
    The insert pipeline rebuilds embedding + edges automatically. Content-hash dedup means re-running the same insert is safe (returns the existing id).
 
 **Don't** silently leave wrong nodes in the graph hoping they won't get retrieved — they will, and they'll mislead future-you. Trust the agent's verdict when it says "this is contradicted by current code".
 
-When in doubt (the node looks suspicious but you're not sure), **demote** rather than delete: re-save with a `wip` or `unsure` keyword and a detail that flags the uncertainty.
+When in doubt (the node looks suspicious but you're not sure), **demote** rather than delete: re-save with a `wip` or `unsure` keyword and a body that flags the uncertainty.
 
 ## Skill chain in a typical session
 

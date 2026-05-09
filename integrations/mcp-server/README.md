@@ -7,8 +7,8 @@ Bridges MCP-aware chat clients (Claude AI, ChatGPT) to the local `memgraph` daem
 - `memgraph_query(text, signals_only=False)`
 - `memgraph_retrieve(text, top_k=10)`
 - `memgraph_explore(text, keywords=[], depth=3, beam=4)`
-- `memgraph_insert(summary, detail, keywords=[])`
-- `memgraph_classify(summary)`
+- `memgraph_insert(title, body, keywords=[])`
+- `memgraph_classify(title)`
 - `memgraph_get(id_hex)`
 - `memgraph_stats()`
 

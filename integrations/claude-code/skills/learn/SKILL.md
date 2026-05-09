@@ -36,7 +36,7 @@ If hints are absent, ask **at most one** clarifying question (almost always: "wh
 ```
   Phase 1   discover      list candidate files, apply skip rules
   Phase 2   sample        skim contents to learn topics + structure
-  Phase 3   plan          propose N nodes with summary + keywords
+  Phase 3   plan          propose N nodes with title + keywords
   Phase 4   confirm       show plan, wait for approval
   Phase 5   ingest        execute: classify + insert per approved node
   Phase 6   report        summarize: created / deduplicated / skipped
@@ -91,13 +91,13 @@ This is where craftsmanship pays off. For each topic, propose **how many nodes**
 ```
 {
   path_origins: ["src/auth/JwtService.java", "src/auth/RefreshTokenStore.java"],
-  summary: "<the line future-you will type into search>",
-  detail_outline: ["why bcrypt cost=12", "refresh token TTL=7d, rotation on use", "trap: clock skew tolerance"],
+  title: "<the line future-you will type into search>",
+  body_outline: ["why bcrypt cost=12", "refresh token TTL=7d, rotation on use", "trap: clock skew tolerance"],
   keyword_candidates: ["auth", "jwt", "spring-boot", "security"],
 }
 ```
 
-Don't write the full `detail` text yet — it's expensive and may be wasted if the user trims the plan. Outline only.
+Don't write the full `body` text yet — it's expensive and may be wasted if the user trims the plan. Outline only.
 
 **Keyword reconciliation** (critical for quality):
 
@@ -105,7 +105,7 @@ Before showing the plan, run **one** `memgraph classify` call per top-K topic to
 
 ```bash
 # Run per topic, collect suggestions:
-memgraph classify --summary "<draft summary for this topic>"
+memgraph classify --title "<draft title for this topic>"
 ```
 
 Aggregate the suggestions across topics and produce a **vocabulary table**:
@@ -123,7 +123,7 @@ Use this to align all node `keyword_candidates` to the same vocabulary. The goal
 For each draft node, run a quick `memgraph query` and skip from the plan any candidate that returns STRONG hit (already covered):
 
 ```bash
-memgraph query "<draft summary>"
+memgraph query "<draft title>"
 # if hit=STRONG: mark as 'already-covered', show id_hex in the plan, don't re-insert
 ```
 
@@ -142,7 +142,7 @@ Already-covered (skip): 4
 WEAK refines existing: 2
 Vocabulary: 18 existing keywords reused, 5 new
 
-  #  topic                        nodes  summary preview
+  #  topic                        nodes  title preview
   ── ─────────────────────────── ───── ───────────────────────────────────────────────────
   1  authentication / JWT         3     "Spring Boot JWT issue + verify + refresh flow"
                                         "bcrypt cost=12 trade-off (CPU vs. brute-force)"
@@ -176,9 +176,9 @@ What now? Reply with one of:
 
 Once approved, execute the plan in batches. For each approved node:
 
-1. Compose the final `detail` text from the outline + sources. **Now** is when you write it, not before.
-2. `memgraph classify --summary "<final summary>"` for last-mile keyword check.
-3. `memgraph insert --summary S --detail D --keyword K1 --keyword K2 …`
+1. Compose the final `body` text from the outline + sources. **Now** is when you write it, not before.
+2. `memgraph classify --title "<final title>"` for last-mile keyword check.
+3. `memgraph insert --title S --body D --keyword K1 --keyword K2 …`
 4. If `result.duplicate=true`, count it but don't error.
 
 **Profile targeting**: prefix each insert with `MEMGRAPH_PROFILE=<name>` if the user specified a target profile.
@@ -228,7 +228,7 @@ Three modes:
 - **Read budget** ~300 KB total per `/learn` invocation. If the corpus is bigger, sample harder.
 - **Classify budget**: at most 1 call per topic in Phase 3 (not per file). Aggregate suggestions across topics.
 - **Pre-dedup budget**: 1 `query` per draft node — cheap; do it always. Worth it.
-- **Detail composition**: only after approval (Phase 5), and never write more than ~1500 chars per detail. Future-you skims; doesn't read essays.
+- **Body composition**: only after approval (Phase 5), and never write more than ~1500 chars per body. Future-you skims; doesn't read essays.
 
 ## What this skill does NOT do
 

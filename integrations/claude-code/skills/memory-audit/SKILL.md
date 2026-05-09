@@ -1,6 +1,6 @@
 ---
 name: memory-audit
-description: Health check + maintenance audit of the memgraph graph. Reports hit rate, hoarding ratio, top reused nodes, never-reused nodes, stale entries, and similar-but-separate clusters that may be duplicates. Suggests concrete actions (re-save with better summary, promote to README, drop stale, narrow over-broad nodes) but does NOT modify the graph automatically — every action is proposed for the user to approve. Triggered by `/memory-audit`, "is the graph healthy", "audit memory", "check memgraph quality", or whenever the user wants a cleanup pass before a long-running session.
+description: Health check + maintenance audit of the memgraph graph. Reports hit rate, hoarding ratio, top reused nodes, never-reused nodes, stale entries, and similar-but-separate clusters that may be duplicates. Suggests concrete actions (re-save with a better title, promote to README, drop stale, narrow over-broad nodes) but does NOT modify the graph automatically — every action is proposed for the user to approve. Triggered by `/memory-audit`, "is the graph healthy", "audit memory", "check memgraph quality", or whenever the user wants a cleanup pass before a long-running session.
 ---
 
 # memory-audit — Read-only health check + actionable suggestions
@@ -95,7 +95,7 @@ Hoarding ratio:     <ratio>x      [ok | warn | bad]
 Avg query latency:  <ms> ms       [ok | warn | bad]
 
 Champions (top reused):
-  ★ <id_hex_short> · hits=<n> · "<summary>"
+  ★ <id_hex_short> · hits=<n> · "<title>"
   ★ ...
 
 Findings:
@@ -119,7 +119,7 @@ After the report, present a numbered action menu the user can pick from:
 What now? Reply with a number or skip:
   [1] Run /recall against the champions to verify they're still findable
   [2] Promote champion #<id> to README/docs (I'll draft the page)
-  [3] Re-save node <id> with a better summary (I'll propose the rewrite)
+  [3] Re-save node <id> with a better title (I'll propose the rewrite)
   [4] Investigate WEAK cluster: <query>
   [5] Skip / done
 ```
