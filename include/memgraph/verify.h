@@ -29,7 +29,7 @@ void     mg_verify_shutdown(mg_verify_ctx_t *ctx);
 mg_err_t mg_verify_score(
   mg_verify_ctx_t *ctx,
   const char *query_text,
-  const char *candidate_summary,
+  const char *candidate_title,
   float pre_computed_s_vec,
   float pre_computed_s_lex,
   mg_verify_signals_t *out

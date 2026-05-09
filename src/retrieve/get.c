@@ -3,10 +3,12 @@
  * Result map (handler writes a single mpack VALUE):
  *   {
  *     "id_hex":       string (32 hex chars),
- *     "summary":      string,
- *     "detail":       string,
+ *     "title":        string,
+ *     "body":         string,
+ *     "author":       string|nil,
  *     "keywords":     [ string, ... ],
  *     "created_at":   int (unix ms),
+ *     "expires_at":   int (unix ms; 0 = no expiration),
  *     "access_count": int
  *   }
  */
@@ -53,11 +55,15 @@ mg_err_t mg_op_get(mg_ctx_t *ctx, mpack_node_t args, mpack_writer_t *result) {
     mpack_write_cstr(result, "id_hex");
     mpack_write_cstr(result, id_hex);
 
-    mpack_write_cstr(result, "summary");
-    mpack_write_cstr(result, node.summary ? node.summary : "");
+    mpack_write_cstr(result, "title");
+    mpack_write_cstr(result, node.title ? node.title : "");
 
-    mpack_write_cstr(result, "detail");
-    mpack_write_cstr(result, node.detail ? node.detail : "");
+    mpack_write_cstr(result, "body");
+    mpack_write_cstr(result, node.body ? node.body : "");
+
+    mpack_write_cstr(result, "author");
+    if (node.author) mpack_write_cstr(result, node.author);
+    else             mpack_write_nil(result);
 
     mpack_write_cstr(result, "keywords");
     mpack_build_array(result);
@@ -73,6 +79,9 @@ mg_err_t mg_op_get(mg_ctx_t *ctx, mpack_node_t args, mpack_writer_t *result) {
 
     mpack_write_cstr(result, "created_at");
     mpack_write_int(result, node.created_at);
+
+    mpack_write_cstr(result, "expires_at");
+    mpack_write_int(result, node.expires_at);
 
     mpack_write_cstr(result, "access_count");
     mpack_write_int(result, node.access_count);

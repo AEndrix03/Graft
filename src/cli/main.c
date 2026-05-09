@@ -1,17 +1,19 @@
 /* memgraph — thin CLI client.
  *
- *   memgraph insert     --summary "..." --detail "..." --keyword foo --keyword bar
- *   memgraph query      "testo della domanda"
- *   memgraph retrieve   "testo" [--top-k 25]
- *   memgraph explore    "testo" --keyword k1 --depth 3 [--beam 4]
- *   memgraph get        <hex_id>
+ *   memgraph insert     --title "..." --body "..." [--keyword K | --tag K]...
+ *                       [--author NAME] [--expires-at <unix-ms>]
+ *   memgraph query      "question text"
+ *   memgraph retrieve   "text" [--top-k 25]
+ *   memgraph explore    "text" --keyword k1 --depth 3 [--beam 4]
+ *   memgraph get        <hex_id> [--markdown]
  *   memgraph stats
- *   memgraph classify   --summary "..."
+ *   memgraph classify   --title "..."
  *   memgraph consolidate
  *
  * Connects to the daemon socket (default /tmp/memgraph.sock, override via
  * env MEMGRAPH_SOCKET), sends a single request frame, prints the parsed
- * response in mpack's JSON-ish format and exits.
+ * response in mpack's JSON-ish format (or as Markdown for `get --markdown`)
+ * and exits.
  */
 
 #include "../daemon/internal.h"
@@ -61,6 +63,7 @@ static void mg_apply_profile_env(void) {
 #  include <windows.h>
 static long long mg_now_ms(void) { return (long long)GetTickCount64(); }
 #else
+#  include <unistd.h>
 static long long mg_now_ms(void) {
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
@@ -151,13 +154,14 @@ static void print_value(mpack_node_t n, int indent) {
 static int usage(void) {
     fprintf(stderr,
         "usage:\n"
-        "  memgraph insert --summary S --detail D [--keyword K]...\n"
+        "  memgraph insert --title T --body B [--keyword K | --tag K]...\n"
+        "                  [--author NAME] [--expires-at UNIX_MS]\n"
         "  memgraph query <text>\n"
         "  memgraph retrieve <text> [--top-k N]\n"
         "  memgraph explore <text> [--keyword K]... [--depth N] [--beam N]\n"
-        "  memgraph get <hex_id>\n"
+        "  memgraph get <hex_id> [--markdown]\n"
         "  memgraph delete <hex_id>\n"
-        "  memgraph classify --summary S\n"
+        "  memgraph classify --title T\n"
         "  memgraph stats\n"
         "  memgraph consolidate\n"
         "  memgraph analytics [--since 7d|24h] [--seconds-per-hit 60]\n"
@@ -165,28 +169,175 @@ static int usage(void) {
     return 2;
 }
 
+/* Format unix-ms as ISO-8601 UTC: 2026-05-09T01:23:45Z. Buffer must be ≥ 21B. */
+static void mg_iso8601_utc(int64_t unix_ms, char *out, size_t out_len) {
+    if (out_len < 21) { if (out_len) out[0] = '\0'; return; }
+    time_t s = (time_t)(unix_ms / 1000);
+    struct tm tm;
+#ifdef _WIN32
+    gmtime_s(&tm, &s);
+#else
+    gmtime_r(&s, &tm);
+#endif
+    strftime(out, out_len, "%Y-%m-%dT%H:%M:%SZ", &tm);
+}
+
+/* Resolve an author string. Priority: --author flag (caller-provided arg) >
+ * MEMGRAPH_AUTHOR env var > <user>@<host> from environment. Returns malloc'd
+ * string or NULL. The CLI sends this on every insert; the daemon stores it
+ * verbatim. Set MEMGRAPH_AUTHOR='' to opt out. */
+static char *mg_resolve_author(const char *flag) {
+    if (flag && *flag) {
+        size_t n = strlen(flag);
+        char *s = (char *)malloc(n + 1);
+        if (s) { memcpy(s, flag, n + 1); }
+        return s;
+    }
+    const char *envv = getenv("MEMGRAPH_AUTHOR");
+    if (envv) {
+        if (!*envv) return NULL;  /* explicit opt-out */
+        size_t n = strlen(envv);
+        char *s = (char *)malloc(n + 1);
+        if (s) { memcpy(s, envv, n + 1); }
+        return s;
+    }
+#ifdef _WIN32
+    const char *user = getenv("USERNAME");
+    char host[256] = {0};
+    DWORD hlen = sizeof(host);
+    if (!GetComputerNameA(host, &hlen)) host[0] = '\0';
+#else
+    const char *user = getenv("USER");
+    char host[256] = {0};
+    if (gethostname(host, sizeof(host)) != 0) host[0] = '\0';
+#endif
+    if (!user || !*user) user = "unknown";
+    if (!host[0]) snprintf(host, sizeof(host), "unknown");
+    size_t n = strlen(user) + 1 + strlen(host) + 1;
+    char *s = (char *)malloc(n);
+    if (s) snprintf(s, n, "%s@%s", user, host);
+    return s;
+}
+
+static int g_markdown = 0;  /* set by build_get when --markdown is passed */
+
+/* Walk the response map and print the node as Markdown with YAML frontmatter:
+ *   ---
+ *   title: ...
+ *   author: ...      (skipped if missing)
+ *   date: ISO8601    (skipped if 0)
+ *   expire on: ...   (skipped if 0)
+ *   keywords: #a #b  (skipped if empty)
+ *   ---
+ *
+ *   <body>
+ */
+static void print_node_markdown(mpack_node_t result) {
+    if (mpack_node_type(result) != mpack_type_map) {
+        fputs("(no node)\n", stdout);
+        return;
+    }
+    const char *title = NULL; size_t title_n = 0;
+    const char *body  = NULL; size_t body_n  = 0;
+    const char *author = NULL; size_t author_n = 0;
+    int64_t created_at = 0, expires_at = 0;
+
+    mpack_node_t n;
+    n = mpack_node_map_cstr_optional(result, "title");
+    if (!mpack_node_is_missing(n) && mpack_node_type(n) == mpack_type_str) {
+        title = mpack_node_str(n); title_n = mpack_node_strlen(n);
+    }
+    n = mpack_node_map_cstr_optional(result, "body");
+    if (!mpack_node_is_missing(n) && mpack_node_type(n) == mpack_type_str) {
+        body = mpack_node_str(n); body_n = mpack_node_strlen(n);
+    }
+    n = mpack_node_map_cstr_optional(result, "author");
+    if (!mpack_node_is_missing(n) && mpack_node_type(n) == mpack_type_str) {
+        author = mpack_node_str(n); author_n = mpack_node_strlen(n);
+    }
+    n = mpack_node_map_cstr_optional(result, "created_at");
+    if (!mpack_node_is_missing(n) && !mpack_node_is_nil(n)) created_at = mpack_node_i64(n);
+    n = mpack_node_map_cstr_optional(result, "expires_at");
+    if (!mpack_node_is_missing(n) && !mpack_node_is_nil(n)) expires_at = mpack_node_i64(n);
+
+    fputs("---\n", stdout);
+    fputs("title: ", stdout);
+    if (title) { fwrite(title, 1, title_n, stdout); } else { fputs("(unknown)", stdout); }
+    fputc('\n', stdout);
+    if (author && author_n > 0) {
+        fputs("author: ", stdout);
+        fwrite(author, 1, author_n, stdout);
+        fputc('\n', stdout);
+    }
+    if (created_at > 0) {
+        char iso[32];
+        mg_iso8601_utc(created_at, iso, sizeof(iso));
+        printf("date: %s\n", iso);
+    }
+    if (expires_at > 0) {
+        char iso[32];
+        mg_iso8601_utc(expires_at, iso, sizeof(iso));
+        printf("expire on: %s\n", iso);
+    }
+    /* keywords: print as #tag #tag ... if any */
+    n = mpack_node_map_cstr_optional(result, "keywords");
+    if (!mpack_node_is_missing(n) && mpack_node_type(n) == mpack_type_array) {
+        size_t n_kw = mpack_node_array_length(n);
+        if (n_kw > 0) {
+            fputs("keywords:", stdout);
+            for (size_t i = 0; i < n_kw; ++i) {
+                mpack_node_t kw = mpack_node_array_at(n, i);
+                if (mpack_node_type(kw) != mpack_type_str) continue;
+                fputs(" #", stdout);
+                fwrite(mpack_node_str(kw), 1, mpack_node_strlen(kw), stdout);
+            }
+            fputc('\n', stdout);
+        }
+    }
+    fputs("---\n\n", stdout);
+    if (body) { fwrite(body, 1, body_n, stdout); }
+    fputc('\n', stdout);
+}
+
 /* -------------- per-op argument writers -------------- */
 
 static int build_insert(int argc, char **argv, mpack_writer_t *w) {
-    const char *summary = NULL, *detail = NULL;
+    const char *title = NULL, *body = NULL;
+    const char *author_flag = NULL;
     const char *kws[MG_CLI_MAX_KEYWORDS];
     int n_kws = 0;
+    int64_t expires_at = 0;
     for (int i = 2; i < argc; i++) {
-        if (!strcmp(argv[i], "--summary") && i + 1 < argc) summary = argv[++i];
-        else if (!strcmp(argv[i], "--detail") && i + 1 < argc) detail = argv[++i];
-        else if (!strcmp(argv[i], "--keyword") && i + 1 < argc
+        if      (!strcmp(argv[i], "--title")   && i + 1 < argc) title = argv[++i];
+        else if (!strcmp(argv[i], "--body")    && i + 1 < argc) body  = argv[++i];
+        else if (!strcmp(argv[i], "--author")  && i + 1 < argc) author_flag = argv[++i];
+        else if (!strcmp(argv[i], "--expires-at") && i + 1 < argc) expires_at = (int64_t)atoll(argv[++i]);
+        else if ((!strcmp(argv[i], "--keyword") || !strcmp(argv[i], "--tag")) && i + 1 < argc
                  && n_kws < MG_CLI_MAX_KEYWORDS) {
             kws[n_kws++] = argv[++i];
         }
     }
-    mpack_start_map(w, 3);
-    mpack_write_cstr(w, "summary"); mpack_write_cstr(w, summary ? summary : "");
-    mpack_write_cstr(w, "detail");  mpack_write_cstr(w, detail  ? detail  : "");
+    char *author = mg_resolve_author(author_flag);
+    int n_fields = 3
+                 + (author      ? 1 : 0)
+                 + (expires_at > 0 ? 1 : 0);
+    mpack_start_map(w, (uint32_t)n_fields);
+    mpack_write_cstr(w, "title"); mpack_write_cstr(w, title ? title : "");
+    mpack_write_cstr(w, "body");  mpack_write_cstr(w, body  ? body  : "");
     mpack_write_cstr(w, "keywords");
     mpack_start_array(w, (uint32_t)n_kws);
     for (int i = 0; i < n_kws; i++) mpack_write_cstr(w, kws[i]);
     mpack_finish_array(w);
+    if (author) {
+        mpack_write_cstr(w, "author");
+        mpack_write_cstr(w, author);
+    }
+    if (expires_at > 0) {
+        mpack_write_cstr(w, "expires_at");
+        mpack_write_int(w, expires_at);
+    }
     mpack_finish_map(w);
+    free(author);
     return 0;
 }
 
@@ -252,7 +403,12 @@ static int build_explore(int argc, char **argv, mpack_writer_t *w) {
 }
 
 static int build_get(int argc, char **argv, mpack_writer_t *w) {
-    const char *id = (argc >= 3) ? argv[2] : "";
+    const char *id = NULL;
+    for (int i = 2; i < argc; i++) {
+        if (!strcmp(argv[i], "--markdown")) g_markdown = 1;
+        else if (!id) id = argv[i];
+    }
+    if (!id) id = "";
     mpack_start_map(w, 1);
     mpack_write_cstr(w, "id_hex"); mpack_write_cstr(w, id);
     mpack_finish_map(w);
@@ -260,12 +416,12 @@ static int build_get(int argc, char **argv, mpack_writer_t *w) {
 }
 
 static int build_classify(int argc, char **argv, mpack_writer_t *w) {
-    const char *summary = NULL;
+    const char *title = NULL;
     for (int i = 2; i < argc; i++) {
-        if (!strcmp(argv[i], "--summary") && i + 1 < argc) summary = argv[++i];
+        if (!strcmp(argv[i], "--title") && i + 1 < argc) title = argv[++i];
     }
     mpack_start_map(w, 1);
-    mpack_write_cstr(w, "summary"); mpack_write_cstr(w, summary ? summary : "");
+    mpack_write_cstr(w, "title"); mpack_write_cstr(w, title ? title : "");
     mpack_finish_map(w);
     return 0;
 }
@@ -392,8 +548,18 @@ int main(int argc, char **argv) {
         rc = 1;
     } else {
         mpack_node_t root = mpack_tree_root(&tree);
-        print_value(root, 0);
-        printf("\n");
+        /* `get --markdown` renders the node as YAML-frontmatter Markdown for
+         * human consumption. Other commands keep the JSON-ish output. */
+        if (g_markdown && !strcmp(cmd, "get")) {
+            mpack_node_t result = mpack_node_map_cstr_optional(root, "result");
+            if (!mpack_node_is_missing(result) && !mpack_node_is_nil(result))
+                print_node_markdown(result);
+            else
+                fputs("(no result)\n", stdout);
+        } else {
+            print_value(root, 0);
+            printf("\n");
+        }
         /* Propagate non-zero status to exit code so scripts can check it. */
         mpack_node_t st = mpack_node_map_cstr_optional(root, "status");
         if (!mpack_node_is_missing(st) && !mpack_node_is_nil(st)) {

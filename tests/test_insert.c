@@ -35,7 +35,7 @@ static int insert_seed(
   mg_storage_t *s,
   unsigned char id_byte,
   unsigned char hash_byte,
-  const char *summary,
+  const char *title,
   mg_keyword_id_t kw_id,
   const mg_embedding_t emb
 ) {
@@ -43,9 +43,11 @@ static int insert_seed(
   memset(&node, 0, sizeof(node));
   fill_id(node.id, id_byte);
   fill_hash(node.content_hash, hash_byte);
-  node.summary = (char *)summary;
-  node.detail = (char *)"detail";
+  node.title = (char *)title;
+  node.body  = (char *)"body";
+  node.author = NULL;
   node.created_at = 1;
+  node.expires_at = 0;
   node.last_access = 1;
   node.access_count = 0;
   node.state = MG_NODE_ACTIVE;

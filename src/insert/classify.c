@@ -10,12 +10,12 @@ typedef struct {
   char *text;
 } keyword_count_t;
 
-static mg_err_t copy_summary(mpack_node_t args, char **out) {
+static mg_err_t copy_title(mpack_node_t args, char **out) {
   if (!out) {
     return MG_ERR_INVALID_ARG;
   }
 
-  mpack_node_t node = mpack_node_map_cstr(args, "summary");
+  mpack_node_t node = mpack_node_map_cstr(args, "title");
   if (mpack_node_type(node) != mpack_type_str) {
     return MG_ERR_INVALID_ARG;
   }
@@ -92,15 +92,15 @@ mg_err_t mg_op_classify(mg_ctx_t *ctx, mpack_node_t args, mpack_writer_t *result
     return MG_ERR_INVALID_ARG;
   }
 
-  char *summary = NULL;
-  mg_err_t err = copy_summary(args, &summary);
+  char *title = NULL;
+  mg_err_t err = copy_title(args, &title);
   if (err != MG_OK) {
     return err;
   }
 
   mg_embedding_t q;
-  err = mg_embed_text(ctx->embed, summary, q);
-  free(summary);
+  err = mg_embed_text(ctx->embed, title, q);
+  free(title);
   if (err != MG_OK) {
     return err;
   }

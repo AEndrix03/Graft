@@ -51,10 +51,12 @@ int main(void) {
 
   memset(&node, 0, sizeof(node));
   mg_uuidv7(node.id);
-  mg_blake3((const uint8_t *)"summary/detail", strlen("summary/detail"), node.content_hash);
-  node.summary = (char *)"summary";
-  node.detail = (char *)"detail text";
+  mg_blake3((const uint8_t *)"title/body", strlen("title/body"), node.content_hash);
+  node.title = (char *)"title";
+  node.body  = (char *)"body text";
+  node.author = NULL;
   node.created_at = 1;
+  node.expires_at = 0;
   node.last_access = 1;
   node.access_count = 0;
   node.state = MG_NODE_ACTIVE;
@@ -68,7 +70,7 @@ int main(void) {
   }
 
   err = mg_storage_get_node(s, node.id, &got);
-  if (err != MG_OK || strcmp(got.summary, "summary") != 0 || strcmp(got.detail, "detail text") != 0) {
+  if (err != MG_OK || strcmp(got.title, "title") != 0 || strcmp(got.body, "body text") != 0) {
     fprintf(stderr, "get_node failed\n");
     mg_storage_close(s);
     return 1;

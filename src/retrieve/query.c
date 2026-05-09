@@ -6,8 +6,8 @@
  *   3. Sanity floor: if no candidate or s_vec < 0.3 -> MISS + fallback retrieve.
  *   4. Get candidate node, compute s_lex via trigram Jaccard.
  *   5. mg_verify_score() fills s_jaccard, s_ce, hit_level.
- *   6. STRONG -> touch_access, return summary+detail.
- *      WEAK   -> return summary only (no detail).
+ *   6. STRONG -> touch_access, return title+body.
+ *      WEAK   -> return title only (no body).
  *      NONE   -> MISS + fallback retrieve.
  *
  * Side effects:
@@ -18,8 +18,8 @@
  * Result map (handler writes a single mpack VALUE):
  *
  *  HIT (STRONG | WEAK):
- *   { "hit": "STRONG"|"WEAK", "id_hex", "summary",
- *     "detail": string|nil,
+ *   { "hit": "STRONG"|"WEAK", "id_hex", "title",
+ *     "body": string|nil,
  *     "signals": { s_vec, s_lex, s_jaccard, s_ce|nil } }
  *
  *  MISS:
@@ -146,15 +146,15 @@ mg_err_t mg_op_query(mg_ctx_t *ctx, mpack_node_t args, mpack_writer_t *result) {
     if (e != MG_OK) { free(text); return e; }
 
     /* MVP s_lex proxy: trigram Jaccard between query text and candidate
-     * summary (BM25 scores aren't directly comparable across queries
+     * title (BM25 scores aren't directly comparable across queries
      * without per-query normalization, and Jaccard is bounded in [0,1]). */
     float s_lex = mg_text_trigram_jaccard(text,
-                                          cand.summary ? cand.summary : "");
+                                          cand.title ? cand.title : "");
 
     mg_verify_signals_t sig = {0};
     sig.s_ce = -1.0f;
     e = mg_verify_score((mg_verify_ctx_t *)ctx->verify,
-                         text, cand.summary ? cand.summary : "",
+                         text, cand.title ? cand.title : "",
                          top1.score, s_lex, &sig);
     if (e != MG_OK) {
         mg_node_free(&cand);
@@ -184,12 +184,12 @@ mg_err_t mg_op_query(mg_ctx_t *ctx, mpack_node_t args, mpack_writer_t *result) {
         mpack_write_cstr(result, "id_hex");
         mpack_write_cstr(result, id_hex);
 
-        mpack_write_cstr(result, "summary");
-        mpack_write_cstr(result, cand.summary ? cand.summary : "");
+        mpack_write_cstr(result, "title");
+        mpack_write_cstr(result, cand.title ? cand.title : "");
 
-        mpack_write_cstr(result, "detail");
+        mpack_write_cstr(result, "body");
         if (sig.hit_level == MG_HIT_STRONG) {
-            mpack_write_cstr(result, cand.detail ? cand.detail : "");
+            mpack_write_cstr(result, cand.body ? cand.body : "");
         } else {
             mpack_write_nil(result);
         }

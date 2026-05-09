@@ -10,6 +10,7 @@
 
 extern int sqlite3_vec_init(sqlite3 *db, char **pzErrMsg, const sqlite3_api_routines *pApi);
 extern const char *mg_storage_schema_sql(void);
+extern const char *mg_storage_migration_v2_sql(void);
 
 struct mg_storage {
   sqlite3 *db;
@@ -146,10 +147,44 @@ void mg_storage_close(mg_storage_t *s) {
   free(s);
 }
 
+/* Returns 1 if the legacy `summary` column exists on `nodes` (i.e. pre-rename
+ * schema). Returns 0 if the table is absent or already on the new schema.
+ * Returns -1 on error. */
+static int has_legacy_summary_column(sqlite3 *db) {
+  sqlite3_stmt *stmt = NULL;
+  int rc, found = 0;
+  rc = sqlite3_prepare_v2(db, "PRAGMA table_info(nodes);", -1, &stmt, NULL);
+  if (rc != SQLITE_OK) {
+    return -1;
+  }
+  while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
+    const unsigned char *name = sqlite3_column_text(stmt, 1);
+    if (name && strcmp((const char *)name, "summary") == 0) {
+      found = 1;
+      break;
+    }
+  }
+  sqlite3_finalize(stmt);
+  return (rc == SQLITE_ROW || rc == SQLITE_DONE) ? found : -1;
+}
+
 mg_err_t mg_storage_apply_schema(mg_storage_t *s) {
   mg_err_t err;
+  int legacy;
   if (!s || !s->db) {
     return MG_ERR_INVALID_ARG;
+  }
+  /* One-shot rename migration for DBs created before the title/body
+   * standardisation. No-op on fresh DBs. */
+  legacy = has_legacy_summary_column(s->db);
+  if (legacy < 0) {
+    return MG_ERR_STORAGE;
+  }
+  if (legacy == 1) {
+    err = exec_sql(s->db, mg_storage_migration_v2_sql());
+    if (err != MG_OK) {
+      return err;
+    }
   }
   err = exec_sql(s->db, mg_storage_schema_sql());
   if (err != MG_OK) {
@@ -169,7 +204,7 @@ mg_err_t mg_storage_insert_node_with_edges(
   size_t i;
   mg_err_t err;
   if (!s || !node || !embedding || (!keyword_ids && n_keywords > 0) || (!edges && n_edges > 0) ||
-      !node->summary || !node->detail) {
+      !node->title || !node->body) {
     return MG_ERR_INVALID_ARG;
   }
   err = exec_sql(s->db, "BEGIN IMMEDIATE;");
@@ -177,16 +212,22 @@ mg_err_t mg_storage_insert_node_with_edges(
     return err;
   }
 
-  err = prepare(s->db, "INSERT INTO nodes(id,content_hash,summary,detail,created_at,last_access,access_count,state) VALUES(?,?,?,?,?,?,?,?);", &stmt);
+  err = prepare(s->db, "INSERT INTO nodes(id,content_hash,title,body,author,created_at,expires_at,last_access,access_count,state) VALUES(?,?,?,?,?,?,?,?,?,?);", &stmt);
   if (err == MG_OK) {
     sqlite3_bind_blob(stmt, 1, node->id, MG_NODE_ID_BYTES, SQLITE_STATIC);
     sqlite3_bind_blob(stmt, 2, node->content_hash, MG_HASH_BYTES, SQLITE_STATIC);
-    sqlite3_bind_text(stmt, 3, node->summary, -1, SQLITE_STATIC);
-    sqlite3_bind_text(stmt, 4, node->detail, -1, SQLITE_STATIC);
-    sqlite3_bind_int64(stmt, 5, node->created_at);
-    sqlite3_bind_int64(stmt, 6, node->last_access);
-    sqlite3_bind_int64(stmt, 7, node->access_count);
-    sqlite3_bind_int(stmt, 8, (int)node->state);
+    sqlite3_bind_text(stmt, 3, node->title, -1, SQLITE_STATIC);
+    sqlite3_bind_text(stmt, 4, node->body, -1, SQLITE_STATIC);
+    if (node->author) {
+      sqlite3_bind_text(stmt, 5, node->author, -1, SQLITE_STATIC);
+    } else {
+      sqlite3_bind_null(stmt, 5);
+    }
+    sqlite3_bind_int64(stmt, 6, node->created_at);
+    sqlite3_bind_int64(stmt, 7, node->expires_at);
+    sqlite3_bind_int64(stmt, 8, node->last_access);
+    sqlite3_bind_int64(stmt, 9, node->access_count);
+    sqlite3_bind_int(stmt, 10, (int)node->state);
     err = step_done(stmt);
   }
   sqlite3_finalize(stmt);
@@ -243,22 +284,26 @@ mg_err_t mg_storage_get_node(mg_storage_t *s, const mg_node_id_t id, mg_node_t *
     return MG_ERR_INVALID_ARG;
   }
   memset(out, 0, sizeof(*out));
-  if (prepare(s->db, "SELECT id,content_hash,summary,detail,created_at,last_access,access_count,state FROM nodes WHERE id=?;", &stmt) != MG_OK) {
+  if (prepare(s->db, "SELECT id,content_hash,title,body,author,created_at,expires_at,last_access,access_count,state FROM nodes WHERE id=?;", &stmt) != MG_OK) {
     return MG_ERR_STORAGE;
   }
   sqlite3_bind_blob(stmt, 1, id, MG_NODE_ID_BYTES, SQLITE_STATIC);
   rc = sqlite3_step(stmt);
   if (rc == SQLITE_ROW) {
+    const unsigned char *author_text;
     memcpy(out->id, sqlite3_column_blob(stmt, 0), MG_NODE_ID_BYTES);
     memcpy(out->content_hash, sqlite3_column_blob(stmt, 1), MG_HASH_BYTES);
-    out->summary = mg_strdup((const char *)sqlite3_column_text(stmt, 2));
-    out->detail = mg_strdup((const char *)sqlite3_column_text(stmt, 3));
-    out->created_at = sqlite3_column_int64(stmt, 4);
-    out->last_access = sqlite3_column_int64(stmt, 5);
-    out->access_count = sqlite3_column_int64(stmt, 6);
-    out->state = (mg_node_state_t)sqlite3_column_int(stmt, 7);
+    out->title = mg_strdup((const char *)sqlite3_column_text(stmt, 2));
+    out->body  = mg_strdup((const char *)sqlite3_column_text(stmt, 3));
+    author_text = sqlite3_column_text(stmt, 4);
+    out->author = author_text ? mg_strdup((const char *)author_text) : NULL;
+    out->created_at  = sqlite3_column_int64(stmt, 5);
+    out->expires_at  = sqlite3_column_int64(stmt, 6);
+    out->last_access = sqlite3_column_int64(stmt, 7);
+    out->access_count = sqlite3_column_int64(stmt, 8);
+    out->state = (mg_node_state_t)sqlite3_column_int(stmt, 9);
     sqlite3_finalize(stmt);
-    if (!out->summary || !out->detail) {
+    if (!out->title || !out->body) {
       mg_node_free(out);
       return MG_ERR_OOM;
     }
@@ -401,18 +446,18 @@ mg_err_t mg_storage_vector_topk_by_keyword(mg_storage_t *s, const mg_embedding_t
   return topk_scan(s, query, k, kw_id, 1, out, out_count);
 }
 
-mg_err_t mg_storage_fts_search(mg_storage_t *s, const char *query_text, int k, bool match_summary, bool match_detail, mg_node_score_t *out, int *out_count) {
+mg_err_t mg_storage_fts_search(mg_storage_t *s, const char *query_text, int k, bool match_title, bool match_body, mg_node_score_t *out, int *out_count) {
   sqlite3_stmt *stmt = NULL;
   int rc;
-  if (!s || !query_text || k < 0 || !out || !out_count || (!match_summary && !match_detail)) {
+  if (!s || !query_text || k < 0 || !out || !out_count || (!match_title && !match_body)) {
     return MG_ERR_INVALID_ARG;
   }
   *out_count = 0;
   if (k == 0) {
     return MG_OK;
   }
-  (void)match_summary;
-  (void)match_detail;
+  (void)match_title;
+  (void)match_body;
   if (prepare(s->db, "SELECT nodes.id, -bm25(node_fts) FROM node_fts JOIN nodes ON nodes.rowid=node_fts.rowid WHERE node_fts MATCH ? ORDER BY bm25(node_fts) LIMIT ?;", &stmt) != MG_OK) {
     return MG_ERR_STORAGE;
   }
@@ -621,7 +666,7 @@ mg_err_t mg_storage_merge_from(mg_storage_t *s, const char *source_path,
    * leaves the target untouched.
    *
    * Note about overwrite semantics: nodes are deduplicated by content_hash
-   * (which hashes summary+detail+keywords). If two nodes have the same
+   * (which hashes title+body+keywords). If two nodes have the same
    * content_hash, they are by definition identical — so "overwrite" only
    * matters for fields the hash does not cover (created_at, last_access,
    * access_count). With overwrite=1 we adopt the source's metadata; with
@@ -647,10 +692,10 @@ mg_err_t mg_storage_merge_from(mg_storage_t *s, const char *source_path,
 
   /* 1. nodes (idempotent on content_hash UNIQUE) */
   snprintf(sql, sizeof(sql),
-    "%s INTO main.nodes(id, content_hash, summary, detail, "
-    "                   created_at, last_access, access_count, state) "
-    "SELECT id, content_hash, summary, detail, "
-    "       created_at, last_access, access_count, state FROM src.nodes;",
+    "%s INTO main.nodes(id, content_hash, title, body, author, "
+    "                   created_at, expires_at, last_access, access_count, state) "
+    "SELECT id, content_hash, title, body, author, "
+    "       created_at, expires_at, last_access, access_count, state FROM src.nodes;",
     node_verb);
   err = exec_sql(s->db, sql);
   if (err != MG_OK) goto rollback;

@@ -116,14 +116,17 @@ static void free_keywords(char **keywords, size_t count) {
   free(keywords);
 }
 
+/* Content hash covers title + body + sorted keywords. Author and dates are
+ * intentionally NOT hashed: the same node saved by different authors or at
+ * different times should still dedupe on identical content. */
 static mg_err_t build_content_hash(
-  const char *summary,
-  const char *detail,
+  const char *title,
+  const char *body,
   char **keywords,
   size_t n_keywords,
   mg_hash_t out
 ) {
-  size_t total = strlen(summary) + 1u + strlen(detail) + 1u;
+  size_t total = strlen(title) + 1u + strlen(body) + 1u;
   for (size_t i = 0u; i < n_keywords; ++i) {
     total += strlen(keywords[i]);
     if (i + 1u < n_keywords) {
@@ -139,13 +142,13 @@ static mg_err_t build_content_hash(
   qsort(keywords, n_keywords, sizeof(*keywords), cmp_cstr_ptr);
 
   size_t pos = 0u;
-  size_t len = strlen(summary);
-  memcpy(buf + pos, summary, len);
+  size_t len = strlen(title);
+  memcpy(buf + pos, title, len);
   pos += len;
   buf[pos++] = '\0';
 
-  len = strlen(detail);
-  memcpy(buf + pos, detail, len);
+  len = strlen(body);
+  memcpy(buf + pos, body, len);
   pos += len;
   buf[pos++] = '\0';
 
@@ -205,33 +208,54 @@ mg_err_t mg_op_insert(mg_ctx_t *ctx, mpack_node_t args, mpack_writer_t *result) 
     return MG_ERR_INVALID_ARG;
   }
 
-  char *summary = NULL;
-  char *detail = NULL;
+  char *title = NULL;
+  char *body = NULL;
+  char *author = NULL;
   char **keywords = NULL;
   size_t n_keywords = 0u;
+  int64_t expires_at = 0;
 
-  mg_err_t err = copy_msgpack_string(args, "summary", &summary);
+  mg_err_t err = copy_msgpack_string(args, "title", &title);
   if (err != MG_OK) {
     return err;
   }
-  err = copy_msgpack_string(args, "detail", &detail);
+  err = copy_msgpack_string(args, "body", &body);
   if (err != MG_OK) {
-    free(summary);
+    free(title);
     return err;
+  }
+  /* Optional fields. Author is empty/missing → NULL on the node. */
+  {
+    mpack_node_t a = mpack_node_map_cstr_optional(args, "author");
+    if (!mpack_node_is_missing(a) && !mpack_node_is_nil(a)) {
+      const char *s = mpack_node_str(a);
+      uint32_t n = (uint32_t)mpack_node_strlen(a);
+      if (s && n > 0u) {
+        author = (char *)malloc((size_t)n + 1u);
+        if (author) { memcpy(author, s, n); author[n] = '\0'; }
+      }
+    }
+    mpack_node_t e = mpack_node_map_cstr_optional(args, "expires_at");
+    if (!mpack_node_is_missing(e) && !mpack_node_is_nil(e)) {
+      expires_at = (int64_t)mpack_node_i64(e);
+      if (expires_at < 0) expires_at = 0;
+    }
   }
   err = parse_keywords(args, &keywords, &n_keywords);
   if (err != MG_OK) {
-    free(summary);
-    free(detail);
+    free(title);
+    free(body);
+    free(author);
     return err;
   }
 
   mg_hash_t content_hash;
-  err = build_content_hash(summary, detail, keywords, n_keywords, content_hash);
+  err = build_content_hash(title, body, keywords, n_keywords, content_hash);
   if (err != MG_OK) {
     free_keywords(keywords, n_keywords);
-    free(summary);
-    free(detail);
+    free(title);
+    free(body);
+    free(author);
     return err;
   }
 
@@ -240,14 +264,16 @@ mg_err_t mg_op_insert(mg_ctx_t *ctx, mpack_node_t args, mpack_writer_t *result) 
   if (err == MG_OK) {
     write_insert_result(result, existing_id, 0u, 0u, true);
     free_keywords(keywords, n_keywords);
-    free(summary);
-    free(detail);
+    free(title);
+    free(body);
+    free(author);
     return MG_OK;
   }
   if (err != MG_ERR_NOT_FOUND) {
     free_keywords(keywords, n_keywords);
-    free(summary);
-    free(detail);
+    free(title);
+    free(body);
+    free(author);
     return err;
   }
 
@@ -257,11 +283,12 @@ mg_err_t mg_op_insert(mg_ctx_t *ctx, mpack_node_t args, mpack_writer_t *result) 
   memcpy(node.content_hash, content_hash, MG_HASH_BYTES);
 
   mg_embedding_t q;
-  err = mg_embed_text(ctx->embed, summary, q);
+  err = mg_embed_text(ctx->embed, title, q);
   if (err != MG_OK) {
     free_keywords(keywords, n_keywords);
-    free(summary);
-    free(detail);
+    free(title);
+    free(body);
+    free(author);
     return err;
   }
 
@@ -270,8 +297,9 @@ mg_err_t mg_op_insert(mg_ctx_t *ctx, mpack_node_t args, mpack_writer_t *result) 
     kw_ids = (mg_keyword_id_t *)calloc(n_keywords, sizeof(*kw_ids));
     if (!kw_ids) {
       free_keywords(keywords, n_keywords);
-      free(summary);
-      free(detail);
+      free(title);
+      free(body);
+      free(author);
       return MG_ERR_OOM;
     }
   }
@@ -281,8 +309,9 @@ mg_err_t mg_op_insert(mg_ctx_t *ctx, mpack_node_t args, mpack_writer_t *result) 
     if (err != MG_OK) {
       free(kw_ids);
       free_keywords(keywords, n_keywords);
-      free(summary);
-      free(detail);
+      free(title);
+      free(body);
+      free(author);
       return err;
     }
   }
@@ -307,15 +336,18 @@ mg_err_t mg_op_insert(mg_ctx_t *ctx, mpack_node_t args, mpack_writer_t *result) 
     free(edges);
     free(kw_ids);
     free_keywords(keywords, n_keywords);
-    free(summary);
-    free(detail);
+    free(title);
+    free(body);
+    free(author);
     return err;
   }
 
   int64_t now = now_unix_ms();
-  node.summary = summary;
-  node.detail = detail;
+  node.title = title;
+  node.body = body;
+  node.author = author;
   node.created_at = now;
+  node.expires_at = expires_at;
   node.last_access = now;
   node.access_count = 0;
   node.state = MG_NODE_ACTIVE;
@@ -328,7 +360,8 @@ mg_err_t mg_op_insert(mg_ctx_t *ctx, mpack_node_t args, mpack_writer_t *result) 
   free(edges);
   free(kw_ids);
   free_keywords(keywords, n_keywords);
-  free(summary);
-  free(detail);
+  free(title);
+  free(body);
+  free(author);
   return err;
 }

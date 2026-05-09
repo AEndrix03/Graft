@@ -74,7 +74,7 @@ mg_err_t mg_storage_fts_search(
   mg_storage_t *s,
   const char *query_text,
   int k,
-  bool match_summary, bool match_detail,
+  bool match_title, bool match_body,
   mg_node_score_t *out, int *out_count
 );
 

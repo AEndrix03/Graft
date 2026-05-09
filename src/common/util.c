@@ -19,10 +19,12 @@ void mg_node_free(mg_node_t *n) {
   if (!n) {
     return;
   }
-  free(n->summary);
-  free(n->detail);
-  n->summary = NULL;
-  n->detail = NULL;
+  free(n->title);
+  free(n->body);
+  free(n->author);
+  n->title = NULL;
+  n->body = NULL;
+  n->author = NULL;
 }
 
 void mg_blake3(const uint8_t *data, size_t len, mg_hash_t out) {

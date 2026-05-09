@@ -1,15 +1,15 @@
 /* mg_op_retrieve: hybrid lexical+semantic retrieval via Reciprocal Rank Fusion.
  *
  * Three ranked lists are fused:
- *   R_vec     = vector top-k on summary embedding (cosine)
- *   R_bm25_s  = FTS5 BM25 over summary
- *   R_bm25_d  = FTS5 BM25 over detail
+ *   R_vec     = vector top-k on title embedding (cosine)
+ *   R_bm25_t  = FTS5 BM25 over title
+ *   R_bm25_b  = FTS5 BM25 over body
  *
  * RRF: score(id) = sum_i 1 / (k + rank_i(id)),  rank starts at 1.
  *
  * Result map (handler writes a single mpack VALUE at writer's current position):
  *   {
- *     "results":           [ { "id_hex","summary","score","keywords":[...] }, ... ],
+ *     "results":           [ { "id_hex","title","score","keywords":[...] }, ... ],
  *     "distinct_keywords": [ string, ... ]
  *   }
  */
@@ -199,8 +199,8 @@ mg_err_t mg_retrieve_run_rrf(mg_ctx_t *ctx,
         mpack_write_cstr(w, "id_hex");
         mpack_write_cstr(w, id_hex);
 
-        mpack_write_cstr(w, "summary");
-        mpack_write_cstr(w, node.summary ? node.summary : "");
+        mpack_write_cstr(w, "title");
+        mpack_write_cstr(w, node.title ? node.title : "");
 
         mpack_write_cstr(w, "score");
         mpack_write_float(w, cands[i].rrf);

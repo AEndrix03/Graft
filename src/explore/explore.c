@@ -22,7 +22,7 @@
  *
  * Result map (single mpack VALUE at writer position):
  *   {
- *     "nodes": [ { id_hex, summary, score, depth_reached } , ... ],
+ *     "nodes": [ { id_hex, title, score, depth_reached } , ... ],
  *     "edges": [ { src_hex, dst_hex, kind, weight }       , ... ]
  *   }
  */
@@ -459,8 +459,8 @@ mg_err_t mg_op_explore(mg_ctx_t *ctx, mpack_node_t args, mpack_writer_t *result)
         mpack_build_map(result);
         mpack_write_cstr(result, "id_hex");
         mpack_write_cstr(result, hex);
-        mpack_write_cstr(result, "summary");
-        mpack_write_cstr(result, node.summary ? node.summary : "");
+        mpack_write_cstr(result, "title");
+        mpack_write_cstr(result, node.title ? node.title : "");
         mpack_write_cstr(result, "score");
         mpack_write_float(result, visited[i].score);
         mpack_write_cstr(result, "depth_reached");

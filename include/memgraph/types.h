@@ -30,9 +30,11 @@ typedef enum {
 typedef struct {
   mg_node_id_t   id;
   mg_hash_t      content_hash;
-  char          *summary;
-  char          *detail;
+  char          *title;          /* short retrieval-anchor line (was: summary) */
+  char          *body;           /* long-form Markdown (was: detail) */
+  char          *author;         /* "<user>@<host>" or config override; NULL for legacy rows */
   int64_t        created_at;     /* unix ms */
+  int64_t        expires_at;     /* unix ms; 0 = no expiration */
   int64_t        last_access;
   int64_t        access_count;
   mg_node_state_t state;

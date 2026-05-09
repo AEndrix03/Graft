@@ -201,7 +201,7 @@ float mg_text_trigram_jaccard(const char *a, const char *b) {
 
 mg_err_t mg_verify_score(mg_verify_ctx_t *ctx,
                          const char *query_text,
-                         const char *candidate_summary,
+                         const char *candidate_title,
                          float pre_computed_s_vec,
                          float pre_computed_s_lex,
                          mg_verify_signals_t *out) {
@@ -209,18 +209,18 @@ mg_err_t mg_verify_score(mg_verify_ctx_t *ctx,
   bool strong;
   bool weak;
 
-  if (!ctx || !query_text || !candidate_summary || !out) {
+  if (!ctx || !query_text || !candidate_title || !out) {
     return MG_ERR_INVALID_ARG;
   }
 
   out->s_vec = pre_computed_s_vec;
   out->s_lex = pre_computed_s_lex;
-  out->s_jaccard = mg_text_trigram_jaccard(query_text, candidate_summary);
+  out->s_jaccard = mg_text_trigram_jaccard(query_text, candidate_title);
   out->s_ce = -1.0f;
 
   if (ctx->ce_runtime_enabled) {
     float ce = -1.0f;
-    if (mg_ce_score_pair(ctx, query_text, candidate_summary, &ce) == 0) {
+    if (mg_ce_score_pair(ctx, query_text, candidate_title, &ce) == 0) {
       out->s_ce = ce;
     }
   }
