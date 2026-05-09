@@ -25,15 +25,21 @@ const nodeMeshes = shallowRef(new Map());     // id_hex -> Mesh
 const nodeLabels = shallowRef(new Map());     // id_hex -> CSS2DObject
 let edgeLineObjects = [];                     // { obj, perSegment: edge[] }
 let animationFrame;
+let hoveredId = null;
+let lastHoverCheck = 0;
+const camTarget = { pos: new THREE.Vector3(), look: new THREE.Vector3() };
+let camAnimating = false;
+const clock = new THREE.Clock();
 
-/* Tunables */
-const SPATIAL_SCALE     = 6.0;   // multiplier on the projected coords (more breathing room)
-const NODE_R_BASE       = 0.018; // sphere radius for an "average" body
-const NODE_R_MIN        = 0.012;
-const NODE_R_MAX        = 0.06;
-const NODE_R_LOG_FACTOR = 0.014; // delta per ln(body_len)
-const LABEL_NEAR_DIST   = 2.5;   // labels visible if camera within this distance of node (after scale)
-const EDGE_LINEWIDTH    = 2.5;   // pixel-thick edges via Line2
+/* Tunables — coords are scaled, then nodes sized smaller relative to spread,
+ * so edges read as actual lines instead of overlapping dots. */
+const SPATIAL_SCALE     = 28.0;  // multiplier on the projected coords (room for edges to breathe)
+const NODE_R_BASE       = 0.07;  // sphere radius for an "average" body
+const NODE_R_MIN        = 0.05;
+const NODE_R_MAX        = 0.18;
+const NODE_R_LOG_FACTOR = 0.045; // delta per ln(body_len)
+const LABEL_NEAR_DIST   = 1.2;   // tight: labels only when the camera is right on top of a node (anti-collision)
+const EDGE_LINEWIDTH    = 2.0;   // pixel-thick edges via Line2
 
 const COLOR = {
   bg:             0x0e1014,
@@ -96,8 +102,15 @@ function rebuildNodes() {
 
   for (const n of props.nodes) {
     const r = nodeRadius(n);
-    const geom = new THREE.SphereGeometry(r, 18, 14);
-    const mat = new THREE.MeshBasicMaterial({ color: nodeColor(n) });
+    const geom = new THREE.SphereGeometry(r, 28, 20);
+    /* MeshLambertMaterial gives soft Lambertian shading — spheres look like
+     * spheres, not flat discs, with very low GPU cost. Subtle emissive lifts
+     * the unlit side enough to read against the dark background. */
+    const baseColor = nodeColor(n);
+    const mat = new THREE.MeshLambertMaterial({
+      color: baseColor,
+      emissive: baseColor.clone().multiplyScalar(0.18),
+    });
     const m = new THREE.Mesh(geom, mat);
     m.position.set(n.x * SPATIAL_SCALE, n.y * SPATIAL_SCALE, n.z * SPATIAL_SCALE);
     m.userData = { id: n.id_hex, title: n.title, state: n.state, baseColor: mat.color.clone(), radius: r };
@@ -171,12 +184,68 @@ function applyHighlights() {
   const sel = props.selectedId;
   const hi = new Set(props.highlightedIds || []);
   for (const [id, mesh] of nodeMeshes.value) {
-    let color, scale = 1.0;
-    if (id === sel)        { color = new THREE.Color(COLOR.selected);    scale = 1.55; }
-    else if (hi.has(id))   { color = new THREE.Color(COLOR.highlighted); scale = 1.30; }
+    let color;
+    if (id === sel)        { color = new THREE.Color(COLOR.selected); }
+    else if (hi.has(id))   { color = new THREE.Color(COLOR.highlighted); }
     else                   { color = mesh.userData.baseColor; }
+    mesh.userData.targetScale = (id === sel) ? 1.55 : (hi.has(id) ? 1.30 : 1.0);
     mesh.material.color.copy(color);
-    mesh.scale.setScalar(scale);
+  }
+}
+
+/* Each frame: lerp current scale toward target, add hover/selected pulse. */
+function animateNodes(t) {
+  for (const [id, mesh] of nodeMeshes.value) {
+    const target = mesh.userData.targetScale ?? 1.0;
+    const hover = (id === hoveredId) ? 0.18 : 0.0;
+    const pulse = (id === props.selectedId) ? Math.sin(t * 3.0) * 0.06 : 0.0;
+    const desired = target + hover + pulse;
+    const cur = mesh.scale.x;
+    const next = cur + (desired - cur) * 0.18;  // ease toward desired
+    mesh.scale.setScalar(next);
+  }
+}
+
+/* Camera smooth-focus when selection changes — keeps the orbit framing
+ * but slides the target into view over a few frames. */
+function updateCameraAnim() {
+  if (!camAnimating) return;
+  controls.target.lerp(camTarget.look, 0.10);
+  camera.position.lerp(camTarget.pos, 0.10);
+  if (controls.target.distanceToSquared(camTarget.look) < 1e-5
+      && camera.position.distanceToSquared(camTarget.pos) < 1e-5) {
+    controls.target.copy(camTarget.look);
+    camera.position.copy(camTarget.pos);
+    camAnimating = false;
+  }
+}
+
+function focusOnSelected() {
+  const sel = props.selectedId;
+  if (!sel) return;
+  const mesh = nodeMeshes.value.get(sel);
+  if (!mesh) return;
+  const dir = camera.position.clone().sub(controls.target).normalize();
+  const dist = camera.position.distanceTo(controls.target);
+  const targetDist = Math.max(1.5, Math.min(dist, 6.0));
+  camTarget.look.copy(mesh.position);
+  camTarget.pos.copy(mesh.position).add(dir.multiplyScalar(targetDist));
+  camAnimating = true;
+}
+
+/* Cheap hover detection (every ~50ms, not every frame). */
+function pollHover(now) {
+  if (now - lastHoverCheck < 50) return;
+  lastHoverCheck = now;
+  raycaster.setFromCamera(mouse, camera);
+  const nodeHits = raycaster.intersectObjects(nodeGroup.children, false);
+  let nextHover = null;
+  if (nodeHits.length) nextHover = nodeHits[0].object.userData.id;
+  if (nextHover !== hoveredId) {
+    hoveredId = nextHover;
+    if (renderer?.domElement) {
+      renderer.domElement.style.cursor = hoveredId ? 'pointer' : 'grab';
+    }
   }
 }
 
@@ -247,6 +316,11 @@ function onClick(ev) {
   }
 }
 
+function onMouseMove(ev) {
+  setMouseFromEvent(ev);
+  // Hover is polled in the render loop using current mouse position.
+}
+
 function onResize() {
   const w = container.value.clientWidth;
   const h = container.value.clientHeight;
@@ -260,6 +334,11 @@ function onResize() {
 }
 
 function loop() {
+  const t = clock.getElapsedTime();
+  const now = performance.now();
+  pollHover(now);
+  animateNodes(t);
+  updateCameraAnim();
   controls.update();
   updateLabelVisibility();
   renderer.render(scene, camera);
@@ -293,6 +372,16 @@ onMounted(() => {
   controls.enableDamping = true;
   controls.dampingFactor = 0.12;
 
+  /* Lighting — soft global + a single warm directional for shape. Very
+   * cheap on CPU/GPU, dramatic improvement over flat shading. */
+  scene.add(new THREE.AmbientLight(0xffffff, 0.55));
+  const key = new THREE.DirectionalLight(0xffffff, 0.85);
+  key.position.set(4, 6, 8);
+  scene.add(key);
+  const fill = new THREE.DirectionalLight(0x7aa2f7, 0.25);
+  fill.position.set(-6, -2, -4);
+  scene.add(fill);
+
   nodeGroup = new THREE.Group();
   edgeGroup = new THREE.Group();
   scene.add(edgeGroup);
@@ -303,6 +392,7 @@ onMounted(() => {
   mouse = new THREE.Vector2();
 
   renderer.domElement.addEventListener('click', onClick);
+  renderer.domElement.addEventListener('mousemove', onMouseMove);
   window.addEventListener('resize', onResize);
 
   rebuildNodes();
@@ -316,6 +406,7 @@ onBeforeUnmount(() => {
   cancelAnimationFrame(animationFrame);
   window.removeEventListener('resize', onResize);
   renderer?.domElement.removeEventListener('click', onClick);
+  renderer?.domElement.removeEventListener('mousemove', onMouseMove);
   for (const [, label] of nodeLabels.value) label.element.remove();
   nodeLabels.value.clear();
   disposeGroup(nodeGroup);
@@ -335,7 +426,7 @@ watch(() => props.nodes,    () => { rebuildNodes(); rebuildEdges(); applyHighlig
 watch(() => props.edges,    () => rebuildEdges());
 watch(() => props.showSemantic, () => rebuildEdges());
 watch(() => props.showKeyword,  () => rebuildEdges());
-watch(() => props.selectedId,    applyHighlights);
+watch(() => props.selectedId, () => { applyHighlights(); focusOnSelected(); });
 watch(() => props.highlightedIds, applyHighlights, { deep: true });
 </script>
 

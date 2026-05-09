@@ -1,5 +1,5 @@
 <script setup>
-import { ref, watch, onBeforeUnmount, computed } from 'vue';
+import { ref, watch, onMounted, onBeforeUnmount, computed } from 'vue';
 import { EditorView, keymap, lineNumbers } from '@codemirror/view';
 import { EditorState } from '@codemirror/state';
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
@@ -12,16 +12,64 @@ const emit  = defineEmits(['close', 'saved', 'deleted']);
 
 const loading = ref(false);
 const error   = ref('');
-const dirty   = ref(false);
 
 const titleRef    = ref('');
 const keywordsRef = ref('');
 const meta = ref({ author: null, created_at: 0, expires_at: 0, state: 'active' });
 
 let view = null;
+let initialTitle = '';
 let initialBody = '';
+let initialKeywords = '';
+const currentBody = ref('');
 
 const editorEl = ref(null);
+
+/* True dirty: actual diff against the loaded values, not just "user typed
+ * something". Reverting an edit returns dirty to false naturally. */
+const dirty = computed(() => (
+  titleRef.value !== initialTitle
+  || currentBody.value !== initialBody
+  || keywordsRef.value !== initialKeywords
+));
+
+/* Resizable panel — width persisted to localStorage between sessions. */
+const PANEL_MIN = 360;
+const PANEL_MAX_VW_RATIO = 0.7;
+const PANEL_DEFAULT = 480;
+const panelWidth = ref(PANEL_DEFAULT);
+const resizing = ref(false);
+function loadWidth() {
+  try {
+    const v = parseInt(localStorage.getItem('memgraph_panel_width') || '0', 10);
+    if (v >= PANEL_MIN) panelWidth.value = v;
+  } catch {}
+}
+function saveWidth(v) {
+  try { localStorage.setItem('memgraph_panel_width', String(v)); } catch {}
+}
+function clampWidth(w) {
+  const max = Math.max(PANEL_MIN + 100, Math.floor(window.innerWidth * PANEL_MAX_VW_RATIO));
+  return Math.min(max, Math.max(PANEL_MIN, w));
+}
+function onResizeStart(ev) {
+  resizing.value = true;
+  ev.preventDefault();
+  const startX = ev.clientX;
+  const startW = panelWidth.value;
+  const move = (e) => {
+    const next = clampWidth(startW + (startX - e.clientX));
+    panelWidth.value = next;
+  };
+  const up = () => {
+    resizing.value = false;
+    window.removeEventListener('pointermove', move);
+    window.removeEventListener('pointerup', up);
+    saveWidth(panelWidth.value);
+  };
+  window.addEventListener('pointermove', move);
+  window.addEventListener('pointerup', up);
+}
 
 function isoUtc(ms) {
   if (!ms) return null;
@@ -46,7 +94,7 @@ function makeView(initialDoc) {
         '.cm-selectionBackground': { backgroundColor: 'rgba(122,162,247,0.18) !important' },
       }, { dark: true }),
       EditorView.updateListener.of((u) => {
-        if (u.docChanged) dirty.value = true;
+        if (u.docChanged) currentBody.value = u.state.doc.toString();
       }),
     ],
   });
@@ -56,21 +104,22 @@ function makeView(initialDoc) {
 async function load() {
   loading.value = true;
   error.value = '';
-  dirty.value = false;
   try {
     const res = unwrap(await api.get(props.nodeId));
-    titleRef.value = res.title || '';
-    keywordsRef.value = (res.keywords || []).join(', ');
+    initialTitle    = res.title || '';
+    initialBody     = res.body  || '';
+    initialKeywords = (res.keywords || []).join(', ');
+    titleRef.value    = initialTitle;
+    keywordsRef.value = initialKeywords;
+    currentBody.value = initialBody;
     meta.value = {
       author: res.author || null,
       created_at: res.created_at || 0,
       expires_at: res.expires_at || 0,
       state: res.state || 'active',
     };
-    initialBody = res.body || '';
     if (view) { view.destroy(); view = null; }
     if (editorEl.value) view = makeView(initialBody);
-    dirty.value = false;
   } catch (e) {
     error.value = e.message || String(e);
   } finally {
@@ -79,7 +128,7 @@ async function load() {
 }
 
 async function save() {
-  if (!dirty.value && titleRef.value === titleRef.value && false) return;
+  if (!dirty.value) return;
   loading.value = true;
   error.value = '';
   try {
@@ -119,6 +168,7 @@ async function remove() {
 
 watch(() => props.nodeId, (v) => { if (v) load(); }, { immediate: true });
 
+onMounted(loadWidth);
 onBeforeUnmount(() => { if (view) { view.destroy(); view = null; } });
 
 const dateStr   = computed(() => isoUtc(meta.value.created_at));
@@ -126,7 +176,9 @@ const expiryStr = computed(() => isoUtc(meta.value.expires_at));
 </script>
 
 <template>
-  <aside class="panel">
+  <aside class="panel" :style="{ width: panelWidth + 'px' }" :class="{ resizing }">
+    <div class="resize-handle" @pointerdown="onResizeStart" title="Drag to resize" />
+
     <header class="head">
       <div class="state-pill" :class="meta.state">{{ meta.state }}</div>
       <div class="spacer" />
@@ -136,7 +188,7 @@ const expiryStr = computed(() => isoUtc(meta.value.expires_at));
     <div v-if="error" class="error">{{ error }}</div>
 
     <label class="lbl">Title</label>
-    <input v-model="titleRef" class="title" @input="dirty = true" />
+    <input v-model="titleRef" class="title" />
 
     <label class="lbl">Body (Markdown)</label>
     <div class="editor-wrap">
@@ -144,7 +196,7 @@ const expiryStr = computed(() => isoUtc(meta.value.expires_at));
     </div>
 
     <label class="lbl">Keywords <span class="hint">comma-separated</span></label>
-    <input v-model="keywordsRef" class="keywords" @input="dirty = true" />
+    <input v-model="keywordsRef" class="keywords" />
 
     <dl class="meta">
       <template v-if="meta.author">
@@ -172,14 +224,39 @@ const expiryStr = computed(() => isoUtc(meta.value.expires_at));
 
 <style scoped>
 .panel {
-  width: 480px;
+  position: relative;
   height: 100%;
   display: flex;
   flex-direction: column;
   background: var(--bg-elevated);
   border-left: 1px solid var(--border-soft);
-  padding: 14px 16px;
+  padding: 14px 16px 14px 18px;
   gap: 8px;
+  transition: width 0.18s ease;
+  box-shadow: -8px 0 24px rgba(0, 0, 0, 0.25);
+}
+.panel.resizing { transition: none; user-select: none; }
+
+.resize-handle {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 6px;
+  height: 100%;
+  cursor: ew-resize;
+  z-index: 5;
+}
+.resize-handle::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: transparent;
+  border-left: 1px solid var(--border-soft);
+  transition: border-color 0.15s ease;
+}
+.resize-handle:hover::before,
+.panel.resizing .resize-handle::before {
+  border-left-color: var(--accent);
 }
 .head { display: flex; align-items: center; }
 .spacer { flex: 1; }
