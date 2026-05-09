@@ -27,6 +27,7 @@ The result: an LLM session that ends doesn't take its hard-won lessons with it. 
 - [Install](#install)
 - [Use it](#use-it)
 - [Plug it into your agent](#plug-it-into-your-agent)
+- [HTTP API + 3D viewer](#http-api--3d-viewer)
 - [Architecture](#architecture)
 - [Configuration](#configuration)
 - [Status](#status)
@@ -42,6 +43,7 @@ The result: an LLM session that ends doesn't take its hard-won lessons with it. 
 - **Multi-tenant profiles** — isolated DBs and sockets per profile (`work`, `personal`, project-scoped). Import/export as files.
 - **Local-first** — single binary, single DB file, no network. Models run on CPU out of the box; opt-in to CUDA or ROCm 6/7 with a flag.
 - **Pluggable into anything** — Claude Code (skills + hooks), Codex (AGENTS.md + hooks), ChatGPT / Claude Desktop (MCP server), Gemini CLI, Open Code.
+- **Optional HTTP / REST + 3D viewer** — flip a flag in `config.yaml`, get six JSON endpoints and a browser-based graph explorer with click-to-edit (atomic supersession), search/retrieve/explore overlays, and ranked-result navigation.
 
 ## See it in action
 
@@ -224,6 +226,38 @@ Two complementary layers across most clients:
 - **Skills / `AGENTS.md`** instruct the model on _when_ to use memgraph (search before answering non-trivial questions, save after solving non-obvious ones, skip for trivial work).
 - **Hooks** (Claude Code, Codex) are run by the harness deterministically: `UserPromptSubmit` injects the cache result before the model responds; `PostToolUse` records edits as save-candidates; `Stop` proposes `/memoryze` at end of turn. The model can no longer "forget" to consult the graph — that's the harness's job now.
 
+## HTTP API + 3D viewer
+
+memgraph ships an optional REST layer alongside the unix socket. **Off by default**; enable in `config.yaml`:
+
+```yaml
+http:
+  enabled: true
+  bind: "127.0.0.1"
+  port: 9977
+  api_key: null
+```
+
+Then either `curl` directly or open the browser viewer:
+
+```bash
+memgraph view              # opens http://127.0.0.1:9977/ in your default browser
+```
+
+You get:
+
+- **Six JSON endpoints** under `/v1/*` — `match`, `search`, `explore`, `classify`, `insert`, `nodes/{id}` (GET + DELETE), plus `view` for the full graph dump and `healthz` for liveness probes. Bearer-token auth optional.
+- **A 3D graph viewer** (Vue 3 + three.js + CodeMirror) served as a static SPA from the same daemon. Color-coded edges (semantic / keyword / supersedes), per-node coloring by primary keyword hash, content-proportional sphere size, search/retrieve/explore overlays with red→orange ranked result colors, click-to-edit with atomic supersession on save.
+- **Local-first defaults** — bind is `127.0.0.1`, `delete` is off by default. No telemetry, no CDN dependencies in the SPA.
+- **Per-endpoint enable flags** — `endpoint_match: true`, `endpoint_delete: false`, etc. Disable what you don't want exposed.
+
+Full reference: [`docs/HTTP-API.md`](./docs/HTTP-API.md). Viewer specifics: [`viewer/README.md`](./viewer/README.md).
+
+```bash
+# Build the viewer once after install (or after pulling viewer changes)
+cd viewer && npm install && npm run build
+```
+
 ## Architecture
 
 ```mermaid
@@ -240,12 +274,15 @@ flowchart LR
       M["MCP server (Python)"]
     end
 
+    Browser["3D Viewer (browser)"]
+
     A1 --> S
     A2 --> S
     A4 --> S
     A3 --> M
     S --> CLI["memgraph (CLI)"]
     M --> CLI
+    Browser -->|HTTP/JSON| Daemon
     CLI -->|AF_UNIX socket<br/>MessagePack| Daemon["memgraphd"]
     Daemon --> Storage[("SQLite + sqlite-vec + FTS5<br/>nodes · edges · keywords · vectors")]
     Daemon --> Embed["llama.cpp + BGE-M3<br/>1024-dim embeddings"]

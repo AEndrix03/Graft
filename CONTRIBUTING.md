@@ -22,12 +22,27 @@ ctest --test-dir build           # run the suite
 
 ## Project layout
 
-- `src/` — daemon, CLI, retrieval, embed, storage, config (one subdir per concern)
+- `src/` — daemon, CLI, retrieval, embed, storage, config, http (one subdir per concern)
 - `include/memgraph/` — public C headers
 - `tests/` — `test_*.c` files; CMake auto-registers each one
 - `integrations/` — per-agent adapters (skills, AGENTS.md files, MCP server, hooks)
+- `viewer/` — Vue 3 + Vite + three.js SPA served by the daemon's HTTP layer
+- `docs/` — extended docs (HTTP API reference, etc.)
 - `scripts/` — installers and git hooks
 - `third_party/` — submodules (llama.cpp, sqlite-vec, mpack, BLAKE3)
+
+## Viewer
+
+The 3D graph viewer is independent of the C build:
+
+```bash
+cd viewer
+npm install
+npm run build      # static bundle in viewer/dist/
+npm run dev        # hot-reload dev server, proxies /v1/* to :9977
+```
+
+The daemon serves `viewer/dist/` at `/` when `http.enabled: true`. See [`viewer/README.md`](./viewer/README.md) and [`docs/HTTP-API.md`](./docs/HTTP-API.md).
 
 ## Commit format
 
