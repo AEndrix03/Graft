@@ -29,6 +29,20 @@ const kwSuggestions = computed(() => {
     .slice(0, 8);
 });
 
+/* When the user is typing 3+ chars but nothing matches, surface that
+ * explicitly instead of just hiding the dropdown — saves them from
+ * wondering "is autocomplete broken?" */
+const kwShowEmpty = computed(() => {
+  const q = kwInput.value.trim();
+  return q.length >= AUTOCOMPLETE_MIN && kwSuggestions.value.length === 0;
+});
+
+const kwPlaceholder = computed(() => {
+  const total = props.allKeywords.length;
+  if (!total) return 'Loading keywords from graph…';
+  return `Filter by keyword — ${total} available, type ${AUTOCOMPLETE_MIN}+ letters`;
+});
+
 watch(kwSuggestions, () => { kwHi.value = -1; });
 
 function addChip(kw) {
@@ -130,7 +144,7 @@ function clear() {
         <input
           v-model="kwInput"
           class="kw-input"
-          placeholder="Filter by keyword (type 3+ letters)…"
+          :placeholder="kwPlaceholder"
           autocomplete="off"
           @keydown="onKwKey"
         />
@@ -143,6 +157,7 @@ function clear() {
             @mouseenter="kwHi = i"
           >#{{ s }}</li>
         </ul>
+        <div v-else-if="kwShowEmpty" class="kw-suggest empty">no keywords match "{{ kwInput }}"</div>
       </div>
       <div v-if="kwChips.length" class="chips">
         <span v-for="kw in kwChips" :key="kw" class="chip">
@@ -253,6 +268,11 @@ function clear() {
 .kw-suggest li:hover {
   background: rgba(122, 162, 247, 0.14);
   color: var(--accent);
+}
+.kw-suggest.empty {
+  padding: 8px 12px;
+  color: var(--text-muted);
+  font-style: italic;
 }
 
 .chips {

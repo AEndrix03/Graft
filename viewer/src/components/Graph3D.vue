@@ -458,11 +458,21 @@ function pollHover(now) {
 
 function updateLabelVisibility() {
   if (!camera) return;
+  const sel = props.selectedId;
+  const highlightedSet = new Set(props.highlightedIds || []);
+  const dim = props.dimNonHighlighted;
   for (const [id, label] of nodeLabels.value) {
     const mesh = nodeMeshes.value.get(id);
     if (!mesh) continue;
+    /* Dimmed nodes never show labels — they collide visually with the
+     * focal nodes and clutter the spotlight. The selected node always
+     * gets its label, regardless of distance. */
+    if (dim && !highlightedSet.has(id) && id !== sel) {
+      label.visible = false;
+      continue;
+    }
     const dist = camera.position.distanceTo(mesh.position);
-    label.visible = (dist < LABEL_NEAR_DIST) || (id === props.selectedId);
+    label.visible = (dist < LABEL_NEAR_DIST) || (id === sel);
   }
 }
 

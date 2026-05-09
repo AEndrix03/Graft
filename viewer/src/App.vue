@@ -92,10 +92,19 @@ async function onSearch({ mode, text, top_k, depth, beam, keywords }) {
       if (hit === 'STRONG' && r.id_hex) {
         selectedId.value = r.id_hex;
         highlightedIds.value = [r.id_hex];
+        /* Match also dims the rest — single-node spotlight, no edges. */
+        dimMode.value = true;
+        colorRamp.value = null;
+        searchMode.value = 'match';
+        pathEdges.value = [];
         setMatchFeedback(null);
       } else if (hit === 'WEAK' && r.id_hex) {
         selectedId.value = r.id_hex;
         highlightedIds.value = [r.id_hex];
+        dimMode.value = true;
+        colorRamp.value = null;
+        searchMode.value = 'match';
+        pathEdges.value = [];
         setMatchFeedback({
           hit: 'WEAK',
           tone: 'info',
@@ -103,6 +112,10 @@ async function onSearch({ mode, text, top_k, depth, beam, keywords }) {
         });
       } else {
         highlightedIds.value = [];
+        dimMode.value = false;
+        colorRamp.value = null;
+        searchMode.value = null;
+        pathEdges.value = [];
         setMatchFeedback({
           hit: 'MISS',
           tone: 'warn',
@@ -184,7 +197,7 @@ function onNodeSelected(id) {
    * (preserves the dimmed scene + path edges). Clicking a non-result
    * node exits the mode entirely — same effect as Clear, but keeps the
    * new selection so the user can inspect what they actually clicked. */
-  if (searchMode.value === 'search' || searchMode.value === 'explore') {
+  if (searchMode.value === 'match' || searchMode.value === 'search' || searchMode.value === 'explore') {
     if (highlightedIds.value.includes(id)) {
       selectedId.value = id;
       return;
@@ -193,6 +206,7 @@ function onNodeSelected(id) {
     colorRamp.value = null;
     searchMode.value = null;
     pathEdges.value = [];
+    setMatchFeedback(null);
   }
   selectedId.value = id;
   highlightedIds.value = [id];
