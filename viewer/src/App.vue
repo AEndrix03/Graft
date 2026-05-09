@@ -17,6 +17,13 @@ const highlightedIds = ref([]);
 const showSemantic  = ref(true);
 const showKeyword   = ref(true);
 const edgeTooltip   = ref(null);  // { kind, weight, keyword?, x, y }
+const matchFeedback = ref(null);  // { hit: 'MISS'|'WEAK', tone: 'warn'|'info', text: string }
+let matchFeedbackTimer = null;
+function setMatchFeedback(fb) {
+  matchFeedback.value = fb;
+  if (matchFeedbackTimer) clearTimeout(matchFeedbackTimer);
+  if (fb) matchFeedbackTimer = setTimeout(() => { matchFeedback.value = null; }, 8000);
+}
 
 let pollTimer = null;
 const POLL_INTERVAL_MS = 3000;
@@ -49,11 +56,26 @@ async function onSearch({ mode, text, top_k, depth, beam }) {
   try {
     if (mode === 'match') {
       const r = unwrap(await api.match(text));
-      if (r && r.id_hex) {
+      const hit = r?.hit;
+      if (hit === 'STRONG' && r.id_hex) {
         selectedId.value = r.id_hex;
         highlightedIds.value = [r.id_hex];
+        setMatchFeedback(null);
+      } else if (hit === 'WEAK' && r.id_hex) {
+        selectedId.value = r.id_hex;
+        highlightedIds.value = [r.id_hex];
+        setMatchFeedback({
+          hit: 'WEAK',
+          tone: 'info',
+          text: 'Weak match — similar but not exact. Verify the node before relying on it.',
+        });
       } else {
         highlightedIds.value = [];
+        setMatchFeedback({
+          hit: 'MISS',
+          tone: 'warn',
+          text: 'Cache-miss — try a longer, more specific query (English works best with the embedding model).',
+        });
       }
     } else if (mode === 'search') {
       const r = unwrap(await api.search(text, top_k));
@@ -74,6 +96,7 @@ async function onSearch({ mode, text, top_k, depth, beam }) {
 function onClear() {
   highlightedIds.value = [];
   selectedId.value = null;
+  setMatchFeedback(null);
 }
 
 function onNodeSelected(id) {
@@ -155,6 +178,13 @@ const stats = computed(() => `${nodes.value.length} nodes · ${edges.value.lengt
 
     <div class="search-wrap">
       <SearchBar @search="onSearch" @clear="onClear" />
+      <transition name="fade-down">
+        <div v-if="matchFeedback" class="match-banner" :class="matchFeedback.tone">
+          <span class="badge" :class="matchFeedback.hit.toLowerCase()">{{ matchFeedback.hit }}</span>
+          <span class="msg">{{ matchFeedback.text }}</span>
+          <button class="dismiss" @click="setMatchFeedback(null)">×</button>
+        </div>
+      </transition>
     </div>
 
     <div class="settings-wrap">
@@ -227,6 +257,64 @@ const stats = computed(() => `${nodes.value.length} nodes · ${edges.value.lengt
   top: 0;
   right: 0;
   z-index: 20;
+}
+
+.match-banner {
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  font-size: 12.5px;
+  background: var(--bg-overlay);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  backdrop-filter: blur(8px);
+  box-shadow: var(--shadow);
+  color: var(--text);
+}
+.match-banner.warn { border-color: rgba(249, 226, 175, 0.5); }
+.match-banner.info { border-color: rgba(122, 162, 247, 0.5); }
+.match-banner .badge {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 3px 8px;
+  border-radius: 999px;
+}
+.match-banner .badge.miss {
+  background: rgba(249, 226, 175, 0.16);
+  color: #f9e2af;
+  border: 1px solid rgba(249, 226, 175, 0.5);
+}
+.match-banner .badge.weak {
+  background: rgba(122, 162, 247, 0.16);
+  color: var(--accent);
+  border: 1px solid rgba(122, 162, 247, 0.5);
+}
+.match-banner .msg { flex: 1; line-height: 1.45; }
+.match-banner .dismiss {
+  background: transparent;
+  border: none;
+  color: var(--text-dim);
+  font-size: 18px;
+  line-height: 1;
+  padding: 0 4px;
+  cursor: pointer;
+}
+.match-banner .dismiss:hover { color: var(--text); }
+
+.fade-down-enter-active, .fade-down-leave-active {
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+.fade-down-enter-from {
+  opacity: 0;
+  transform: translateY(-6px);
+}
+.fade-down-leave-to {
+  opacity: 0;
+  transform: translateY(-6px);
 }
 
 .edge-tooltip {

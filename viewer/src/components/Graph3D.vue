@@ -42,8 +42,8 @@ const LABEL_NEAR_DIST   = 8.0;   // close-zoom only (user-tuned)
 /* Edge thickness scales with weight. We bucket by quartile of the visible
  * weight range (per kind) so we still get just a few LineSegments2 objects
  * per kind instead of one per edge. */
-const EDGE_LW_MIN       = 0.8;
-const EDGE_LW_MAX       = 3.6;
+const EDGE_LW_MIN       = 0.4;
+const EDGE_LW_MAX       = 1.8;
 const EDGE_LW_BUCKETS   = 4;
 
 const COLOR = {
