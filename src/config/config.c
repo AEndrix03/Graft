@@ -214,6 +214,16 @@ static mg_err_t mg_config_apply(mg_config_t *cfg,
     }
     if (strcmp(key, "port") == 0 && mg_parse_int(value, &cfg->http_port)) return MG_OK;
     if (strcmp(key, "api_key") == 0) {
+      /* Treat YAML's null markers as "no key set" so `api_key: null` (the
+       * documented default) doesn't accidentally enable bearer auth with the
+       * literal string "null" as the password. */
+      if (!value || !*value || strcmp(value, "null") == 0
+          || strcmp(value, "~") == 0 || strcmp(value, "Null") == 0
+          || strcmp(value, "NULL") == 0) {
+        free(cfg->http_api_key);
+        cfg->http_api_key = NULL;
+        return MG_OK;
+      }
       return mg_config_set_string(&cfg->http_api_key, value);
     }
     if (strcmp(key, "endpoint_match")    == 0 && mg_parse_bool(value, &b)) { cfg->http_ep_match = b; return MG_OK; }
