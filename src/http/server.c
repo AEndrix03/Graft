@@ -62,6 +62,7 @@ static mg_http_handler_fn route(const char *method, const char *path) {
     if (strcmp(path, "/v1/explore")  == 0) return mg_http_handler_explore;
     if (strcmp(path, "/v1/classify") == 0) return mg_http_handler_classify;
     if (strcmp(path, "/v1/view")     == 0) return mg_http_handler_view;
+    if (strncmp(path, "/v1/nodes/", 10) == 0) return mg_http_handler_get;
   } else if (strcmp(method, "POST") == 0) {
     if (strcmp(path, "/v1/insert") == 0) return mg_http_handler_insert;
   } else if (strcmp(method, "DELETE") == 0) {

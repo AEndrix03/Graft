@@ -165,7 +165,8 @@ static int usage(void) {
         "  memgraph stats\n"
         "  memgraph consolidate\n"
         "  memgraph analytics [--since 7d|24h] [--seconds-per-hit 60]\n"
-        "  memgraph profile <list|current|add|remove|set|import|export> ...\n");
+        "  memgraph profile <list|current|add|remove|set|import|export> ...\n"
+        "  memgraph view [--port 9977]   (opens 3D viewer in browser; needs http.enabled)\n");
     return 2;
 }
 
@@ -444,6 +445,31 @@ int main(int argc, char **argv) {
     }
     if (!strcmp(cmd, "profile")) {
         return mg_profile_cmd(argc, argv);
+    }
+    /* `view` opens the browser at the daemon's HTTP layer. The HTTP layer
+     * has to be enabled in config.yaml — we don't reach into the config
+     * here, just print a helpful note alongside the URL. */
+    if (!strcmp(cmd, "view")) {
+        int port = 9977;
+        for (int i = 2; i < argc; i++) {
+            if (!strcmp(argv[i], "--port") && i + 1 < argc) port = atoi(argv[++i]);
+        }
+        char url[128];
+        snprintf(url, sizeof(url), "http://127.0.0.1:%d/", port);
+        fprintf(stderr, "Opening %s — requires `http.enabled: true` in config.yaml.\n", url);
+#ifdef _WIN32
+        char cmdline[256];
+        snprintf(cmdline, sizeof(cmdline), "start \"\" \"%s\"", url);
+        return system(cmdline);
+#elif defined(__APPLE__)
+        char cmdline[256];
+        snprintf(cmdline, sizeof(cmdline), "open '%s'", url);
+        return system(cmdline);
+#else
+        char cmdline[256];
+        snprintf(cmdline, sizeof(cmdline), "xdg-open '%s'", url);
+        return system(cmdline);
+#endif
     }
 
     /* For everything else, lock socket and DB path to the active profile so

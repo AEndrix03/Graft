@@ -1,0 +1,90 @@
+/* Dark mode, fixed. Elegant palette borrowed from Catppuccin Mocha tones,
+ * pulled toward a neutral graphite for less saturation. */
+:root {
+  --bg:           #0e1014;
+  --bg-elevated:  #15181f;
+  --bg-overlay:   rgba(20, 22, 28, 0.92);
+  --border:       #262b36;
+  --border-soft:  #1c2029;
+  --text:         #e6e8ee;
+  --text-dim:     #8b91a0;
+  --text-muted:   #4f5564;
+  --accent:       #7aa2f7;     /* node selection / focus ring */
+  --accent-soft:  rgba(122, 162, 247, 0.18);
+  --hit-strong:   #a6e3a1;     /* search match — STRONG */
+  --hit-weak:     #f9e2af;     /* search match — WEAK */
+  --edge-semantic:#bef264;     /* lime */
+  --edge-keyword: #7dd3fc;     /* azure */
+  --edge-supersedes: #f87171;
+  --node-active:  #c0caf5;
+  --node-superseded: #5b6478;
+  --shadow:       0 4px 24px rgba(0, 0, 0, 0.45);
+  --radius:       8px;
+  --radius-sm:    5px;
+  --font: ui-sans-serif, system-ui, -apple-system, "SF Pro", "Segoe UI",
+          "Helvetica Neue", Arial, sans-serif;
+  --mono: ui-monospace, "SF Mono", "Cascadia Code", "Roboto Mono",
+          "JetBrains Mono", Consolas, monospace;
+}
+
+* { box-sizing: border-box; }
+
+html, body, #app {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+button {
+  font-family: inherit;
+  font-size: inherit;
+  background: var(--bg-elevated);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 6px 12px;
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+button:hover { border-color: var(--accent); }
+button.primary {
+  background: var(--accent);
+  color: #0e1014;
+  border-color: var(--accent);
+  font-weight: 500;
+}
+button.primary:hover { filter: brightness(1.06); }
+button.danger:hover { border-color: var(--edge-supersedes); color: var(--edge-supersedes); }
+
+input, select, textarea {
+  font-family: inherit;
+  font-size: inherit;
+  background: var(--bg-elevated);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 6px 10px;
+  outline: none;
+}
+input:focus, select:focus, textarea:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+/* Scrollbar — keep it subtle. */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: #232733;
+  border-radius: 5px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover { background: #2e3340; background-clip: content-box; }

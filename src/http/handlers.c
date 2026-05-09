@@ -506,6 +506,23 @@ static void build_id_args(mpack_writer_t *w, void *user) {
   mpack_finish_map(w);
 }
 
+void mg_http_handler_get(mg_ctx_t *ctx, mg_http_request_t *req,
+                         mg_http_response_t *resp) {
+  const char *prefix = "/v1/nodes/";
+  size_t prefix_len = strlen(prefix);
+  id_args_t a;
+  if (!req->path || strncmp(req->path, prefix, prefix_len) != 0) {
+    mg_http_error(resp, 404, "not found");
+    return;
+  }
+  a.id_hex = req->path + prefix_len;
+  if (strlen(a.id_hex) != 32) {
+    mg_http_error(resp, 400, "id_hex must be 32 chars");
+    return;
+  }
+  run_dispatch(ctx, "get", build_id_args, &a, 200, resp);
+}
+
 void mg_http_handler_delete(mg_ctx_t *ctx, mg_http_request_t *req,
                             mg_http_response_t *resp) {
   /* path is "/v1/nodes/<id_hex>" */

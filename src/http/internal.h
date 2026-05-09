@@ -72,6 +72,7 @@ void mg_http_handler_search  (mg_ctx_t *ctx, mg_http_request_t *req, mg_http_res
 void mg_http_handler_explore (mg_ctx_t *ctx, mg_http_request_t *req, mg_http_response_t *resp);
 void mg_http_handler_classify(mg_ctx_t *ctx, mg_http_request_t *req, mg_http_response_t *resp);
 void mg_http_handler_insert  (mg_ctx_t *ctx, mg_http_request_t *req, mg_http_response_t *resp);
+void mg_http_handler_get     (mg_ctx_t *ctx, mg_http_request_t *req, mg_http_response_t *resp);
 void mg_http_handler_delete  (mg_ctx_t *ctx, mg_http_request_t *req, mg_http_response_t *resp);
 void mg_http_handler_view    (mg_ctx_t *ctx, mg_http_request_t *req, mg_http_response_t *resp);
 
