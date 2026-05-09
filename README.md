@@ -36,8 +36,8 @@ The result: an LLM session that ends doesn't take its hard-won lessons with it. 
 
 ## What you get
 
-- **Cache-first retrieval** — `memgraph query <text>` returns `STRONG` / `WEAK` / `MISS` in milliseconds. STRONG hits inject summary + detail directly into the agent's context.
-- **Hybrid search** — `memgraph retrieve` fuses dense (BGE-M3 cosine) and lexical (BM25 over summary and detail) via Reciprocal Rank Fusion.
+- **Cache-first retrieval** — `memgraph query <text>` returns `STRONG` / `WEAK` / `MISS` in milliseconds. STRONG hits inject title + body (and the body is rendered as Markdown) directly into the agent's context.
+- **Hybrid search** — `memgraph retrieve` fuses dense (BGE-M3 cosine) and lexical (BM25 over title and body) via Reciprocal Rank Fusion.
 - **Graph walks** — `memgraph explore` follows keyword and semantic edges with beam search and MMR diversity, decay `gamma^step`.
 - **Multi-tenant profiles** — isolated DBs and sockets per profile (`work`, `personal`, project-scoped). Import/export as files.
 - **Local-first** — single binary, single DB file, no network. Models run on CPU out of the box; opt-in to CUDA or ROCm 6/7 with a flag.
@@ -52,8 +52,8 @@ $ memgraph query "spring boot validation cascade nested DTO"
 # ... you debug the issue, find the answer ...
 
 $ memgraph insert \
-    --summary "Spring Boot @Valid cascade on nested DTOs needs @Valid on the field plus @Validated on the controller" \
-    --detail  "Without @Valid on the nested field, constraints inside it are silently ignored. Tested on Spring Boot 3.2; matches the Jakarta Validation spec." \
+    --title "Spring Boot @Valid cascade on nested DTOs needs @Valid on the field plus @Validated on the controller" \
+    --body  "Without @Valid on the nested field, constraints inside it are silently ignored. Tested on Spring Boot 3.2; matches the Jakarta Validation spec." \
     --keyword spring-boot --keyword validation --keyword gotcha
 { "status": 0, "result": { "id_hex": "019e09a95e7a...", "duplicate": false } }
 
@@ -64,8 +64,8 @@ $ memgraph query "why is my @Valid annotation not cascading on a nested DTO fiel
   "status": 0,
   "result": {
     "hit": "STRONG",
-    "summary": "Spring Boot @Valid cascade on nested DTOs needs @Valid on the field plus @Validated on the controller",
-    "detail":  "Without @Valid on the nested field, constraints inside it are silently ignored. ..."
+    "title": "Spring Boot @Valid cascade on nested DTOs needs @Valid on the field plus @Validated on the controller",
+    "body":  "Without @Valid on the nested field, constraints inside it are silently ignored. ..."
   }
 }
 ```
@@ -152,12 +152,12 @@ The CLI auto-starts the daemon on the first call. You don't need to manage proce
 
 ```bash
 memgraph insert \
-  --summary "Short, retrieval-shaped statement of what you learned" \
-  --detail  "Longer prose: the why, the trap, a code snippet, references" \
+  --title "Short, retrieval-shaped statement of what you learned" \
+  --body  "Longer prose: the why, the trap, a code snippet, references" \
   --keyword <kw1> --keyword <kw2> --keyword <kw3>
 ```
 
-Idempotent: re-inserting the same `summary + detail + keywords` returns `duplicate: true`.
+Idempotent: re-inserting the same `title + body + keywords` returns `duplicate: true`.
 
 ### Search
 
@@ -171,17 +171,20 @@ memgraph retrieve "topic" --top-k 10
 # Graph walk from a seed, filtered by keyword
 memgraph explore "topic" --keyword <kw> --depth 3 --beam 4
 
-# Suggest keywords for a draft summary (uses existing graph keywords)
-memgraph classify --summary "your draft"
+# Suggest keywords for a draft title (uses existing graph keywords)
+memgraph classify --title "your draft"
 ```
 
 ### Inspect
 
 ```bash
-memgraph get <id_hex>             # fetch one node
+memgraph get <id_hex>             # fetch one node (JSON)
+memgraph get <id_hex> --markdown  # human-readable Markdown rendering
 memgraph stats                    # similarity-distribution percentiles
 memgraph analytics --since 7d     # hit rate, latency, time-saved estimate
 ```
+
+The `--markdown` flag prints the node as YAML-frontmatter Markdown — title, author, date, optional expiration, hashtag-style keywords, and the body. Optional rows are skipped when missing. Designed for human consumption; agents continue to use the JSON form.
 
 ### Profiles
 
@@ -250,9 +253,9 @@ flowchart LR
 
 Pipelines:
 
-- **insert** — `embed(summary)` → upsert keywords → `vector_topk` per keyword for keyword-edges → `vector_topk + MMR` for semantic edges → atomic INSERT.
+- **insert** — `embed(title)` → upsert keywords → `vector_topk` per keyword for keyword-edges → `vector_topk + MMR` for semantic edges → atomic INSERT.
 - **query** — `embed(text)` → `vector_topk(1)` → trigram Jaccard verify (cross-encoder optional) → STRONG / WEAK / MISS gating.
-- **retrieve** — three lists (vec, BM25 summary, BM25 detail) → RRF fusion → top-k.
+- **retrieve** — three lists (vec, BM25 title, BM25 body) → RRF fusion → top-k.
 - **explore** — seed via `vector_topk` filtered by keyword → beam search with MMR + decay `gamma^step`.
 
 For per-module reference open the headers in `include/memgraph/` (`storage.h`, `embed.h`, `verify.h`, `ops.h`).
