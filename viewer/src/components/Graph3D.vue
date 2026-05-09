@@ -14,6 +14,8 @@ const props = defineProps({
   highlightedIds: { type: Array, default: () => [] },
   showSemantic: { type: Boolean, default: true },
   showKeyword:  { type: Boolean, default: true },
+  dimNonHighlighted: { type: Boolean, default: false },
+  colorRamp:    { type: String, default: null },  // null | 'orange'
 });
 const emit = defineEmits(['select', 'select-edge']);
 
@@ -179,6 +181,13 @@ function rebuildEdges() {
 
   const highlightedSet = new Set(props.highlightedIds || []);
   const keyOf = (e) => `${e.src}|${e.dst}|${e.kind}`;
+
+  /* Two edge-visibility strategies:
+   *  - DEFAULT: top-2 outgoing per source for semantic + keyword, plus any
+   *    edge connecting two highlighted nodes (search-aware top-up).
+   *  - DIM MODE: only edges whose both endpoints are highlighted survive,
+   *    of any kind. Everything else is hidden so the relevant subgraph
+   *    reads cleanly against the dimmed-out scene. */
   const semanticVisible = new Set(chooseTopEdges(props.edges, 'semantic', highlightedSet).map(keyOf));
   const keywordVisible  = new Set(chooseTopEdges(props.edges, 'keyword',  highlightedSet).map(keyOf));
 
@@ -188,7 +197,13 @@ function rebuildEdges() {
     const a = nodeMeshes.value.get(e.src);
     const b = nodeMeshes.value.get(e.dst);
     if (!a || !b) continue;
-    if (e.kind === 'semantic') {
+
+    if (props.dimNonHighlighted) {
+      if (!highlightedSet.has(e.src) || !highlightedSet.has(e.dst)) continue;
+      if (e.kind === 'semantic' && !props.showSemantic) continue;
+      if (e.kind === 'keyword'  && !props.showKeyword) continue;
+      if (e.kind !== 'semantic' && e.kind !== 'keyword' && e.kind !== 'supersedes') continue;
+    } else if (e.kind === 'semantic') {
       if (!props.showSemantic) continue;
       if (!semanticVisible.has(keyOf(e))) continue;
     } else if (e.kind === 'keyword') {
@@ -262,16 +277,46 @@ function rebuildEdges() {
   }
 }
 
+/* Rank-based orange ramp: dark (most relevant) → light. Returns a THREE.Color. */
+function rankColorOrange(idx, total) {
+  const t = total > 1 ? idx / (total - 1) : 0;
+  const l = 0.32 + t * 0.40;             // L: 32% (dark) → 72% (light)
+  const s = 0.95 - t * 0.20;             // slightly desaturate as we go lighter
+  return new THREE.Color().setHSL(25 / 360, s, l);
+}
+
 function applyHighlights() {
   const sel = props.selectedId;
-  const hi = new Set(props.highlightedIds || []);
+  const list = props.highlightedIds || [];
+  const idxOf = new Map();
+  list.forEach((id, i) => idxOf.set(id, i));
+  const isRanked = props.colorRamp === 'orange';
+  const dim = props.dimNonHighlighted;
+
   for (const [id, mesh] of nodeMeshes.value) {
     let color;
-    if (id === sel)        { color = new THREE.Color(COLOR.selected); }
-    else if (hi.has(id))   { color = new THREE.Color(COLOR.highlighted); }
-    else                   { color = mesh.userData.baseColor; }
-    mesh.userData.targetScale = (id === sel) ? 1.55 : (hi.has(id) ? 1.30 : 1.0);
+    const inSet = idxOf.has(id);
+    let opacity = 1.0;
+
+    if (id === sel) {
+      color = new THREE.Color(COLOR.selected);
+    } else if (inSet) {
+      color = isRanked
+        ? rankColorOrange(idxOf.get(id), list.length)
+        : new THREE.Color(COLOR.highlighted);
+    } else {
+      color = mesh.userData.baseColor;
+      if (dim) opacity = 0.12;
+    }
+
+    mesh.userData.targetScale = (id === sel) ? 1.55 : (inSet ? 1.30 : 1.0);
     mesh.material.color.copy(color);
+    /* Dim non-highlighted via material opacity. emissive is left as is so
+     * the dimmed nodes still read as 3D, just much darker. */
+    mesh.material.transparent = opacity < 1.0;
+    mesh.material.opacity = opacity;
+    mesh.material.depthWrite = opacity >= 1.0;
+    mesh.material.needsUpdate = true;
   }
 }
 
@@ -510,6 +555,8 @@ watch(() => props.showSemantic, () => rebuildEdges());
 watch(() => props.showKeyword,  () => rebuildEdges());
 watch(() => props.selectedId, () => { applyHighlights(); focusOnSelected(); });
 watch(() => props.highlightedIds, () => { applyHighlights(); rebuildEdges(); }, { deep: true });
+watch(() => props.dimNonHighlighted, () => { applyHighlights(); rebuildEdges(); });
+watch(() => props.colorRamp, () => applyHighlights());
 </script>
 
 <template>

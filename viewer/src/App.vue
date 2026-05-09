@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, onBeforeUnmount, computed } from 'vue';
+import { ref, onMounted, onBeforeUnmount, computed, watch } from 'vue';
 import Graph3D from './components/Graph3D.vue';
 import SearchBar from './components/SearchBar.vue';
 import SettingsPanel from './components/SettingsPanel.vue';
@@ -17,6 +17,15 @@ const highlightedIds = ref([]);
 const showSemantic  = ref(true);
 const showKeyword   = ref(true);
 const edgeTooltip   = ref(null);  // { kind, weight, keyword?, x, y }
+/* When true, non-highlighted nodes fade to a low opacity and edges are
+ * restricted to the highlighted subgraph. Currently driven only by Retrieve. */
+const dimMode       = ref(false);
+const colorRamp     = ref(null);  // 'orange' or null — controls the rank coloring
+const searchMode    = ref(null);  // 'match'|'search'|'explore' or null — for prev/next visibility
+const selectedIdx = computed(() => {
+  if (!selectedId.value) return -1;
+  return highlightedIds.value.indexOf(selectedId.value);
+});
 const matchFeedback = ref(null);  // { hit: 'MISS'|'WEAK', tone: 'warn'|'info', text: string }
 let matchFeedbackTimer = null;
 function setMatchFeedback(fb) {
@@ -82,11 +91,15 @@ async function onSearch({ mode, text, top_k, depth, beam }) {
       const ids = (r?.results || []).map((x) => x.id_hex);
       highlightedIds.value = ids;
       selectedId.value = ids[0] || null;
+      dimMode.value = ids.length > 0;
+      colorRamp.value = 'orange';
+      searchMode.value = 'search';
     } else if (mode === 'explore') {
       const r = unwrap(await api.explore(text, depth, beam));
       const ids = (r?.nodes || []).map((x) => x.id_hex);
       highlightedIds.value = ids;
       selectedId.value = ids[0] || null;
+      searchMode.value = 'explore';
     }
   } catch (e) {
     loadError.value = e.message || String(e);
@@ -97,6 +110,19 @@ function onClear() {
   highlightedIds.value = [];
   selectedId.value = null;
   setMatchFeedback(null);
+  dimMode.value = false;
+  colorRamp.value = null;
+  searchMode.value = null;
+}
+
+function navigateResult(delta) {
+  const ids = highlightedIds.value;
+  if (!ids.length) return;
+  const cur = selectedIdx.value;
+  let next;
+  if (cur < 0) next = 0;
+  else next = (cur + delta + ids.length) % ids.length;
+  selectedId.value = ids[next];
 }
 
 function onNodeSelected(id) {
@@ -129,6 +155,9 @@ async function onPanelSaved(newId) {
   } else {
     selectedId.value = null;
   }
+  dimMode.value = false;
+  colorRamp.value = null;
+  searchMode.value = null;
 }
 
 async function onPanelDeleted() {
@@ -137,8 +166,24 @@ async function onPanelDeleted() {
   highlightedIds.value = [];
 }
 
-onMounted(() => { refreshGraph(); startPolling(); });
-onBeforeUnmount(stopPolling);
+function onKeydown(ev) {
+  /* Don't intercept when an input/textarea/CodeMirror is focused. */
+  const t = ev.target;
+  if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+  if (searchMode.value !== 'search' || highlightedIds.value.length < 2) return;
+  if (ev.key === 'ArrowRight') { navigateResult(1); ev.preventDefault(); }
+  else if (ev.key === 'ArrowLeft') { navigateResult(-1); ev.preventDefault(); }
+}
+
+onMounted(() => {
+  refreshGraph();
+  startPolling();
+  window.addEventListener('keydown', onKeydown);
+});
+onBeforeUnmount(() => {
+  stopPolling();
+  window.removeEventListener('keydown', onKeydown);
+});
 
 const stats = computed(() => `${nodes.value.length} nodes · ${edges.value.length} edges`);
 </script>
@@ -153,9 +198,23 @@ const stats = computed(() => `${nodes.value.length} nodes · ${edges.value.lengt
       :highlighted-ids="highlightedIds"
       :show-semantic="showSemantic"
       :show-keyword="showKeyword"
+      :dim-non-highlighted="dimMode"
+      :color-ramp="colorRamp"
       @select="onNodeSelected"
       @select-edge="onEdgeSelected"
     />
+
+    <transition name="fade-down">
+      <div v-if="searchMode === 'search' && highlightedIds.length > 1" class="result-nav">
+        <button class="nav-btn" @click="navigateResult(-1)" title="Previous (←)">‹</button>
+        <span class="counter">
+          <span class="rank">{{ selectedIdx >= 0 ? selectedIdx + 1 : '–' }}</span>
+          <span class="sep">/</span>
+          <span class="total">{{ highlightedIds.length }}</span>
+        </span>
+        <button class="nav-btn" @click="navigateResult(1)" title="Next (→)">›</button>
+      </div>
+    </transition>
 
     <div
       v-if="edgeTooltip"
@@ -258,6 +317,46 @@ const stats = computed(() => `${nodes.value.length} nodes · ${edges.value.lengt
   right: 0;
   z-index: 20;
 }
+
+.result-nav {
+  position: absolute;
+  top: 76px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 9;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: var(--bg-overlay);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  backdrop-filter: blur(8px);
+  box-shadow: var(--shadow);
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--text);
+}
+.result-nav .nav-btn {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-size: 18px;
+  line-height: 1;
+  color: var(--text-dim);
+  cursor: pointer;
+  padding: 0;
+}
+.result-nav .nav-btn:hover { color: var(--text); border-color: var(--border); }
+.result-nav .counter { padding: 0 4px; min-width: 56px; text-align: center; }
+.result-nav .rank { color: #f5a572; font-weight: 600; }
+.result-nav .sep { color: var(--text-muted); margin: 0 4px; }
+.result-nav .total { color: var(--text-dim); }
 
 .match-banner {
   margin-top: 8px;
