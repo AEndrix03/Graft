@@ -38,7 +38,7 @@ const NODE_R_BASE       = 0.12;  // sphere radius for an "average" body
 const NODE_R_MIN        = 0.08;
 const NODE_R_MAX        = 0.30;
 const NODE_R_LOG_FACTOR = 0.07;  // delta per ln(body_len)
-const LABEL_NEAR_DIST   = 12.0;  // scaled with the wider spread to keep the same "feel"
+const LABEL_NEAR_DIST   = 8.0;   // close-zoom only (user-tuned)
 /* Edge thickness scales with weight. We bucket by quartile of the visible
  * weight range (per kind) so we still get just a few LineSegments2 objects
  * per kind instead of one per edge. */
