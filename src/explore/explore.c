@@ -456,6 +456,15 @@ mg_err_t mg_op_explore(mg_ctx_t *ctx, mpack_node_t args, mpack_writer_t *result)
         char hex[2 * MG_NODE_ID_BYTES + 1];
         hex_encode(visited[i].id, MG_NODE_ID_BYTES, hex);
 
+        /* Recompute cosine(q, node) so the client gets a bounded [-1, 1]
+         * similarity score. The `score` field is the log-additive beam
+         * composite — useful for ranking, useless as a percentage. */
+        mg_embedding_t emb;
+        float cos_to_q = 0.0f;
+        if (mg_storage_get_embedding(s, visited[i].id, emb) == MG_OK) {
+            cos_to_q = mg_cosine(q, emb);
+        }
+
         mpack_build_map(result);
         mpack_write_cstr(result, "id_hex");
         mpack_write_cstr(result, hex);
@@ -463,6 +472,8 @@ mg_err_t mg_op_explore(mg_ctx_t *ctx, mpack_node_t args, mpack_writer_t *result)
         mpack_write_cstr(result, node.title ? node.title : "");
         mpack_write_cstr(result, "score");
         mpack_write_float(result, visited[i].score);
+        mpack_write_cstr(result, "cosine");
+        mpack_write_float(result, cos_to_q);
         mpack_write_cstr(result, "depth_reached");
         mpack_write_int(result, visited[i].depth_reached);
         mpack_complete_map(result);

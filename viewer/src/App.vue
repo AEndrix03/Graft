@@ -161,13 +161,21 @@ async function onSearch({ mode, text, top_k, depth, beam, keywords }) {
       const ids = items.map((x) => x.id_hex);
       highlightedIds.value = ids;
       selectedId.value = ids[0] || null;
-      /* Score map for the score-box (uses node.score from explore output). */
+      /* For the score box prefer `cosine` (bounded [-1, 1] semantic
+       * similarity to the query) over `score` (log-additive beam composite,
+       * unbounded and useless as a percentage). */
       const map = new Map();
       for (const it of items) {
-        if (it && typeof it.score === 'number') map.set(it.id_hex, it.score);
+        if (!it) continue;
+        const v = (typeof it.cosine === 'number') ? it.cosine
+               : (typeof it.score  === 'number') ? it.score : null;
+        if (v != null) map.set(it.id_hex, v);
       }
       searchScores.value = map;
-      topScore.value = items.length ? (items[0].score ?? 0) : 0;
+      topScore.value = items.length
+        ? (typeof items[0].cosine === 'number' ? items[0].cosine
+           : (items[0].score ?? 0))
+        : 0;
       /* Path edges = the actual traversal walk. Used as the only edges
        * rendered while in Explore mode so the user sees the path, not
        * the surrounding subgraph. */
