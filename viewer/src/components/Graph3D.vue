@@ -33,13 +33,13 @@ const clock = new THREE.Clock();
 
 /* Tunables — coords are scaled, then nodes sized smaller relative to spread,
  * so edges read as actual lines instead of overlapping dots. */
-const SPATIAL_SCALE     = 28.0;  // multiplier on the projected coords (room for edges to breathe)
-const NODE_R_BASE       = 0.07;  // sphere radius for an "average" body
-const NODE_R_MIN        = 0.05;
-const NODE_R_MAX        = 0.18;
-const NODE_R_LOG_FACTOR = 0.045; // delta per ln(body_len)
-const LABEL_NEAR_DIST   = 1.2;   // tight: labels only when the camera is right on top of a node (anti-collision)
-const EDGE_LINEWIDTH    = 2.0;   // pixel-thick edges via Line2
+const SPATIAL_SCALE     = 140.0; // multiplier on projected coords — wide-open scene
+const NODE_R_BASE       = 0.12;  // sphere radius for an "average" body
+const NODE_R_MIN        = 0.08;
+const NODE_R_MAX        = 0.30;
+const NODE_R_LOG_FACTOR = 0.07;  // delta per ln(body_len)
+const LABEL_NEAR_DIST   = 6.0;   // proportional to the new scene scale; still needs real zoom-in
+const EDGE_LINEWIDTH    = 1.6;   // pixel-thick edges via Line2 (less screen weight at this scale)
 
 const COLOR = {
   bg:             0x0e1014,
