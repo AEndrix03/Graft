@@ -17,7 +17,14 @@ const { readFileSync, appendFileSync, mkdirSync } = require('fs');
 const path = require('path');
 const os = require('os');
 
-const STATE_DIR = path.join(os.homedir(), '.claude', 'hooks', 'memgraph', 'state');
+function inferStateDir() {
+  if (process.env.MEMGRAPH_HOOK_STATE_DIR) return process.env.MEMGRAPH_HOOK_STATE_DIR;
+  const scriptPath = __filename.toLowerCase();
+  const agentDir = scriptPath.includes(`${path.sep}.codex${path.sep}`) ? '.codex' : '.claude';
+  return path.join(os.homedir(), agentDir, 'hooks', 'memgraph', 'state');
+}
+
+const STATE_DIR = inferStateDir();
 // Tool names span multiple agent clients:
 //   Claude Code: Edit, Write, MultiEdit, NotebookEdit
 //   Codex:       apply_patch

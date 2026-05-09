@@ -14,7 +14,14 @@ const { readFileSync, existsSync, writeFileSync, unlinkSync, mkdirSync } = requi
 const path = require('path');
 const os = require('os');
 
-const STATE_DIR = path.join(os.homedir(), '.claude', 'hooks', 'memgraph', 'state');
+function inferStateDir() {
+  if (process.env.MEMGRAPH_HOOK_STATE_DIR) return process.env.MEMGRAPH_HOOK_STATE_DIR;
+  const scriptPath = __filename.toLowerCase();
+  const agentDir = scriptPath.includes(`${path.sep}.codex${path.sep}`) ? '.codex' : '.claude';
+  return path.join(os.homedir(), agentDir, 'hooks', 'memgraph', 'state');
+}
+
+const STATE_DIR = inferStateDir();
 
 function safeMkdir(d) { try { mkdirSync(d, { recursive: true }); } catch (_) {} }
 function readStdinSync() { try { return readFileSync(0, 'utf8'); } catch (_) { return ''; } }

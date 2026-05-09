@@ -17,7 +17,14 @@ const { readFileSync, existsSync, unlinkSync, mkdirSync } = require('fs');
 const path = require('path');
 const os = require('os');
 
-const STATE_DIR = path.join(os.homedir(), '.claude', 'hooks', 'memgraph', 'state');
+function inferStateDir() {
+  if (process.env.MEMGRAPH_HOOK_STATE_DIR) return process.env.MEMGRAPH_HOOK_STATE_DIR;
+  const scriptPath = __filename.toLowerCase();
+  const agentDir = scriptPath.includes(`${path.sep}.codex${path.sep}`) ? '.codex' : '.claude';
+  return path.join(os.homedir(), agentDir, 'hooks', 'memgraph', 'state');
+}
+
+const STATE_DIR = inferStateDir();
 const MIN_WORDS_FOR_QUERY = 4;
 
 function safeMkdir(d) { try { mkdirSync(d, { recursive: true }); } catch (_) {} }

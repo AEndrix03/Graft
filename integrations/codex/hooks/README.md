@@ -18,7 +18,7 @@ Codex hooks are gated by a feature flag. Both steps are required.
 
 ```toml
 [features]
-codex_hooks = true
+hooks = true
 ```
 
 If the `[features]` block already exists, just add the line.
@@ -26,11 +26,25 @@ If the `[features]` block already exists, just add the line.
 ### 2. Copy scripts and write `~/.codex/hooks.json`
 
 ```bash
+scripts/install-codex-hooks.sh
+```
+
+On Windows PowerShell:
+
+```powershell
+.\scripts\install-codex-hooks.ps1
+```
+
+The installer copies the scripts to `~/.codex/hooks/memgraph`, writes the memgraph hook entries in `~/.codex/hooks.json`, and updates `~/.codex/config.toml` from the deprecated `codex_hooks` flag to `hooks = true`.
+
+Manual equivalent:
+
+```bash
 mkdir -p ~/.codex/hooks/memgraph
 cp integrations/codex/hooks/memgraph/*.js ~/.codex/hooks/memgraph/
 ```
 
-Then create `~/.codex/hooks.json`:
+Then create or merge this block in `~/.codex/hooks.json`:
 
 ```json
 {
