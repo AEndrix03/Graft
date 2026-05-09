@@ -32,6 +32,10 @@ int main(void) {
   fputs("  weak_hit_min_vec: 0.9\n", fp);
   fputs("explore:\n", fp);
   fputs("  default_depth: 7\n", fp);
+  fputs("http:\n", fp);
+  fputs("  enabled: true\n", fp);
+  fputs("  bind: \"127.0.0.1\"\n", fp);
+  fputs("  port: 9977\n", fp);
   fclose(fp);
 
   failures += expect_int(mg_config_load(path, &cfg) == MG_OK, "load overrides");
@@ -43,6 +47,8 @@ int main(void) {
     failures += expect_int(cfg.cross_encoder_enabled, "cross encoder bool");
     failures += expect_int(cfg.weak_hit_min_vec > 0.89f && cfg.weak_hit_min_vec < 0.91f, "float override");
     failures += expect_int(cfg.explore_default_depth == 7, "explore override");
+    failures += expect_int(cfg.http_enabled, "http enabled");
+    failures += expect_int(strcmp(cfg.http_bind, "127.0.0.1") == 0, "http bind");
     mg_config_free(&cfg);
   }
 

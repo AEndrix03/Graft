@@ -87,18 +87,9 @@ static void *handle_client(void *arg) {
     goto send;
   }
 
-  /* Static SPA bundle is served unauthenticated — it's just HTML/JS/CSS
-   * and the SPA itself attaches the bearer token to its own /v1/* fetches.
-   * Try this first so /, /assets/* etc. don't require a key. */
+  /* Static SPA bundle is served by the local-first daemon. Public production
+   * deployments should place the OAuth gateway in front of /v1/* instead. */
   if (mg_http_try_static(ctx, &req, &resp)) goto send;
-
-  /* Auth check applies to everything except /v1/healthz so liveness probes
-   * don't need credentials. */
-  if (strcmp(req.path ? req.path : "", "/v1/healthz") != 0
-      && !mg_http_auth_ok(ctx, &req)) {
-    mg_http_error(&resp, 401, "unauthorized");
-    goto send;
-  }
 
   h = route(req.method, req.path);
   if (!h) {
@@ -210,8 +201,7 @@ mg_err_t mg_http_start(mg_ctx_t *ctx, mg_http_server_t **out) {
 
   fprintf(stderr, "http: listening on %s:%d%s\n",
           ctx->config->http_bind, ctx->config->http_port,
-          (ctx->config->http_api_key && *ctx->config->http_api_key)
-            ? " (auth: bearer)" : " (auth: none)");
+          " (local-only auth: none)");
 
   *out = srv;
   return MG_OK;

@@ -131,4 +131,10 @@ mg_err_t mg_storage_node_keywords(
 mg_err_t mg_storage_merge_from(mg_storage_t *s, const char *source_path,
                                int overwrite);
 
+/* Remote-profile file sync helpers. Pull imports remote-only nodes as
+ * REMOTE and applies delete-wins-remote only to rows that are not LOCAL. */
+mg_err_t mg_storage_pull_remote_file(mg_storage_t *s, const char *source_path,
+                                     int64_t *inserted, int64_t *deleted);
+mg_err_t mg_storage_mark_local_pushed(mg_storage_t *s, int64_t *updated);
+
 #endif

@@ -8,8 +8,8 @@
  * spawns a background TCP listener on cfg->http_bind:cfg->http_port and
  * serves a small set of endpoints under /v1/*.
  *
- * Local-first design: defaults bind to 127.0.0.1 — exposing on 0.0.0.0
- * is opt-in via config. Bearer-token auth via cfg->http_api_key when set.
+ * Local-first design: defaults bind to 127.0.0.1. Public production
+ * exposure should go through the Python OAuth/OIDC gateway.
  *
  * The HTTP layer is a thin transport over the existing op_* handlers:
  * each request is parsed, routed, dispatched as an mpack request through

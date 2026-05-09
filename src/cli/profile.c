@@ -47,6 +47,8 @@
 #  define mg_unlink(p) unlink(p)
 #endif
 
+static int profile_usage(void);
+
 /* ---------- helpers ---------- */
 
 /* Print a string as a JSON-quoted value. Escapes \, ", \n, \r, \t and any
@@ -554,6 +556,14 @@ static int cmd_import(const char *name, const char *path, int force) {
     return 0;
 }
 
+static int ensure_profile_file_schema(const char *path) {
+    mg_storage_t *s = NULL;
+    mg_err_t err = mg_storage_open(path, &s);
+    if (err == MG_OK) err = mg_storage_apply_schema(s);
+    if (s) mg_storage_close(s);
+    return err == MG_OK ? 0 : -1;
+}
+
 static int cmd_merge(const char *into_name, const char *from_path, int overwrite) {
     if (mg_profile_name_valid(into_name) != 0) {
         fprintf(stderr, "invalid target profile name\n");
@@ -566,6 +576,10 @@ static int cmd_merge(const char *into_name, const char *from_path, int overwrite
     if (!looks_like_sqlite(from_path)) {
         fprintf(stderr,
             "--from is not a memgraph profile file (missing SQLite header)\n");
+        return 1;
+    }
+    if (ensure_profile_file_schema(from_path) != 0) {
+        fprintf(stderr, "schema apply failed on source\n");
         return 1;
     }
     if (!mg_profile_exists(into_name)) {
@@ -628,6 +642,222 @@ static int cmd_merge(const char *into_name, const char *from_path, int overwrite
     return 0;
 }
 
+static int remote_meta_path(const char *name, char *out, size_t cap, int create) {
+    char dir[1024];
+    if (mg_profile_dir(name, dir, sizeof(dir), create) != 0) return -1;
+    if (snprintf(out, cap, "%s%cremote.conf", dir, MG_PATH_SEP) >= (int)cap) return -1;
+    return 0;
+}
+
+static int read_remote_meta(const char *name, char *url, size_t url_cap,
+                            char *token, size_t token_cap) {
+    char path[1024];
+    if (remote_meta_path(name, path, sizeof(path), 0) != 0) return -1;
+    FILE *fp = fopen(path, "rb");
+    if (!fp) return -1;
+    if (url && url_cap) url[0] = '\0';
+    if (token && token_cap) token[0] = '\0';
+    char line[2048];
+    while (fgets(line, sizeof(line), fp)) {
+        char *nl = strchr(line, '\n');
+        if (nl) *nl = '\0';
+        nl = strchr(line, '\r');
+        if (nl) *nl = '\0';
+        if (!strncmp(line, "url=", 4) && url && url_cap) {
+            strncpy(url, line + 4, url_cap - 1);
+            url[url_cap - 1] = '\0';
+        } else if (!strncmp(line, "token=", 6) && token && token_cap) {
+            strncpy(token, line + 6, token_cap - 1);
+            token[token_cap - 1] = '\0';
+        }
+    }
+    fclose(fp);
+    return (url && *url) ? 0 : -1;
+}
+
+static int write_remote_meta(const char *name, const char *url, const char *token) {
+    char path[1024];
+    if (remote_meta_path(name, path, sizeof(path), 1) != 0) return -1;
+    FILE *fp = fopen(path, "wb");
+    if (!fp) return -1;
+    fprintf(fp, "url=%s\n", url ? url : "");
+    if (token && *token) fprintf(fp, "token=%s\n", token);
+    return fclose(fp) == 0 ? 0 : -1;
+}
+
+static int is_http_url(const char *s) {
+    return s && (!strncmp(s, "http://", 7) || !strncmp(s, "https://", 8));
+}
+
+static int cmd_remote_bind(const char *name, const char *url, const char *token) {
+    if (mg_profile_name_valid(name) != 0) {
+        fprintf(stderr, "invalid profile name\n");
+        return 2;
+    }
+    if (!url || !*url) {
+        fprintf(stderr, "--url is required\n");
+        return 2;
+    }
+    if (!mg_profile_exists(name)) {
+        fprintf(stderr, "profile '%s' does not exist (run: memgraph profile add %s)\n",
+                name, name);
+        return 1;
+    }
+    if (!is_http_url(url) && !file_exists(url)) {
+        fprintf(stderr, "remote file does not exist: %s\n", url);
+        return 1;
+    }
+    if (!is_http_url(url) && !looks_like_sqlite(url)) {
+        fprintf(stderr, "remote file is not a memgraph SQLite profile: %s\n", url);
+        return 1;
+    }
+    if (write_remote_meta(name, url, token) != 0) {
+        fprintf(stderr, "failed to write remote metadata\n");
+        return 1;
+    }
+    fputs("{\n  \"bound\": ", stdout); print_json_str(name);
+    fputs(",\n  \"url\": ", stdout); print_json_str(url);
+    fputs("\n}\n", stdout);
+    return 0;
+}
+
+static int cmd_remote_detach(const char *name) {
+    char path[1024];
+    if (mg_profile_name_valid(name) != 0) {
+        fprintf(stderr, "invalid profile name\n");
+        return 2;
+    }
+    if (!mg_profile_exists(name)) {
+        fprintf(stderr, "profile '%s' does not exist\n", name);
+        return 1;
+    }
+    if (remote_meta_path(name, path, sizeof(path), 0) != 0) return 1;
+    if (file_exists(path) && mg_unlink(path) != 0) {
+        fprintf(stderr, "failed to remove remote metadata: %s\n", path);
+        return 1;
+    }
+    fputs("{\n  \"detached\": ", stdout); print_json_str(name);
+    fputs("\n}\n", stdout);
+    return 0;
+}
+
+static int cmd_remote_status(const char *name) {
+    char url[1024], token[1024];
+    if (mg_profile_name_valid(name) != 0) {
+        fprintf(stderr, "invalid profile name\n");
+        return 2;
+    }
+    if (!mg_profile_exists(name)) {
+        fprintf(stderr, "profile '%s' does not exist\n", name);
+        return 1;
+    }
+    if (read_remote_meta(name, url, sizeof(url), token, sizeof(token)) != 0) {
+        fputs("{\n  \"profile\": ", stdout); print_json_str(name);
+        fputs(",\n  \"remote\": null\n}\n", stdout);
+        return 0;
+    }
+    fputs("{\n  \"profile\": ", stdout); print_json_str(name);
+    fputs(",\n  \"remote\": {\"url\": ", stdout); print_json_str(url);
+    fputs(", \"token\": ", stdout); print_json_str(token[0] ? "set" : "none");
+    fputs("}\n}\n", stdout);
+    return 0;
+}
+
+static int cmd_remote_sync(const char *name) {
+    char url[1024], token[1024], db[1024], sock[1024];
+    (void)token;
+    if (mg_profile_name_valid(name) != 0) {
+        fprintf(stderr, "invalid profile name\n");
+        return 2;
+    }
+    if (!mg_profile_exists(name)) {
+        fprintf(stderr, "profile '%s' does not exist\n", name);
+        return 1;
+    }
+    if (read_remote_meta(name, url, sizeof(url), token, sizeof(token)) != 0) {
+        fprintf(stderr, "profile '%s' is not bound to a remote\n", name);
+        return 1;
+    }
+    if (is_http_url(url)) {
+        fprintf(stderr, "HTTP remote sync is not available in this build; bind a SQLite profile file path\n");
+        return 1;
+    }
+    if (!file_exists(url) || !looks_like_sqlite(url)) {
+        fprintf(stderr, "remote file is not a memgraph SQLite profile: %s\n", url);
+        return 1;
+    }
+    if (ensure_profile_file_schema(url) != 0) {
+        fprintf(stderr, "schema apply failed on remote\n");
+        return 1;
+    }
+    if (mg_profile_socket_path(name, sock, sizeof(sock), 0) == 0 && daemon_running(sock)) {
+        fprintf(stderr, "daemon for profile '%s' is running — stop it first\n", name);
+        return 1;
+    }
+    if (mg_profile_db_path(name, db, sizeof(db), 1) != 0) return 1;
+
+    mg_storage_t *local = NULL;
+    mg_err_t err = mg_storage_open(db, &local);
+    if (err == MG_OK) err = mg_storage_apply_schema(local);
+    if (err != MG_OK) {
+        if (local) mg_storage_close(local);
+        fprintf(stderr, "cannot open local profile DB: %s\n", mg_strerror(err));
+        return 1;
+    }
+    int64_t pulled = 0, deleted = 0;
+    err = mg_storage_pull_remote_file(local, url, &pulled, &deleted);
+    mg_storage_close(local);
+    if (err != MG_OK) {
+        fprintf(stderr, "pull failed: %s\n", mg_strerror(err));
+        return 1;
+    }
+
+    mg_storage_t *remote = NULL;
+    err = mg_storage_open(url, &remote);
+    if (err == MG_OK) err = mg_storage_apply_schema(remote);
+    if (err == MG_OK) err = mg_storage_merge_from(remote, db, 0);
+    if (remote) mg_storage_close(remote);
+    if (err != MG_OK) {
+        fprintf(stderr, "push failed: %s\n", mg_strerror(err));
+        return 1;
+    }
+
+    local = NULL;
+    err = mg_storage_open(db, &local);
+    if (err == MG_OK) err = mg_storage_apply_schema(local);
+    int64_t pushed = 0;
+    if (err == MG_OK) err = mg_storage_mark_local_pushed(local, &pushed);
+    if (local) mg_storage_close(local);
+    if (err != MG_OK) {
+        fprintf(stderr, "mark pushed failed: %s\n", mg_strerror(err));
+        return 1;
+    }
+
+    fputs("{\n  \"profile\": ", stdout); print_json_str(name);
+    fputs(",\n  \"remote\": ", stdout); print_json_str(url);
+    printf(",\n  \"pulled\": %lld,\n  \"deleted\": %lld,\n  \"pushed\": %lld\n}\n",
+           (long long)pulled, (long long)deleted, (long long)pushed);
+    return 0;
+}
+
+static int cmd_remote(int argc, char **argv) {
+    if (argc < 5) return profile_usage();
+    const char *action = argv[3];
+    const char *name = argv[4];
+    if (!strcmp(action, "bind")) {
+        const char *url = NULL, *token = NULL;
+        for (int i = 5; i < argc; i++) {
+            if      (!strcmp(argv[i], "--url") && i + 1 < argc) url = argv[++i];
+            else if (!strcmp(argv[i], "--token") && i + 1 < argc) token = argv[++i];
+        }
+        return cmd_remote_bind(name, url, token);
+    }
+    if (!strcmp(action, "detach")) return cmd_remote_detach(name);
+    if (!strcmp(action, "status")) return cmd_remote_status(name);
+    if (!strcmp(action, "sync"))   return cmd_remote_sync(name);
+    return profile_usage();
+}
+
 /* ---------- dispatcher ---------- */
 
 static int profile_usage(void) {
@@ -640,7 +870,8 @@ static int profile_usage(void) {
         "  memgraph profile set    <name> [--shell bash|zsh|fish|powershell|cmd]\n"
         "  memgraph profile export <name> --path <file>\n"
         "  memgraph profile import --name <name> --file <file> [--force]\n"
-        "  memgraph profile merge  --into <name> --from <file> [--overwrite]\n");
+        "  memgraph profile merge  --into <name> --from <file> [--overwrite]\n"
+        "  memgraph profile remote <bind|detach|status|sync> <name> [--url <file-or-url>] [--token T]\n");
     return 2;
 }
 
@@ -703,6 +934,9 @@ int mg_profile_cmd(int argc, char **argv) {
         }
         if (!into || !from) return profile_usage();
         return cmd_merge(into, from, overwrite);
+    }
+    if (!strcmp(sub, "remote")) {
+        return cmd_remote(argc, argv);
     }
     return profile_usage();
 }

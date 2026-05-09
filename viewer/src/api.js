@@ -1,18 +1,9 @@
-/* Tiny REST client for the daemon's /v1/* endpoints.
- *
- * Auth: if localStorage holds `memgraph_api_key`, attach as Bearer.
+/* Tiny REST client for the local daemon's /v1/* endpoints.
  * Errors: rejects with { status, message } shaped error.
  */
 
-function getKey() {
-  try { return localStorage.getItem('memgraph_api_key') || ''; } catch { return ''; }
-}
-
 function headers(extra = {}) {
-  const h = { ...extra };
-  const k = getKey();
-  if (k) h['Authorization'] = `Bearer ${k}`;
-  return h;
+  return { ...extra };
 }
 
 async function getJson(url) {

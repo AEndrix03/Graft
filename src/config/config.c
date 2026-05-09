@@ -68,7 +68,6 @@ void mg_config_defaults(mg_config_t *cfg) {
   cfg->http_enabled = false;
   cfg->http_bind = mg_config_strdup("127.0.0.1");
   cfg->http_port = 9977;
-  cfg->http_api_key = NULL;
   cfg->http_ep_match = true;
   cfg->http_ep_search = true;
   cfg->http_ep_explore = true;
@@ -89,7 +88,6 @@ void mg_config_free(mg_config_t *cfg) {
   free(cfg->embed_model_path);
   free(cfg->cross_encoder_model_path);
   free(cfg->http_bind);
-  free(cfg->http_api_key);
   free(cfg->http_viewer_path);
   memset(cfg, 0, sizeof(*cfg));
 }
@@ -213,19 +211,6 @@ static mg_err_t mg_config_apply(mg_config_t *cfg,
       return mg_config_set_string(&cfg->http_bind, value);
     }
     if (strcmp(key, "port") == 0 && mg_parse_int(value, &cfg->http_port)) return MG_OK;
-    if (strcmp(key, "api_key") == 0) {
-      /* Treat YAML's null markers as "no key set" so `api_key: null` (the
-       * documented default) doesn't accidentally enable bearer auth with the
-       * literal string "null" as the password. */
-      if (!value || !*value || strcmp(value, "null") == 0
-          || strcmp(value, "~") == 0 || strcmp(value, "Null") == 0
-          || strcmp(value, "NULL") == 0) {
-        free(cfg->http_api_key);
-        cfg->http_api_key = NULL;
-        return MG_OK;
-      }
-      return mg_config_set_string(&cfg->http_api_key, value);
-    }
     if (strcmp(key, "endpoint_match")    == 0 && mg_parse_bool(value, &b)) { cfg->http_ep_match = b; return MG_OK; }
     if (strcmp(key, "endpoint_search")   == 0 && mg_parse_bool(value, &b)) { cfg->http_ep_search = b; return MG_OK; }
     if (strcmp(key, "endpoint_explore")  == 0 && mg_parse_bool(value, &b)) { cfg->http_ep_explore = b; return MG_OK; }

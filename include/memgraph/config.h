@@ -48,7 +48,6 @@ typedef struct {
   bool   http_enabled;
   char  *http_bind;             /* default "127.0.0.1" — local-first */
   int    http_port;             /* default 9977 */
-  char  *http_api_key;          /* NULL = no auth; if set, Bearer required */
   bool   http_ep_match;
   bool   http_ep_search;
   bool   http_ep_explore;

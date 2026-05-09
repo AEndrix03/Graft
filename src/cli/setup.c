@@ -164,6 +164,101 @@ static int copy_tree(const char *src, const char *dst) {
 #endif
 }
 
+static int ends_with(const char *s, const char *suffix) {
+    size_t n, m;
+    if (!s || !suffix) return 0;
+    n = strlen(s);
+    m = strlen(suffix);
+    return n >= m && strcmp(s + n - m, suffix) == 0;
+}
+
+static int normalize_codex_skill_file(const char *path) {
+    FILE *in = fopen(path, "rb");
+    if (!in) return -1;
+    char tmp[1024];
+    if (snprintf(tmp, sizeof(tmp), "%s.tmp", path) >= (int)sizeof(tmp)) {
+        fclose(in);
+        return -1;
+    }
+    FILE *out = fopen(tmp, "wb");
+    if (!out) {
+        fclose(in);
+        return -1;
+    }
+
+    char line[8192];
+    while (fgets(line, sizeof(line), in)) {
+        if (!strncmp(line, "description: ", 13)) {
+            char *desc = line + 13;
+            fputs("description: >-\n  ", out);
+            fputs(desc, out);
+            if (!strchr(desc, '\n')) fputc('\n', out);
+        } else {
+            fputs(line, out);
+        }
+    }
+    int rc = ferror(in) ? -1 : 0;
+    if (fclose(in) != 0) rc = -1;
+    if (fclose(out) != 0) rc = -1;
+    if (rc != 0) {
+        remove(tmp);
+        return -1;
+    }
+    if (remove(path) != 0) {
+        remove(tmp);
+        return -1;
+    }
+    if (rename(tmp, path) != 0) {
+        remove(tmp);
+        return -1;
+    }
+    return 0;
+}
+
+static int normalize_codex_skill_tree(const char *root) {
+    if (!dir_exists(root)) return 0;
+
+#ifdef _WIN32
+    char pattern[1024];
+    if (snprintf(pattern, sizeof(pattern), "%s\\*", root) >= (int)sizeof(pattern)) return -1;
+    WIN32_FIND_DATAA fd;
+    HANDLE h = FindFirstFileA(pattern, &fd);
+    if (h == INVALID_HANDLE_VALUE) return -1;
+    int rc = 0;
+    do {
+        const char *name = fd.cFileName;
+        if (!strcmp(name, ".") || !strcmp(name, "..")) continue;
+        char p[1024];
+        if (path_join(p, sizeof(p), root, name) != 0) { rc = -1; break; }
+        if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
+            if (normalize_codex_skill_tree(p) != 0) { rc = -1; break; }
+        } else if (ends_with(name, "SKILL.md")) {
+            if (normalize_codex_skill_file(p) != 0) { rc = -1; break; }
+        }
+    } while (FindNextFileA(h, &fd));
+    FindClose(h);
+    return rc;
+#else
+    DIR *dir = opendir(root);
+    if (!dir) return -1;
+    int rc = 0;
+    struct dirent *de;
+    while ((de = readdir(dir)) != NULL) {
+        const char *name = de->d_name;
+        if (!strcmp(name, ".") || !strcmp(name, "..")) continue;
+        char p[1024];
+        if (path_join(p, sizeof(p), root, name) != 0) { rc = -1; break; }
+        if (dir_exists(p)) {
+            if (normalize_codex_skill_tree(p) != 0) { rc = -1; break; }
+        } else if (ends_with(name, "SKILL.md")) {
+            if (normalize_codex_skill_file(p) != 0) { rc = -1; break; }
+        }
+    }
+    closedir(dir);
+    return rc;
+#endif
+}
+
 static int user_home(char *out, size_t cap) {
 #ifdef _WIN32
     const char *home = getenv("USERPROFILE");
@@ -440,7 +535,10 @@ static int setup_codex(const char *src, const char *home) {
         || path_join(src_skills_root, sizeof(src_skills_root), src_claude, "skills") != 0) {
         return -1;
     }
-    if (dir_exists(src_skills_root) && copy_tree(src_skills_root, dst_skills) != 0) return -1;
+    if (dir_exists(src_skills_root)) {
+        if (copy_tree(src_skills_root, dst_skills) != 0) return -1;
+        if (normalize_codex_skill_tree(dst_skills) != 0) return -1;
+    }
     if (write_hook_config(hooks_json, dst_hooks, MG_SETUP_CODEX) != 0) return -1;
     if (enable_codex_hooks_flag(codex_home) != 0) return -1;
     printf("Installed Codex hooks to %s\n", dst_hooks);

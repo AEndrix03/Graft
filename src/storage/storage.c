@@ -11,6 +11,7 @@
 extern int sqlite3_vec_init(sqlite3 *db, char **pzErrMsg, const sqlite3_api_routines *pApi);
 extern const char *mg_storage_schema_sql(void);
 extern const char *mg_storage_migration_v2_sql(void);
+extern const char *mg_storage_migration_v3_sql(void);
 
 struct mg_storage {
   sqlite3 *db;
@@ -150,16 +151,21 @@ void mg_storage_close(mg_storage_t *s) {
 /* Returns 1 if the legacy `summary` column exists on `nodes` (i.e. pre-rename
  * schema). Returns 0 if the table is absent or already on the new schema.
  * Returns -1 on error. */
-static int has_legacy_summary_column(sqlite3 *db) {
+static int has_table_column(sqlite3 *db, const char *table, const char *column) {
   sqlite3_stmt *stmt = NULL;
   int rc, found = 0;
-  rc = sqlite3_prepare_v2(db, "PRAGMA table_info(nodes);", -1, &stmt, NULL);
+  char sql[128];
+  int n;
+  if (!db || !table || !column) return -1;
+  n = snprintf(sql, sizeof(sql), "PRAGMA table_info(%s);", table);
+  if (n <= 0 || (size_t)n >= sizeof(sql)) return -1;
+  rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
   if (rc != SQLITE_OK) {
     return -1;
   }
   while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
     const unsigned char *name = sqlite3_column_text(stmt, 1);
-    if (name && strcmp((const char *)name, "summary") == 0) {
+    if (name && strcmp((const char *)name, column) == 0) {
       found = 1;
       break;
     }
@@ -168,9 +174,14 @@ static int has_legacy_summary_column(sqlite3 *db) {
   return (rc == SQLITE_ROW || rc == SQLITE_DONE) ? found : -1;
 }
 
+static int has_legacy_summary_column(sqlite3 *db) {
+  return has_table_column(db, "nodes", "summary");
+}
+
 mg_err_t mg_storage_apply_schema(mg_storage_t *s) {
   mg_err_t err;
   int legacy;
+  int has_origin;
   if (!s || !s->db) {
     return MG_ERR_INVALID_ARG;
   }
@@ -182,6 +193,16 @@ mg_err_t mg_storage_apply_schema(mg_storage_t *s) {
   }
   if (legacy == 1) {
     err = exec_sql(s->db, mg_storage_migration_v2_sql());
+    if (err != MG_OK) {
+      return err;
+    }
+  }
+  has_origin = has_table_column(s->db, "nodes", "origin");
+  if (has_origin < 0) {
+    return MG_ERR_STORAGE;
+  }
+  if (has_origin == 0 && has_table_column(s->db, "nodes", "id") == 1) {
+    err = exec_sql(s->db, mg_storage_migration_v3_sql());
     if (err != MG_OK) {
       return err;
     }
@@ -727,9 +748,9 @@ mg_err_t mg_storage_merge_from(mg_storage_t *s, const char *source_path,
   /* 1. nodes (idempotent on content_hash UNIQUE) */
   snprintf(sql, sizeof(sql),
     "%s INTO main.nodes(id, content_hash, title, body, author, "
-    "                   created_at, expires_at, last_access, access_count, state) "
+    "                   created_at, expires_at, last_access, access_count, state, origin) "
     "SELECT id, content_hash, title, body, author, "
-    "       created_at, expires_at, last_access, access_count, state FROM src.nodes;",
+    "       created_at, expires_at, last_access, access_count, state, origin FROM src.nodes;",
     node_verb);
   err = exec_sql(s->db, sql);
   if (err != MG_OK) goto rollback;
@@ -780,6 +801,95 @@ mg_err_t mg_storage_merge_from(mg_storage_t *s, const char *source_path,
 rollback:
   (void)exec_sql(s->db, "ROLLBACK;");
   (void)exec_sql(s->db, "DETACH DATABASE src;");
+  return err;
+}
+
+mg_err_t mg_storage_pull_remote_file(mg_storage_t *s, const char *source_path,
+                                     int64_t *inserted, int64_t *deleted) {
+  if (!s || !source_path) return MG_ERR_INVALID_ARG;
+  if (inserted) *inserted = 0;
+  if (deleted) *deleted = 0;
+
+  sqlite3_stmt *stmt = NULL;
+  if (sqlite3_prepare_v2(s->db, "ATTACH DATABASE ? AS src", -1, &stmt, NULL)
+      != SQLITE_OK) return MG_ERR_STORAGE;
+  sqlite3_bind_text(stmt, 1, source_path, -1, SQLITE_STATIC);
+  int rc = sqlite3_step(stmt);
+  sqlite3_finalize(stmt);
+  if (rc != SQLITE_DONE) return MG_ERR_STORAGE;
+
+  mg_err_t err = exec_sql(s->db, "BEGIN IMMEDIATE;");
+  if (err != MG_OK) {
+    (void)exec_sql(s->db, "DETACH DATABASE src;");
+    return err;
+  }
+
+  err = exec_sql(s->db,
+    "DELETE FROM main.nodes "
+    "WHERE origin != 0 "
+    "  AND NOT EXISTS (SELECT 1 FROM src.nodes WHERE src.nodes.id = main.nodes.id);");
+  if (err != MG_OK) goto rollback;
+  if (deleted) *deleted = sqlite3_changes64(s->db);
+
+  err = exec_sql(s->db,
+    "INSERT OR IGNORE INTO main.keywords(text, embedding) "
+    "SELECT text, embedding FROM src.keywords;");
+  if (err != MG_OK) goto rollback;
+
+  err = exec_sql(s->db,
+    "INSERT OR IGNORE INTO main.nodes(id, content_hash, title, body, author, "
+    "  created_at, expires_at, last_access, access_count, state, origin) "
+    "SELECT id, content_hash, title, body, author, "
+    "  created_at, expires_at, last_access, access_count, state, 1 "
+    "FROM src.nodes;");
+  if (err != MG_OK) goto rollback;
+  if (inserted) *inserted = sqlite3_changes64(s->db);
+
+  err = exec_sql(s->db,
+    "INSERT OR IGNORE INTO main.node_vec(id, embedding) "
+    "SELECT id, embedding FROM src.node_vec "
+    "WHERE id IN (SELECT id FROM main.nodes);");
+  if (err != MG_OK) goto rollback;
+
+  err = exec_sql(s->db,
+    "INSERT OR IGNORE INTO main.node_keywords(node_id, keyword_id) "
+    "SELECT nk.node_id, m_kw.id "
+    "FROM src.node_keywords AS nk "
+    "JOIN src.keywords AS s_kw ON s_kw.id = nk.keyword_id "
+    "JOIN main.keywords AS m_kw ON m_kw.text = s_kw.text COLLATE NOCASE "
+    "WHERE EXISTS (SELECT 1 FROM main.nodes WHERE id = nk.node_id);");
+  if (err != MG_OK) goto rollback;
+
+  err = exec_sql(s->db,
+    "INSERT OR IGNORE INTO main.edges(src, dst, kind, keyword_id, weight) "
+    "SELECT e.src, e.dst, e.kind, "
+    "       CASE WHEN e.keyword_id IS NULL THEN NULL ELSE m_kw.id END, "
+    "       e.weight "
+    "FROM src.edges AS e "
+    "LEFT JOIN src.keywords AS s_kw ON s_kw.id = e.keyword_id "
+    "LEFT JOIN main.keywords AS m_kw ON m_kw.text = s_kw.text COLLATE NOCASE "
+    "WHERE EXISTS (SELECT 1 FROM main.nodes WHERE id = e.src) "
+    "  AND EXISTS (SELECT 1 FROM main.nodes WHERE id = e.dst) "
+    "  AND NOT EXISTS (SELECT 1 FROM main.nodes WHERE id = e.src AND origin = 0) "
+    "  AND NOT EXISTS (SELECT 1 FROM main.nodes WHERE id = e.dst AND origin = 0);");
+  if (err != MG_OK) goto rollback;
+
+  err = exec_sql(s->db, "COMMIT;");
+  if (err != MG_OK) goto rollback;
+  (void)exec_sql(s->db, "DETACH DATABASE src;");
+  return MG_OK;
+
+rollback:
+  (void)exec_sql(s->db, "ROLLBACK;");
+  (void)exec_sql(s->db, "DETACH DATABASE src;");
+  return err;
+}
+
+mg_err_t mg_storage_mark_local_pushed(mg_storage_t *s, int64_t *updated) {
+  if (!s) return MG_ERR_INVALID_ARG;
+  if (updated) *updated = 0;
+  mg_err_t err = exec_sql(s->db, "UPDATE nodes SET origin = 2 WHERE origin = 0;");
+  if (err == MG_OK && updated) *updated = sqlite3_changes64(s->db);
   return err;
 }
 

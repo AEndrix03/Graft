@@ -15,23 +15,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-bool mg_http_auth_ok(const mg_ctx_t *ctx, const mg_http_request_t *req) {
-  const char *expected;
-  const char *got;
-  size_t prefix_len;
-
-  if (!ctx || !ctx->config) return false;
-  expected = ctx->config->http_api_key;
-  if (!expected || !*expected) return true;  /* auth disabled */
-
-  got = mg_http_header_get(req, "Authorization");
-  if (!got) return false;
-
-  prefix_len = strlen("Bearer ");
-  if (strncmp(got, "Bearer ", prefix_len) != 0) return false;
-  return strcmp(got + prefix_len, expected) == 0;
-}
-
 void mg_http_error(mg_http_response_t *resp, int status, const char *msg) {
   char buf[512];
   int n = snprintf(buf, sizeof(buf), "{\"error\":\"%s\"}", msg ? msg : "error");

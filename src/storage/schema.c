@@ -16,10 +16,12 @@ const char *mg_storage_schema_sql(void) {
     "  expires_at INTEGER NOT NULL DEFAULT 0,"
     "  last_access INTEGER NOT NULL,"
     "  access_count INTEGER NOT NULL DEFAULT 0,"
-    "  state INTEGER NOT NULL DEFAULT 0"
+    "  state INTEGER NOT NULL DEFAULT 0,"
+    "  origin INTEGER NOT NULL DEFAULT 0"
     ");"
     "CREATE INDEX IF NOT EXISTS idx_nodes_hash ON nodes(content_hash);"
     "CREATE INDEX IF NOT EXISTS idx_nodes_state ON nodes(state);"
+    "CREATE INDEX IF NOT EXISTS idx_nodes_origin ON nodes(origin);"
     "CREATE VIRTUAL TABLE IF NOT EXISTS node_fts USING fts5("
     "  title, body,"
     "  content='nodes', content_rowid='rowid',"
@@ -103,5 +105,13 @@ const char *mg_storage_migration_v2_sql(void) {
     "CREATE TRIGGER nodes_ad AFTER DELETE ON nodes BEGIN "
     "  INSERT INTO node_fts(node_fts, rowid, title, body) VALUES ('delete', old.rowid, old.title, old.body);"
     "END;"
+    "COMMIT;";
+}
+
+const char *mg_storage_migration_v3_sql(void) {
+  return
+    "BEGIN IMMEDIATE;"
+    "ALTER TABLE nodes ADD COLUMN origin INTEGER NOT NULL DEFAULT 0;"
+    "CREATE INDEX IF NOT EXISTS idx_nodes_origin ON nodes(origin);"
     "COMMIT;";
 }

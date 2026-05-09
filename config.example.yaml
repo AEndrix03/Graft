@@ -40,13 +40,12 @@ explore:
 # Optional HTTP/REST layer + 3D viewer. Off by default. When enabled, the
 # daemon spawns a TCP listener bound to `bind:port` and serves /v1/* JSON
 # endpoints plus the viewer SPA at /. See docs/HTTP-API.md for the full
-# endpoint reference. The viewer SPA is served from `viewer_path` (built
-# by `cd viewer && npm run build`).
+# endpoint reference. Keep this bound to 127.0.0.1 for production and put
+# integrations/mcp-server/oauth_gateway.py in front for OAuth/OIDC.
 http:
   enabled: false
-  bind: "127.0.0.1"             # local-first; flip to 0.0.0.0 to expose externally
+  bind: "127.0.0.1"             # local-first; do not expose memgraphd directly
   port: 9977
-  api_key: null                 # if set, every /v1/* request must send `Authorization: Bearer <key>`
   endpoint_match:    true       # GET  /v1/match
   endpoint_search:   true       # GET  /v1/search
   endpoint_explore:  true       # GET  /v1/explore
@@ -55,4 +54,3 @@ http:
   endpoint_delete:   false      # DELETE /v1/nodes/{id} — sensitive, off by default
   endpoint_view:     true       # GET  /v1/view (full graph dump for the viewer)
   viewer_path: "viewer/dist"    # static bundle served at /
-

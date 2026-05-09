@@ -204,6 +204,12 @@ memgraph profile set work | iex          # PowerShell
 # Backup / move a profile:
 memgraph profile export work --path work-2026-05.mgprofile
 memgraph profile import --name work-restored --file work-2026-05.mgprofile
+
+# Bind a profile to a remote SQLite profile file and sync manually:
+memgraph profile remote bind work --url /path/to/remote.memgraph.db
+memgraph profile remote status work
+memgraph profile remote sync work
+memgraph profile remote detach work
 ```
 
 There is no global state file — `set` prints an env var, you decide whether to apply it for the session or persist it in your shell rc.
@@ -235,7 +241,6 @@ http:
   enabled: true
   bind: "127.0.0.1"
   port: 9977
-  api_key: null
 ```
 
 Then either `curl` directly or open the browser viewer:
@@ -246,10 +251,26 @@ memgraph view              # opens http://127.0.0.1:9977/ in your default browse
 
 You get:
 
-- **Six JSON endpoints** under `/v1/*` — `match`, `search`, `explore`, `classify`, `insert`, `nodes/{id}` (GET + DELETE), plus `view` for the full graph dump and `healthz` for liveness probes. Bearer-token auth optional.
+- **Six JSON endpoints** under `/v1/*` — `match`, `search`, `explore`, `classify`, `insert`, `nodes/{id}` (GET + DELETE), plus `view` for the full graph dump and `healthz` for liveness probes.
 - **A 3D graph viewer** (Vue 3 + three.js + CodeMirror) served as a static SPA from the same daemon. Color-coded edges (semantic / keyword / supersedes), per-node coloring by primary keyword hash, content-proportional sphere size, search/retrieve/explore overlays with red→orange ranked result colors, click-to-edit with atomic supersession on save.
 - **Local-first defaults** — bind is `127.0.0.1`, `delete` is off by default. No telemetry, no CDN dependencies in the SPA.
 - **Per-endpoint enable flags** — `endpoint_match: true`, `endpoint_delete: false`, etc. Disable what you don't want exposed.
+
+The daemon has no OAuth/JWT logic and should remain bound to `127.0.0.1`.
+For production, run the Python gateway in `integrations/mcp-server/`:
+
+```bash
+cd integrations/mcp-server
+export MEMGRAPH_OAUTH_ISSUER_URL="https://issuer.example.com"
+export MEMGRAPH_OAUTH_RESOURCE_SERVER_URL="https://memgraph.example.com/mcp"
+export MEMGRAPH_OAUTH_AUDIENCE="https://memgraph.example.com"
+uvicorn oauth_gateway:app --host 127.0.0.1 --port 8080
+```
+
+The gateway mounts MCP streamable HTTP at `/mcp` and proxies authenticated
+`/v1/*` calls to `MEMGRAPH_UPSTREAM_HTTP` (default `http://127.0.0.1:9977`).
+It validates externally issued OIDC access tokens as an OAuth resource server.
+Use HTTPS in front of the gateway for any public deployment.
 
 Full reference: [`docs/HTTP-API.md`](./docs/HTTP-API.md). Viewer specifics: [`viewer/README.md`](./viewer/README.md).
 
