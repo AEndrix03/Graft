@@ -21,13 +21,9 @@ The dev server proxies `/v1/*` to `http://127.0.0.1:9977`, so the daemon must be
 
 ## Auth
 
-If your daemon has `http.api_key` set, store it in the browser's localStorage:
-
-```js
-localStorage.setItem('memgraph_api_key', 'your-key');
-```
-
-The viewer attaches it as `Authorization: Bearer <key>` to all `/v1/*` calls. Static assets (`/`, `/assets/*`) are unauthenticated.
+The viewer is a local/dev surface and talks to the local daemon REST API. For
+public deployments, put the OAuth/OIDC gateway in `integrations/mcp-server/`
+in front of `/v1/*` and keep `memgraphd` bound to `127.0.0.1`.
 
 ---
 
