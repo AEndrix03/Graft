@@ -123,8 +123,15 @@ mg_err_t mg_op_view(mg_ctx_t *ctx, mpack_node_t args, mpack_writer_t *result) {
   /* --------- nodes --------- */
   mpack_write_cstr(result, "nodes");
   mpack_build_array(result);
+  /* The first keyword (lowest id alphabetically — see the LIMIT 1) acts as
+   * the "primary tag" used by the viewer to color-code nodes. We also
+   * surface body length so the client can size nodes proportionally. */
   rc = sqlite3_prepare_v2(db,
-    "SELECT n.id, n.title, n.state, v.embedding "
+    "SELECT n.id, n.title, n.state, length(n.body), v.embedding, "
+    "       (SELECT k.text FROM node_keywords nk "
+    "          JOIN keywords k ON k.id = nk.keyword_id "
+    "          WHERE nk.node_id = n.id "
+    "          ORDER BY k.text COLLATE NOCASE ASC LIMIT 1) "
     "FROM nodes n JOIN node_vec v ON v.id = n.id;", -1, &stmt, NULL);
   if (rc != SQLITE_OK) {
     mpack_complete_array(result);
@@ -132,11 +139,13 @@ mg_err_t mg_op_view(mg_ctx_t *ctx, mpack_node_t args, mpack_writer_t *result) {
     return MG_ERR_STORAGE;
   }
   while (sqlite3_step(stmt) == SQLITE_ROW) {
-    const uint8_t *id   = (const uint8_t *)sqlite3_column_blob(stmt, 0);
+    const uint8_t *id    = (const uint8_t *)sqlite3_column_blob(stmt, 0);
     const char    *title = (const char *)sqlite3_column_text(stmt, 1);
     int            state = sqlite3_column_int(stmt, 2);
-    const void    *eb   = sqlite3_column_blob(stmt, 3);
-    int            ebn  = sqlite3_column_bytes(stmt, 3);
+    int            body_len = sqlite3_column_int(stmt, 3);
+    const void    *eb    = sqlite3_column_blob(stmt, 4);
+    int            ebn   = sqlite3_column_bytes(stmt, 4);
+    const char    *primary_kw = (const char *)sqlite3_column_text(stmt, 5);
     char id_hex[2 * MG_NODE_ID_BYTES + 1];
     float xyz[3] = {0, 0, 0};
     if (!id || !eb || ebn != (int)sizeof(mg_embedding_t)) continue;
@@ -146,6 +155,10 @@ mg_err_t mg_op_view(mg_ctx_t *ctx, mpack_node_t args, mpack_writer_t *result) {
     mpack_write_cstr(result, "id_hex");  mpack_write_cstr(result, id_hex);
     mpack_write_cstr(result, "title");   mpack_write_cstr(result, title ? title : "");
     mpack_write_cstr(result, "state");   mpack_write_cstr(result, state_to_string(state));
+    mpack_write_cstr(result, "body_len"); mpack_write_int(result, body_len);
+    mpack_write_cstr(result, "primary_keyword");
+    if (primary_kw) mpack_write_cstr(result, primary_kw);
+    else            mpack_write_nil(result);
     mpack_write_cstr(result, "x");       mpack_write_float(result, xyz[0]);
     mpack_write_cstr(result, "y");       mpack_write_float(result, xyz[1]);
     mpack_write_cstr(result, "z");       mpack_write_float(result, xyz[2]);

@@ -16,6 +16,7 @@ const selectedId    = ref(null);
 const highlightedIds = ref([]);
 const showSemantic  = ref(true);
 const showKeyword   = ref(true);
+const edgeTooltip   = ref(null);  // { kind, weight, keyword?, x, y }
 
 let pollTimer = null;
 const POLL_INTERVAL_MS = 3000;
@@ -78,6 +79,19 @@ function onClear() {
 function onNodeSelected(id) {
   selectedId.value = id;
   highlightedIds.value = [id];
+  edgeTooltip.value = null;
+}
+
+function onEdgeSelected(e) {
+  edgeTooltip.value = {
+    kind: e.kind,
+    weight: e.weight,
+    keyword: e.keyword,
+    src: e.src,
+    dst: e.dst,
+    x: e.screenX,
+    y: e.screenY,
+  };
 }
 
 function onPanelClose() {
@@ -117,7 +131,27 @@ const stats = computed(() => `${nodes.value.length} nodes · ${edges.value.lengt
       :show-semantic="showSemantic"
       :show-keyword="showKeyword"
       @select="onNodeSelected"
+      @select-edge="onEdgeSelected"
     />
+
+    <div
+      v-if="edgeTooltip"
+      class="edge-tooltip"
+      :style="{ left: edgeTooltip.x + 'px', top: edgeTooltip.y + 'px' }"
+      @click="edgeTooltip = null"
+    >
+      <div class="row">
+        <span class="kind" :class="edgeTooltip.kind">{{ edgeTooltip.kind }}</span>
+        <span class="weight">w = {{ edgeTooltip.weight.toFixed(3) }}</span>
+      </div>
+      <div v-if="edgeTooltip.keyword" class="kw">#{{ edgeTooltip.keyword }}</div>
+      <div class="ids">
+        <span class="mono">{{ edgeTooltip.src.slice(0, 8) }}…</span>
+        <span class="arrow">→</span>
+        <span class="mono">{{ edgeTooltip.dst.slice(0, 8) }}…</span>
+      </div>
+      <div class="hint">click to dismiss</div>
+    </div>
 
     <div class="search-wrap">
       <SearchBar @search="onSearch" @clear="onClear" />
@@ -193,5 +227,60 @@ const stats = computed(() => `${nodes.value.length} nodes · ${edges.value.lengt
   top: 0;
   right: 0;
   z-index: 20;
+}
+
+.edge-tooltip {
+  position: fixed;
+  z-index: 30;
+  transform: translate(12px, 12px);
+  background: var(--bg-overlay);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  font-size: 12px;
+  color: var(--text);
+  backdrop-filter: blur(8px);
+  box-shadow: var(--shadow);
+  cursor: pointer;
+  min-width: 200px;
+}
+.edge-tooltip .row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+.edge-tooltip .kind {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 2px 6px;
+  border-radius: 3px;
+  background: rgba(122,162,247,0.12);
+  color: var(--accent);
+}
+.edge-tooltip .kind.semantic   { background: rgba(190,242,100,0.14); color: var(--edge-semantic); }
+.edge-tooltip .kind.keyword    { background: rgba(125,211,252,0.14); color: var(--edge-keyword); }
+.edge-tooltip .kind.supersedes { background: rgba(248,113,113,0.16); color: var(--edge-supersedes); }
+.edge-tooltip .weight { color: var(--text-dim); font-family: var(--mono); }
+.edge-tooltip .kw {
+  margin-top: 4px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--edge-keyword);
+}
+.edge-tooltip .ids {
+  margin-top: 4px;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  color: var(--text-muted);
+}
+.edge-tooltip .mono { font-family: var(--mono); font-size: 11px; }
+.edge-tooltip .arrow { color: var(--text-muted); }
+.edge-tooltip .hint {
+  margin-top: 6px;
+  font-size: 10px;
+  color: var(--text-muted);
 }
 </style>
