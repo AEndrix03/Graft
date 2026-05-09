@@ -535,7 +535,8 @@ void mg_http_handler_delete(mg_ctx_t *ctx, mg_http_request_t *req,
 
 void mg_http_handler_view(mg_ctx_t *ctx, mg_http_request_t *req,
                           mg_http_response_t *resp) {
-  /* Implemented in view.c — placeholder until that lands. */
-  (void)ctx; (void)req;
-  mg_http_error(resp, 501, "view endpoint not yet implemented");
+  if (!ctx->config->http_ep_view) { mg_http_error(resp, 404, "endpoint disabled"); return; }
+  (void)req;
+  /* No args; the op produces a fully-formed result map. */
+  run_dispatch(ctx, "view", NULL, NULL, 200, resp);
 }

@@ -27,6 +27,7 @@ mg_err_t mg_op_get(mg_ctx_t *ctx, mpack_node_t args, mpack_writer_t *result);
 mg_err_t mg_op_stats(mg_ctx_t *ctx, mpack_node_t args, mpack_writer_t *result);
 mg_err_t mg_op_consolidate(mg_ctx_t *ctx, mpack_node_t args, mpack_writer_t *result);
 mg_err_t mg_op_delete(mg_ctx_t *ctx, mpack_node_t args, mpack_writer_t *result);
+mg_err_t mg_op_view(mg_ctx_t *ctx, mpack_node_t args, mpack_writer_t *result);
 
 /* Dispatch: legge "op" dal frame, instrada all'handler giusto. */
 mg_err_t mg_dispatch(mg_ctx_t *ctx, const void *req_payload, size_t req_len,
