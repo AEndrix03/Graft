@@ -1,60 +1,129 @@
+<div align="center">
+
 # memgraph
 
-Memoria a grafo persistente per agenti AI. Salva, cerca e collega cose che hai imparato, per riusarle nelle conversazioni successive.
+**Persistent graph memory for AI agents.**
+Save what you learned. Retrieve it across sessions, machines, and agents. Local-first, no SaaS, no API key.
 
-Stack: **C11** + SQLite + sqlite-vec + FTS5 + llama.cpp (BGE-M3, italiano) + MessagePack + AF_UNIX socket.
+<sub>C11 · SQLite + sqlite-vec + FTS5 · llama.cpp + BGE-M3 · MessagePack · AF_UNIX socket</sub>
 
-```
-memgraph (CLI)  ──[unix socket]──▶  memgraphd (daemon)
-                                     ├─ SQLite (nodes, edges, keywords, FTS5)
-                                     ├─ sqlite-vec (cosine top-k 1024-dim)
-                                     └─ llama.cpp + BGE-M3 (embedding)
-```
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](./LICENSE)
+[![Status: alpha](https://img.shields.io/badge/status-alpha-orange.svg)](#status)
+[![Platforms: Linux · macOS · Windows](https://img.shields.io/badge/platforms-linux%20%7C%20macOS%20%7C%20windows-lightgrey.svg)](#install)
+
+</div>
 
 ---
 
-## Installazione
+memgraph is a daemon plus a CLI. The daemon owns a small SQLite database that stores every "thing you learned" as a node with a 1024-dim embedding, lexical signals, and graph edges to related nodes. The CLI is the agent-facing surface: a few subcommands (`insert`, `query`, `retrieve`, `explore`, …) that any agent can call as a tool.
 
-### Opzione rapida (raccomandata)
+The result: an LLM session that ends doesn't take its hard-won lessons with it. The next session — or another agent on the same box — can find them in milliseconds.
 
-```bash
-bash scripts/install.sh        # Linux, macOS, Windows MSYS2
-pwsh scripts/install.ps1       # Windows (autoinstalla MSYS2 se serve)
+## Table of contents
+
+- [What you get](#what-you-get)
+- [See it in action](#see-it-in-action)
+- [Why memgraph](#why-memgraph)
+- [Install](#install)
+- [Use it](#use-it)
+- [Plug it into your agent](#plug-it-into-your-agent)
+- [Architecture](#architecture)
+- [Configuration](#configuration)
+- [Status](#status)
+- [Roadmap](#roadmap)
+- [Contributing](#contributing)
+- [License](#license)
+
+## What you get
+
+- **Cache-first retrieval** — `memgraph query <text>` returns `STRONG` / `WEAK` / `MISS` in milliseconds. STRONG hits inject summary + detail directly into the agent's context.
+- **Hybrid search** — `memgraph retrieve` fuses dense (BGE-M3 cosine) and lexical (BM25 over summary and detail) via Reciprocal Rank Fusion.
+- **Graph walks** — `memgraph explore` follows keyword and semantic edges with beam search and MMR diversity, decay `gamma^step`.
+- **Multi-tenant profiles** — isolated DBs and sockets per profile (`work`, `personal`, project-scoped). Import/export as files.
+- **Local-first** — single binary, single DB file, no network. Models run on CPU out of the box; opt-in to CUDA or ROCm 6/7 with a flag.
+- **Pluggable into anything** — Claude Code (skills + hooks), Codex (AGENTS.md + hooks), ChatGPT / Claude Desktop (MCP server), Gemini CLI, Open Code.
+
+## See it in action
+
+```console
+$ memgraph query "spring boot validation cascade nested DTO"
+{ "status": 0, "result": { "hit": "MISS" } }
+
+# ... you debug the issue, find the answer ...
+
+$ memgraph insert \
+    --summary "Spring Boot @Valid cascade on nested DTOs needs @Valid on the field plus @Validated on the controller" \
+    --detail  "Without @Valid on the nested field, constraints inside it are silently ignored. Tested on Spring Boot 3.2; matches the Jakarta Validation spec." \
+    --keyword spring-boot --keyword validation --keyword gotcha
+{ "status": 0, "result": { "id_hex": "019e09a95e7a...", "duplicate": false } }
+
+# ... weeks later, on another machine, in another agent ...
+
+$ memgraph query "why is my @Valid annotation not cascading on a nested DTO field"
+{
+  "status": 0,
+  "result": {
+    "hit": "STRONG",
+    "summary": "Spring Boot @Valid cascade on nested DTOs needs @Valid on the field plus @Validated on the controller",
+    "detail":  "Without @Valid on the nested field, constraints inside it are silently ignored. ..."
+  }
+}
 ```
 
-Lo script è interattivo, ti chiede solo l'essenziale (3 prompt totali) e fa tutto il resto in automatico: dipendenze di sistema, submodules, build di llama.cpp, download del modello BGE-M3 (~600 MB), build di memgraph e smoke test. È idempotente: ri-eseguirlo non ripete lavoro già fatto.
+The two queries used different phrasing. The match is semantic plus lexical, gated by a verify step that refuses to claim a hit when the signals are weak.
 
-Lo script attiva anche un hook `commit-msg` (`scripts/git-hooks/commit-msg`) tramite `core.hooksPath`: enforce dei [Conventional Commits](https://www.conventionalcommits.org/), subject ≤ 70 char, ASCII-only (proxy per "scrivi in inglese"), niente body né `Co-Authored-By:`. Per attivarlo a mano: `git config core.hooksPath scripts/git-hooks`.
+## Why memgraph
 
-#### Accelerazione hardware (GPU)
+Plenty of agent-memory projects exist (mem0, Letta, Zep, Cognee, Graphiti, …). They are libraries you import into a Python app or services you self-host with a database. memgraph picks a different shape:
 
-Default CPU. Per build su GPU passa `MEMGRAPH_GPU` allo script (NVIDIA: `cuda`, AMD ROCm 6/7: `hip`):
+- **A binary, not a library.** The CLI is the contract. Any agent that can run a subprocess can use it — no Python runtime, no SDK to import, no version drift between client and server.
+- **Daemon + AF_UNIX socket.** State lives in one process; the CLI is a thin client. Cold start ~1–2 s the first time; subsequent calls under 100 ms warm.
+- **Multi-agent by design.** Claude Code, Codex, ChatGPT, and Claude Desktop already share the same graph on this machine — different surfaces, one memory. The `integrations/` directory ships the adapters.
+- **Local-first, no managed service.** SQLite on disk, llama.cpp for embeddings, no telemetry. Backups are `cp memgraph.db dest/`.
+- **Cache-first, then retrieve.** Most reads are answered by a verified top-1 cache lookup, not a top-k semantic spray. Lower latency, less context noise, fewer hallucinations.
+
+It is not a vector database, a RAG framework, or a chatbot platform. It is the smallest useful thing that makes an agent's hard-won knowledge survive its session.
+
+## Install
+
+### One-shot
+
+```bash
+git clone https://github.com/AEndrix03/lmemorygraph.git && cd lmemorygraph
+bash scripts/install.sh        # Linux, macOS, Windows MSYS2
+pwsh scripts/install.ps1       # Windows (auto-installs MSYS2 if needed)
+```
+
+The installer is idempotent. It checks system packages, initialises submodules, builds llama.cpp, downloads BGE-M3 (~600 MB, Q8_0 GGUF), builds `memgraph` + `memgraphd`, runs a smoke test, and activates the commit-msg policy hook for contributors.
+
+### GPU acceleration (optional)
+
+CPU is the default. To build llama.cpp with GPU support pass `MEMGRAPH_GPU` to the installer:
 
 ```bash
 MEMGRAPH_GPU=cuda  bash scripts/install.sh           # NVIDIA CUDA
-MEMGRAPH_GPU=hip   bash scripts/install.sh           # AMD ROCm
-pwsh scripts/install.ps1 -Gpu cuda                   # equivalente PowerShell
+MEMGRAPH_GPU=hip   bash scripts/install.sh           # AMD ROCm 6 or 7
+pwsh scripts/install.ps1 -Gpu cuda                   # PowerShell equivalent
 ```
 
-Lo script aggiunge `-DGGML_CUDA=ON` (o `-DGGML_HIP=ON`) alla cmake di `third_party/llama.cpp`. Se la build di llama.cpp esiste già, viene riutilizzata: per cambiare backend rimuovi prima `third_party/llama.cpp/build`. Una volta compilato il backend, abilita l'offload con `embedding.hardware_accel: true` nel `config.yaml` — vedi sezione [Configurazione](#configurazione). Il daemon rifiuta lo startup con un messaggio chiaro se chiedi `hardware_accel: true` su un build CPU-only, così non finisci silenziosamente a girare su CPU.
+Then enable offload in `config.yaml`:
 
-### Opzione manuale
-
-#### 1. Prerequisiti
-
-- **Linux/macOS**: `build-essential`/`Xcode`, `cmake ≥ 3.20`, `git`, `curl`, `pkg-config`, `libsqlite3-dev`, `libyaml-dev`.
-- **Windows**: MSYS2 con MinGW64 (`gcc`, `pkg-config`, `mingw-w64-x86_64-libyaml`, `sqlite3`), `cmake`, `git`. Vedi `plans/sub_task_0_preambolo.md`.
-
-#### 2. Clone & dipendenze
-
-```bash
-git clone <repo> agent-memory && cd agent-memory
-# third_party già clonati nel repo: sqlite-vec, mpack, BLAKE3, llama.cpp
+```yaml
+embedding:
+  hardware_accel: true
 ```
 
-#### 3. Build di llama.cpp (una volta)
+The daemon refuses to start with `hardware_accel: true` on a CPU-only build (no silent CPU fallback).
+
+### Manual
+
+If you prefer to drive each step yourself:
 
 ```bash
+# 1. Submodules
+git submodule update --init --recursive
+
+# 2. llama.cpp (CPU; add -DGGML_CUDA=ON or -DGGML_HIP=ON for GPU)
 cd third_party/llama.cpp
 cmake -B build -DBUILD_SHARED_LIBS=ON -DGGML_NATIVE=ON \
                -DLLAMA_CURL=OFF -DLLAMA_BUILD_SERVER=OFF \
@@ -63,224 +132,166 @@ cmake -B build -DBUILD_SHARED_LIBS=ON -DGGML_NATIVE=ON \
                -DCMAKE_BUILD_TYPE=Release
 cmake --build build -j
 cd ../..
-```
 
-Su Windows aggiungi `-G "MinGW Makefiles"` al primo `cmake`.
-
-#### 4. Modello BGE-M3
-
-```bash
+# 3. BGE-M3 (~600 MB, Q8_0 GGUF)
 mkdir -p models
 curl -L --ssl-no-revoke -o models/bge-m3.gguf \
-  "https://huggingface.co/lm-kit/bge-m3-gguf/resolve/main/bge-m3-Q8_0.gguf"
+  https://huggingface.co/lm-kit/bge-m3-gguf/resolve/main/bge-m3-Q8_0.gguf
+
+# 4. memgraph
+cmake -B build && cmake --build build
 ```
 
-(~600 MB; quantization Q8_0.)
+Output: `build/memgraph` (CLI) and `build/memgraphd` (daemon).
 
-#### 5. Build memgraph
+## Use it
 
-```bash
-cmake -B build
-cmake --build build
-```
+The CLI auto-starts the daemon on the first call. You don't need to manage process lifecycle.
 
-Output: `build/memgraph` (CLI) e `build/memgraphd` (daemon).
-
----
-
-## Avvio
-
-Il **CLI auto-avvia il daemon** se non è in esecuzione: il primo comando paga ~1-2s di cold-start, gli successivi sono veloci. Non serve fare nulla manualmente.
-
-```bash
-memgraph stats   # se il daemon è giù, viene avviato automaticamente
-```
-
-Per controllare/avviare manualmente (opzionale):
-
-```bash
-./build/memgraphd --config ./config.example.yaml &
-```
-
-Il daemon stampa `memgraphd: listening on /tmp/memgraph.sock`. Override:
-- `MEMGRAPH_SOCKET` — path del socket (default per-profilo).
-- `MEMGRAPH_CONFIG` — path del config file usato dall'auto-start (default `~/.lmemorygraph/config.yaml` se installato).
-- `MEMGRAPH_HOME` — root directory (default `~/.lmemorygraph`).
-- `MEMGRAPH_PROFILE` — profilo attivo (default `default`).
-- `MEMGRAPH_USAGE_LOG` — path del log JSONL usato da `analytics` (default `<MEMGRAPH_HOME>/usage.jsonl`).
-
-Per fermarlo: `kill %1` o `Ctrl+C` se in foreground.
-
----
-
-## Uso (CLI)
-
-### Salvare conoscenza
+### Save knowledge
 
 ```bash
 memgraph insert \
-  --summary "Spring Boot validazione cascade su DTO annidati" \
-  --detail  "Serve @Valid sul campo annidato + @Validated sul controller. Senza @Valid, le constraint sui campi interni vengono ignorate." \
-  --keyword spring-boot --keyword validazione --keyword jakarta-validation
+  --summary "Short, retrieval-shaped statement of what you learned" \
+  --detail  "Longer prose: the why, the trap, a code snippet, references" \
+  --keyword <kw1> --keyword <kw2> --keyword <kw3>
 ```
 
-Idempotente: re-inserire lo stesso `summary+detail+keywords` ritorna `"duplicate": true`.
+Idempotent: re-inserting the same `summary + detail + keywords` returns `duplicate: true`.
 
-### Cercare
+### Search
 
 ```bash
-# Cache lookup (best match)
-memgraph query "validazione DTO Spring"
-# → hit: STRONG | WEAK | MISS  (con fallback retrieve se MISS)
+# Verified cache lookup
+memgraph query "the question or topic"
 
-# Top-k ibrido (lexical + semantic via Reciprocal Rank Fusion)
-memgraph retrieve "validazione DTO Spring" --top-k 10
+# Hybrid top-k (lexical + semantic, fused via RRF)
+memgraph retrieve "topic" --top-k 10
 
-# Walk del grafo
-memgraph explore "validazione" --keyword spring-boot --depth 3 --beam 4
+# Graph walk from a seed, filtered by keyword
+memgraph explore "topic" --keyword <kw> --depth 3 --beam 4
+
+# Suggest keywords for a draft summary (uses existing graph keywords)
+memgraph classify --summary "your draft"
 ```
 
-### Suggerire keyword
+### Inspect
 
 ```bash
-memgraph classify --summary "validazione di campi annidati Spring"
-# → { "suggested_keywords": ["spring-boot","validazione",...] }
+memgraph get <id_hex>             # fetch one node
+memgraph stats                    # similarity-distribution percentiles
+memgraph analytics --since 7d     # hit rate, latency, time-saved estimate
 ```
 
-### Fetch puntuale
+### Profiles
 
-```bash
-memgraph get <hex_id_32_chars>
-```
-
-### Stats
-
-```bash
-memgraph stats
-# percentili p25/p50/p75/p90/p95/p99 della distribuzione di similarità
-```
-
-### Profili — più memorie isolate
-
-Un profilo è una "tenant" del grafo: ognuno ha il proprio DB SQLite e il proprio daemon su un proprio socket. Il profilo `default` è creato automaticamente al primo avvio e non è rimovibile.
+Each profile is a tenant: its own DB, its own daemon, its own socket. The `default` profile is created at first run.
 
 ```bash
 memgraph profile list
-memgraph profile current
-
 memgraph profile add work
 memgraph profile add personal
-memgraph profile remove personal           # chiede conferma (digitare il nome)
 
-# Cambio profilo per la sessione corrente (env var di terminale):
-eval "$(memgraph profile set work)"        # bash/zsh/fish
-memgraph profile set work | iex            # PowerShell
+# Switch profile for the current shell:
+eval "$(memgraph profile set work)"      # bash / zsh / fish
+memgraph profile set work | iex          # PowerShell
 
-# Per renderlo persistente, aggiungi la riga stampata al tuo shell rc
-# (~/.bashrc, ~/.zshrc, profile.ps1...). Niente magia globale.
-
-# Backup / migrazione:
-memgraph profile export work --path work-2026-05-06.mgprofile
-memgraph profile import --name work-restored --file work-2026-05-06.mgprofile
+# Backup / move a profile:
+memgraph profile export work --path work-2026-05.mgprofile
+memgraph profile import --name work-restored --file work-2026-05.mgprofile
 ```
 
-Risoluzione del profilo attivo: `$MEMGRAPH_PROFILE` → `default`. Niente file di stato globale: il `set` stampa solo l'export, sei tu che decidi se applicarlo alla sessione (`eval`) o renderlo persistente (shell rc).
+There is no global state file — `set` prints an env var, you decide whether to apply it for the session or persist it in your shell rc.
 
-I file vivono in:
-- POSIX: `~/.lmemorygraph/profiles/<name>/memgraph.db` + `/tmp/memgraph-<name>.sock`
-- Windows: `%USERPROFILE%\.lmemorygraph\profiles\<name>\memgraph.db` + `%USERPROFILE%\.lmemorygraph\sockets\<name>.sock`
+## Plug it into your agent
 
-Ogni profilo ha il suo daemon che si auto-avvia a richiesta.
+Adapters live under `integrations/`. Each one has its own README with install steps.
 
-### Analytics — sta valendo la pena?
+| Agent          | Integration type             | Where it lives                                       |
+| -------------- | ---------------------------- | ---------------------------------------------------- |
+| Claude Code    | Skills + Hooks               | `integrations/claude-code/`                          |
+| Codex          | `AGENTS.md` + Hooks          | `integrations/codex/`                                |
+| Claude Desktop | MCP server                   | `integrations/claude-ai/` + `integrations/mcp-server/` |
+| ChatGPT        | MCP server                   | `integrations/chatgpt/` + `integrations/mcp-server/` |
+| Gemini CLI     | `GEMINI.md`                  | `integrations/gemini-cli/`                           |
+| Open Code      | `AGENTS.md`                  | `integrations/opencode/`                             |
 
-```bash
-memgraph analytics                       # finestra: tutto lo storico
-memgraph analytics --since 7d            # ultima settimana
-memgraph analytics --seconds-per-hit 90  # stima personalizzata del tempo risparmiato per cache hit
+Two complementary layers across most clients:
+
+- **Skills / `AGENTS.md`** instruct the model on _when_ to use memgraph (search before answering non-trivial questions, save after solving non-obvious ones, skip for trivial work).
+- **Hooks** (Claude Code, Codex) are run by the harness deterministically: `UserPromptSubmit` injects the cache result before the model responds; `PostToolUse` records edits as save-candidates; `Stop` proposes `/memoryze` at end of turn. The model can no longer "forget" to consult the graph — that's the harness's job now.
+
+## Architecture
+
+```mermaid
+flowchart LR
+    subgraph Clients["AI clients"]
+      A1["Claude Code"]
+      A2["Codex"]
+      A3["ChatGPT / Claude Desktop"]
+      A4["Gemini CLI / Open Code"]
+    end
+
+    subgraph Adapters["Adapters (integrations/)"]
+      S["Skills · AGENTS.md · Hooks"]
+      M["MCP server (Python)"]
+    end
+
+    A1 --> S
+    A2 --> S
+    A4 --> S
+    A3 --> M
+    S --> CLI["memgraph (CLI)"]
+    M --> CLI
+    CLI -->|AF_UNIX socket<br/>MessagePack| Daemon["memgraphd"]
+    Daemon --> Storage[("SQLite + sqlite-vec + FTS5<br/>nodes · edges · keywords · vectors")]
+    Daemon --> Embed["llama.cpp + BGE-M3<br/>1024-dim embeddings"]
 ```
 
-Riporta hit-rate (STRONG / total query), latenza media, rapporto insert/query, tempo stimato risparmiato e i top nodi più riusati. Operazione locale: legge solo `~/.memgraph/usage.jsonl` (o `MEMGRAPH_USAGE_LOG`), non contatta il daemon.
+Pipelines:
 
-Letture chiave:
-- `cache.hit_rate` < 0.10 → o stai cercando con la frase sbagliata, o stai inserendo entry troppo specifiche.
-- `insert_to_query_ratio` > 1 → stai accumulando senza cercare prima.
-- `top_reused_nodes` con conteggi alti → candidati naturali a diventare README/standard di team.
+- **insert** — `embed(summary)` → upsert keywords → `vector_topk` per keyword for keyword-edges → `vector_topk + MMR` for semantic edges → atomic INSERT.
+- **query** — `embed(text)` → `vector_topk(1)` → trigram Jaccard verify (cross-encoder optional) → STRONG / WEAK / MISS gating.
+- **retrieve** — three lists (vec, BM25 summary, BM25 detail) → RRF fusion → top-k.
+- **explore** — seed via `vector_topk` filtered by keyword → beam search with MMR + decay `gamma^step`.
 
----
+For per-module reference open the headers in `include/memgraph/` (`storage.h`, `embed.h`, `verify.h`, `ops.h`).
 
-## Output
+## Configuration
 
-Tutti i comandi stampano JSON-ish:
-```json
-{ "status": 0, "result": { ... } }
-```
-- `status: 0` = OK.
-- Status diverso da 0 → campo `error` con messaggio.
-- Exit code: 0 OK, 1 errore di trasporto/encode, 3 handler ha ritornato status != 0.
+`config.example.yaml` ships the defaults. Copy to `config.yaml` to customise. The keys you'll touch most:
 
----
+| Key                                  | Default | What it does                                                                |
+| ------------------------------------ | ------- | --------------------------------------------------------------------------- |
+| `embedding.threads`                  | `4`     | llama.cpp thread count                                                      |
+| `embedding.hardware_accel`           | `false` | Offload all model layers to GPU (requires GPU build)                        |
+| `cache.weak_hit_min_vec`             | `0.85`  | Cosine floor for a WEAK hit                                                 |
+| `cache.strong_hit_min_lex`           | `0.15`  | Trigram Jaccard floor for a STRONG hit                                      |
+| `retrieval.top_k`                    | `25`    | Top-k for `memgraph retrieve`                                               |
+| `retrieval.query_fallback_top_k`     | `5`     | Cap on neighbours surfaced when `memgraph query` MISSes                     |
+| `edges.edge_semantic_min`            | `0.6`   | Cosine floor for a semantic edge between nodes                              |
 
-## Integrazione con assistenti AI
+## Status
 
-Le configurazioni sono in `integrations/`. Linee guida operative:
+memgraph is **alpha**. It works end-to-end on Linux, macOS, and Windows MSYS2; the CLI surface is stable enough that the integrations rely on it. Things to know:
 
-| Assistente   | Tipo  | File                                                   |
-| ------------ | ----- | ------------------------------------------------------ |
-| Claude Code  | CLI   | `~/.claude/skills/{memgraph,recall,memoryze,learn,memory-audit}/` (5 skill) |
-| Codex        | CLI   | `~/.codex/AGENTS.md`                                   |
-| Gemini CLI   | CLI   | `~/.gemini/GEMINI.md`                                  |
-| Open Code    | CLI   | `~/.config/opencode/AGENTS.md`                         |
-| Claude AI    | MCP   | `integrations/claude-ai/claude_desktop_config.json`    |
-| ChatGPT      | MCP   | `integrations/chatgpt/mcp_config.json`                 |
-
-Per Claude AI / ChatGPT serve anche il server MCP Python:
-```bash
-cd integrations/mcp-server && pip install -e .
-```
-
-Le **skill istruiscono l'LLM** a:
-1. **Cercare prima di rispondere** (`memgraph query`) per problemi non banali.
-2. **Salvare dopo** (`memgraph insert`) soluzioni nuove e non ovvie.
-3. **Saltare** memoria per task triviali.
-
----
-
-## Configurazione
-
-`config.example.yaml` contiene i default. Da copiare in `config.yaml` per personalizzare.
-
-Parametri chiave:
-- `embedding.threads` (default 4)
-- `embedding.hardware_accel` (default `false`) — se `true`, offload completo del modello su GPU. Richiede llama.cpp compilato con `-DGGML_CUDA=ON` o `-DGGML_HIP=ON`; vedi [Accelerazione hardware (GPU)](#accelerazione-hardware-gpu). Su build CPU-only il daemon rifiuta lo startup con un errore esplicito.
-- `cache.weak_hit_min_vec` (0.85) e `cache.strong_hit_min_lex` (0.15) — soglie del gating
-- `retrieval.top_k` (25) — top-k per `memgraph retrieve`
-- `retrieval.query_fallback_top_k` (5) — cap dei risultati nel `fallback_retrieve` di un cache MISS, separato da `top_k` per evitare che query troppo generiche saturino il context dell'agent
-- `edges.edge_semantic_min` (0.6) — soglia per creare un arco semantico
-
----
-
-## Architettura
-
-- **Pipeline insert**: `embed(summary) → upsert keywords → vector_topk(query, kw) per archi keyword → vector_topk + MMR per archi semantici → INSERT atomico`.
-- **Pipeline query**: `embed(text) → vec_topk(1) → trigram Jaccard + (cross-encoder opz.) → gating STRONG/WEAK/MISS`.
-- **Pipeline retrieve**: 3 liste (vec, BM25 summary, BM25 detail) → RRF score → top-k.
-- **Pipeline explore**: seed da vec_topk filtrato per keyword → beam search con MMR + decay `gamma^step`.
-
-Dettagli per modulo: `plans/sub_task_*.md`.
-
----
+- The cross-encoder reranker is a stub (`mg_ce_score_pair` returns `-1`). The "rerank" today is the trigram-Jaccard plus cosine multi-signal gating in `src/verify/verify.c`. The hook for a real reranker (BGE-reranker-v2-m3) is in place; wiring it is on the roadmap.
+- Tests cover the storage, retrieval, insert and config paths, but coverage is uneven.
+- No prebuilt binaries yet — build from source with `scripts/install.sh`.
+- API contract: the CLI JSON schema is the public surface. Internal C APIs may change without notice.
 
 ## Roadmap
 
-Fuori MVP, già strutturati come hook:
-- Cross-encoder neurale (BGE reranker v2 m3) — flag `verification.cross_encoder_enabled`.
-- NLI per contraddizioni → archi `MG_EDGE_CONTRADICTS`.
-- Calibrazione adattiva delle soglie da `stats`.
-- `consolidate` reale (dedup, supersede, stale-mark).
+- Cross-encoder neural reranker (BGE-reranker-v2-m3) wired through `verification.cross_encoder_enabled`.
+- NLI for contradiction detection → `MG_EDGE_CONTRADICTS` edges.
+- Adaptive threshold calibration driven by `stats`.
+- Real `consolidate` (dedup, supersede, stale-mark).
+- Importable thematic memory packs (postmortems, decision frameworks, etc.) as opt-in seed libraries.
 
----
+## Contributing
 
-## Licenza
+See [CONTRIBUTING.md](./CONTRIBUTING.md). Short version: branch from `master`, run `bash scripts/install.sh` once (it activates the commit-msg policy hook), keep PRs focused. Bug reports and feature ideas: [GitHub Issues](https://github.com/AEndrix03/lmemorygraph/issues).
 
-(Da definire.)
+## License
+
+[Apache License 2.0](./LICENSE). You can use, modify, distribute, and embed memgraph in proprietary projects, including commercially, provided you keep the copyright and licence notices and document any changes you make to the source files.
