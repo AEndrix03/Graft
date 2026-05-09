@@ -33,12 +33,12 @@ const clock = new THREE.Clock();
 
 /* Tunables — coords are scaled, then nodes sized smaller relative to spread,
  * so edges read as actual lines instead of overlapping dots. */
-const SPATIAL_SCALE     = 140.0; // multiplier on projected coords — wide-open scene
+const SPATIAL_SCALE     = 210.0; // multiplier on projected coords — wide-open scene
 const NODE_R_BASE       = 0.12;  // sphere radius for an "average" body
 const NODE_R_MIN        = 0.08;
 const NODE_R_MAX        = 0.30;
 const NODE_R_LOG_FACTOR = 0.07;  // delta per ln(body_len)
-const LABEL_NEAR_DIST   = 8.0;   // close-zoom only — labels appear when actually inspecting a node
+const LABEL_NEAR_DIST   = 12.0;  // scaled with the wider spread to keep the same "feel"
 const EDGE_LINEWIDTH    = 1.6;   // pixel-thick edges via Line2 (less screen weight at this scale)
 
 const COLOR = {
@@ -126,17 +126,19 @@ function rebuildNodes() {
   }
 }
 
-/* Pick the semantic edges to render. By default we keep only the top-2
- * outgoing semantic edges per source node — this drops the visual clutter
- * dramatically without losing the dominant relationships. When a search
- * highlight is active, we also keep semantic edges that connect two
- * highlighted nodes, so the user sees the relevant subgraph at full
- * fidelity even if those edges aren't in the top-2. */
-const SEMANTIC_TOP_PER_SRC = 2;
-function chooseSemanticEdges(allEdges, highlightedSet) {
+/* Pick which edges of `kind` to render. By default we keep only the top-N
+ * outgoing per source node — this drops the visual clutter dramatically
+ * without losing the dominant relationships. When a search highlight is
+ * active, we also keep edges that connect two highlighted nodes, so the
+ * relevant subgraph is fully visible even if those edges aren't top-N.
+ *
+ * Applied independently to semantic and keyword kinds. Supersedes is
+ * never filtered — it's rare and load-bearing for the history view. */
+const TOP_PER_SRC = 2;
+function chooseTopEdges(allEdges, kind, highlightedSet) {
   const bySrc = new Map();
   for (const e of allEdges) {
-    if (e.kind !== 'semantic') continue;
+    if (e.kind !== kind) continue;
     if (!bySrc.has(e.src)) bySrc.set(e.src, []);
     bySrc.get(e.src).push(e);
   }
@@ -145,14 +147,14 @@ function chooseSemanticEdges(allEdges, highlightedSet) {
   const keyOf = (e) => `${e.src}|${e.dst}|${e.kind}`;
   for (const list of bySrc.values()) {
     list.sort((a, b) => (b.weight ?? 0) - (a.weight ?? 0));
-    for (const e of list.slice(0, SEMANTIC_TOP_PER_SRC)) {
+    for (const e of list.slice(0, TOP_PER_SRC)) {
       const k = keyOf(e);
       if (!seen.has(k)) { seen.add(k); out.push(e); }
     }
   }
   if (highlightedSet && highlightedSet.size > 1) {
     for (const e of allEdges) {
-      if (e.kind !== 'semantic') continue;
+      if (e.kind !== kind) continue;
       if (!highlightedSet.has(e.src) || !highlightedSet.has(e.dst)) continue;
       const k = keyOf(e);
       if (!seen.has(k)) { seen.add(k); out.push(e); }
@@ -177,10 +179,9 @@ function rebuildEdges() {
   };
 
   const highlightedSet = new Set(props.highlightedIds || []);
-  const semanticVisible = new Set(
-    chooseSemanticEdges(props.edges, highlightedSet)
-      .map((e) => `${e.src}|${e.dst}|${e.kind}`)
-  );
+  const keyOf = (e) => `${e.src}|${e.dst}|${e.kind}`;
+  const semanticVisible = new Set(chooseTopEdges(props.edges, 'semantic', highlightedSet).map(keyOf));
+  const keywordVisible  = new Set(chooseTopEdges(props.edges, 'keyword',  highlightedSet).map(keyOf));
 
   for (const e of props.edges) {
     const a = nodeMeshes.value.get(e.src);
@@ -188,8 +189,11 @@ function rebuildEdges() {
     if (!a || !b) continue;
     if (e.kind === 'semantic') {
       if (!props.showSemantic) continue;
-      if (!semanticVisible.has(`${e.src}|${e.dst}|${e.kind}`)) continue;
-    } else if (e.kind === 'keyword' && !props.showKeyword) continue;
+      if (!semanticVisible.has(keyOf(e))) continue;
+    } else if (e.kind === 'keyword') {
+      if (!props.showKeyword) continue;
+      if (!keywordVisible.has(keyOf(e))) continue;
+    }
     const bucket = buckets[e.kind];
     if (!bucket) continue;
     bucket.positions.push(
