@@ -16,6 +16,10 @@ const props = defineProps({
   showKeyword:  { type: Boolean, default: true },
   dimNonHighlighted: { type: Boolean, default: false },
   colorRamp:    { type: String, default: null },  // null | 'orange'
+  /* Optional explicit edge list — when non-empty (used by Explore for the
+   * walked path), this REPLACES the normal edge filtering: only these
+   * edges are rendered, regardless of top-2 / dim-mode subgraph rules. */
+  pathEdges:    { type: Array, default: () => [] },
 });
 const emit = defineEmits(['select', 'select-edge']);
 
@@ -181,6 +185,60 @@ function rebuildEdges() {
 
   const highlightedSet = new Set(props.highlightedIds || []);
   const keyOf = (e) => `${e.src}|${e.dst}|${e.kind}`;
+
+  /* Explore PATH override: when an explicit edge list is provided (from
+   * the Explore op's traversal), render only those — the user is looking
+   * at the walk, not the surrounding subgraph. We still bucket by kind so
+   * colors stay consistent (semantic = lime, keyword = sky, supersedes = red). */
+  if (props.pathEdges && props.pathEdges.length) {
+    const visiblePerKind = { semantic: [], keyword: [], supersedes: [] };
+    const seenKey = new Set();
+    for (const pe of props.pathEdges) {
+      const k = keyOf(pe);
+      if (seenKey.has(k)) continue;
+      seenKey.add(k);
+      const a = nodeMeshes.value.get(pe.src);
+      const b = nodeMeshes.value.get(pe.dst);
+      if (!a || !b) continue;
+      if (visiblePerKind[pe.kind]) visiblePerKind[pe.kind].push(pe);
+    }
+    /* Build with a single, fixed thickness per kind — these are *the* edges,
+     * not a ranked sample, so no quartile bucketing. */
+    const KIND_STYLE = {
+      semantic:   { color: COLOR.edgeSemantic,   opacity: 0.95 },
+      keyword:    { color: COLOR.edgeKeyword,    opacity: 0.85 },
+      supersedes: { color: COLOR.edgeSupersedes, opacity: 0.95 },
+    };
+    const w = renderer.domElement.clientWidth;
+    const h = renderer.domElement.clientHeight;
+    for (const kind of Object.keys(visiblePerKind)) {
+      const list = visiblePerKind[kind];
+      if (!list.length) continue;
+      const positions = [];
+      for (const e of list) {
+        const a = nodeMeshes.value.get(e.src);
+        const b = nodeMeshes.value.get(e.dst);
+        positions.push(a.position.x, a.position.y, a.position.z, b.position.x, b.position.y, b.position.z);
+      }
+      const geom = new LineSegmentsGeometry();
+      geom.setPositions(positions);
+      const mat = new LineMaterial({
+        color: KIND_STYLE[kind].color,
+        linewidth: 2.4,           // thicker than default — this is the path
+        transparent: true,
+        opacity: KIND_STYLE[kind].opacity,
+        worldUnits: false,
+        dashed: false,
+      });
+      mat.resolution.set(w, h);
+      const lines = new LineSegments2(geom, mat);
+      lines.computeLineDistances();
+      lines.userData = { kind, segments: list };
+      edgeGroup.add(lines);
+      edgeLineObjects.push({ obj: lines, perSegment: list });
+    }
+    return;
+  }
 
   /* Edge-visibility strategies:
    *  - DEFAULT: top-2 outgoing per source for semantic + keyword, plus any
@@ -579,6 +637,7 @@ watch(() => props.selectedId, () => { applyHighlights(); focusOnSelected(); });
 watch(() => props.highlightedIds, () => { applyHighlights(); rebuildEdges(); }, { deep: true });
 watch(() => props.dimNonHighlighted, () => { applyHighlights(); rebuildEdges(); });
 watch(() => props.colorRamp, () => applyHighlights());
+watch(() => props.pathEdges, () => rebuildEdges(), { deep: true });
 </script>
 
 <template>

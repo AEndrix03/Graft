@@ -24,6 +24,18 @@ const colorRamp     = ref(null);  // 'orange' or null — controls the rank colo
 const searchMode    = ref(null);  // 'match'|'search'|'explore' or null — for prev/next visibility
 const searchScores  = ref(new Map());  // id_hex -> raw RRF score (Retrieve only)
 const topScore      = ref(0);          // highest score in the current Retrieve result set
+const pathEdges     = ref([]);         // edges traversed by Explore — drives the path overlay
+
+/* All distinct keyword strings present in the live graph. We harvest them
+ * from the keyword-kind edges in /v1/view so the autocomplete reflects
+ * what's actually in the user's data, not a stale list. */
+const allKeywords = computed(() => {
+  const set = new Set();
+  for (const e of edges.value) {
+    if (e.kind === 'keyword' && e.keyword) set.add(e.keyword);
+  }
+  return [...set].sort();
+});
 const selectedIdx = computed(() => {
   if (!selectedId.value) return -1;
   return highlightedIds.value.indexOf(selectedId.value);
@@ -72,7 +84,7 @@ function stopPolling() {
   if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
 }
 
-async function onSearch({ mode, text, top_k, depth, beam }) {
+async function onSearch({ mode, text, top_k, depth, beam, keywords }) {
   try {
     if (mode === 'match') {
       const r = unwrap(await api.match(text));
@@ -113,10 +125,29 @@ async function onSearch({ mode, text, top_k, depth, beam }) {
       colorRamp.value = 'orange';
       searchMode.value = 'search';
     } else if (mode === 'explore') {
-      const r = unwrap(await api.explore(text, depth, beam));
-      const ids = (r?.nodes || []).map((x) => x.id_hex);
+      const r = unwrap(await api.explore(text, depth, beam, keywords));
+      const items = r?.nodes || [];
+      const ids = items.map((x) => x.id_hex);
       highlightedIds.value = ids;
       selectedId.value = ids[0] || null;
+      /* Score map for the score-box (uses node.score from explore output). */
+      const map = new Map();
+      for (const it of items) {
+        if (it && typeof it.score === 'number') map.set(it.id_hex, it.score);
+      }
+      searchScores.value = map;
+      topScore.value = items.length ? (items[0].score ?? 0) : 0;
+      /* Path edges = the actual traversal walk. Used as the only edges
+       * rendered while in Explore mode so the user sees the path, not
+       * the surrounding subgraph. */
+      pathEdges.value = (r?.edges || []).map((e) => ({
+        src: e.src_hex || e.src,
+        dst: e.dst_hex || e.dst,
+        kind: e.kind || 'semantic',
+        weight: e.weight ?? 1.0,
+      }));
+      dimMode.value = ids.length > 0;
+      colorRamp.value = 'orange';
       searchMode.value = 'explore';
     }
   } catch (e) {
@@ -133,6 +164,7 @@ function onClear() {
   searchMode.value = null;
   searchScores.value = new Map();
   topScore.value = 0;
+  pathEdges.value = [];
 }
 
 function navigateResult(delta) {
@@ -147,12 +179,12 @@ function navigateResult(delta) {
 
 function onNodeSelected(id) {
   edgeTooltip.value = null;
-  /* In Retrieve mode the highlighted set IS the result list. Clicking a
-   * node already in that list just navigates within results (preserves the
-   * dimmed scene). Clicking a non-result node exits Retrieve mode entirely
-   * — same effect as Clear, but keeps the new selection so the user can
-   * inspect what they actually clicked. */
-  if (searchMode.value === 'search') {
+  /* In Retrieve / Explore mode the highlighted set IS the result list.
+   * Clicking a node already in that list just navigates within results
+   * (preserves the dimmed scene + path edges). Clicking a non-result
+   * node exits the mode entirely — same effect as Clear, but keeps the
+   * new selection so the user can inspect what they actually clicked. */
+  if (searchMode.value === 'search' || searchMode.value === 'explore') {
     if (highlightedIds.value.includes(id)) {
       selectedId.value = id;
       return;
@@ -160,6 +192,7 @@ function onNodeSelected(id) {
     dimMode.value = false;
     colorRamp.value = null;
     searchMode.value = null;
+    pathEdges.value = [];
   }
   selectedId.value = id;
   highlightedIds.value = [id];
@@ -204,7 +237,7 @@ function onKeydown(ev) {
   /* Don't intercept when an input/textarea/CodeMirror is focused. */
   const t = ev.target;
   if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
-  if (searchMode.value !== 'search' || highlightedIds.value.length < 2) return;
+  if ((searchMode.value !== 'search' && searchMode.value !== 'explore') || highlightedIds.value.length < 2) return;
   if (ev.key === 'ArrowRight') { navigateResult(1); ev.preventDefault(); }
   else if (ev.key === 'ArrowLeft') { navigateResult(-1); ev.preventDefault(); }
 }
@@ -234,12 +267,13 @@ const stats = computed(() => `${nodes.value.length} nodes · ${edges.value.lengt
       :show-keyword="showKeyword"
       :dim-non-highlighted="dimMode"
       :color-ramp="colorRamp"
+      :path-edges="pathEdges"
       @select="onNodeSelected"
       @select-edge="onEdgeSelected"
     />
 
     <transition name="fade-down">
-      <div v-if="searchMode === 'search' && highlightedIds.length > 0" class="result-nav-wrap">
+      <div v-if="(searchMode === 'search' || searchMode === 'explore') && highlightedIds.length > 0" class="result-nav-wrap">
         <div v-if="highlightedIds.length > 1" class="result-nav">
           <button class="nav-btn" @click="navigateResult(-1)" title="Previous (←)">‹</button>
           <span class="counter">
@@ -278,7 +312,7 @@ const stats = computed(() => `${nodes.value.length} nodes · ${edges.value.lengt
     </div>
 
     <div class="search-wrap">
-      <SearchBar @search="onSearch" @clear="onClear" />
+      <SearchBar :all-keywords="allKeywords" @search="onSearch" @clear="onClear" />
       <transition name="fade-down">
         <div v-if="matchFeedback" class="match-banner" :class="matchFeedback.tone">
           <span class="badge" :class="matchFeedback.hit.toLowerCase()">{{ matchFeedback.hit }}</span>

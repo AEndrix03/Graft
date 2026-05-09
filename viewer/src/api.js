@@ -61,7 +61,12 @@ export const api = {
   view:     ()                          => getJson(`/v1/view`),
   match:    (text)                      => getJson(`/v1/match?text=${encodeURIComponent(text)}`),
   search:   (text, top_k = 10)          => getJson(`/v1/search?text=${encodeURIComponent(text)}&top_k=${top_k}`),
-  explore:  (text, depth = 3, beam = 4) => getJson(`/v1/explore?text=${encodeURIComponent(text)}&depth=${depth}&beam=${beam}`),
+  explore:  (text, depth = 3, beam = 4, keywords = []) => {
+    const kws = (keywords && keywords.length)
+      ? `&keywords=${encodeURIComponent(keywords.join(','))}`
+      : '';
+    return getJson(`/v1/explore?text=${encodeURIComponent(text)}&depth=${depth}&beam=${beam}${kws}`);
+  },
   classify: (text)                      => getJson(`/v1/classify?text=${encodeURIComponent(text)}`),
   get:      (id)                        => getJson(`/v1/nodes/${id}`),
   insert:   (payload)                   => postJson(`/v1/insert`, payload),
