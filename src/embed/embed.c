@@ -1,5 +1,5 @@
 /* requires llama built */
-#include "memgraph/embed.h"
+#include "graft/embed.h"
 
 #include <limits.h>
 #include <math.h>

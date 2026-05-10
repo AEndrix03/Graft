@@ -16,9 +16,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 @pytest.fixture()
 def gateway(monkeypatch):
-    monkeypatch.setenv("MEMGRAPH_OAUTH_ISSUER_URL", "https://issuer.example")
-    monkeypatch.setenv("MEMGRAPH_OAUTH_RESOURCE_SERVER_URL", "https://memgraph.example/mcp")
-    monkeypatch.setenv("MEMGRAPH_OAUTH_AUDIENCE", "https://memgraph.example")
+    monkeypatch.setenv("GRAFT_OAUTH_ISSUER_URL", "https://issuer.example")
+    monkeypatch.setenv("GRAFT_OAUTH_RESOURCE_SERVER_URL", "https://graft.example/mcp")
+    monkeypatch.setenv("GRAFT_OAUTH_AUDIENCE", "https://graft.example")
     module = importlib.import_module("oauth_gateway")
     return module
 
@@ -26,11 +26,11 @@ def gateway(monkeypatch):
 class FakeVerifier:
     async def verify_token(self, token: str):
         if token == "read":
-            return AccessToken(token=token, client_id="test", scopes=["memgraph:read"], expires_at=int(time.time()) + 60)
+            return AccessToken(token=token, client_id="test", scopes=["graft:read"], expires_at=int(time.time()) + 60)
         if token == "write":
-            return AccessToken(token=token, client_id="test", scopes=["memgraph:write"], expires_at=int(time.time()) + 60)
+            return AccessToken(token=token, client_id="test", scopes=["graft:write"], expires_at=int(time.time()) + 60)
         if token == "expired":
-            return AccessToken(token=token, client_id="test", scopes=["memgraph:read"], expires_at=int(time.time()) - 1)
+            return AccessToken(token=token, client_id="test", scopes=["graft:read"], expires_at=int(time.time()) - 1)
         return None
 
 
@@ -55,9 +55,9 @@ class FakeAsyncClient:
 def make_app(gateway, verifier=None):
     settings = gateway.GatewaySettings(
         issuer_url="https://issuer.example",
-        resource_server_url="https://memgraph.example/mcp",
-        audience="https://memgraph.example",
-        required_scopes=["memgraph:read"],
+        resource_server_url="https://graft.example/mcp",
+        audience="https://graft.example",
+        required_scopes=["graft:read"],
         upstream_http="http://127.0.0.1:9977",
         jwks_cache_seconds=300,
     )
@@ -98,16 +98,16 @@ def test_mcp_exposes_protected_resource_metadata(gateway):
 
     assert resp.status_code == 200
     body = resp.json()
-    assert body["resource"] == "https://memgraph.example/mcp"
+    assert body["resource"] == "https://graft.example/mcp"
     assert body["authorization_servers"] == ["https://issuer.example/"]
-    assert "memgraph:read" in body["scopes_supported"]
+    assert "graft:read" in body["scopes_supported"]
 
 
 def test_oidc_verifier_rejects_wrong_issuer_and_audience(gateway, monkeypatch):
     private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
     verifier = gateway.OidcTokenVerifier(
         "https://issuer.example",
-        "https://memgraph.example",
+        "https://graft.example",
         jwks_uri="https://issuer.example/jwks",
     )
 
@@ -124,10 +124,10 @@ def test_oidc_verifier_rejects_wrong_issuer_and_audience(gateway, monkeypatch):
     good = gateway.jwt.encode(
         {
             "iss": "https://issuer.example",
-            "aud": "https://memgraph.example",
+            "aud": "https://graft.example",
             "exp": now + 60,
             "sub": "client",
-            "scope": "memgraph:read",
+            "scope": "graft:read",
         },
         private_key,
         algorithm="RS256",
@@ -135,10 +135,10 @@ def test_oidc_verifier_rejects_wrong_issuer_and_audience(gateway, monkeypatch):
     wrong_issuer = gateway.jwt.encode(
         {
             "iss": "https://other.example",
-            "aud": "https://memgraph.example",
+            "aud": "https://graft.example",
             "exp": now + 60,
             "sub": "client",
-            "scope": "memgraph:read",
+            "scope": "graft:read",
         },
         private_key,
         algorithm="RS256",
@@ -149,7 +149,7 @@ def test_oidc_verifier_rejects_wrong_issuer_and_audience(gateway, monkeypatch):
             "aud": "https://other.example",
             "exp": now + 60,
             "sub": "client",
-            "scope": "memgraph:read",
+            "scope": "graft:read",
         },
         private_key,
         algorithm="RS256",
@@ -157,6 +157,6 @@ def test_oidc_verifier_rejects_wrong_issuer_and_audience(gateway, monkeypatch):
 
     import asyncio
 
-    assert asyncio.run(verifier.verify_token(good)).scopes == ["memgraph:read"]
+    assert asyncio.run(verifier.verify_token(good)).scopes == ["graft:read"]
     assert asyncio.run(verifier.verify_token(wrong_issuer)) is None
     assert asyncio.run(verifier.verify_token(wrong_audience)) is None

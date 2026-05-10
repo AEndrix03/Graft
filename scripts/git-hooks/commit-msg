@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Enforced policy for memgraph commit messages.
+# Enforced policy for graft commit messages.
 #
 #   1. Conventional Commits subject:
 #        <type>(<scope>)?!?: <description>

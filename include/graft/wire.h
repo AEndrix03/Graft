@@ -1,7 +1,7 @@
-#ifndef MEMGRAPH_WIRE_H
-#define MEMGRAPH_WIRE_H
+#ifndef GRAFT_WIRE_H
+#define GRAFT_WIRE_H
 
-#include "memgraph/error.h"
+#include "graft/error.h"
 #include <stddef.h>
 #include <stdint.h>
 

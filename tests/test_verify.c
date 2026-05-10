@@ -1,5 +1,5 @@
-#include "memgraph/config.h"
-#include "memgraph/verify.h"
+#include "graft/config.h"
+#include "graft/verify.h"
 
 #include <stdio.h>
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /*
- * PostToolUse hook for memgraph (Claude Code + Codex).
+ * PostToolUse hook for graft (Claude Code + Codex).
  *
  * Records non-trivial side-effects in a per-session candidate file. The Stop
  * hook later compiles these into a /memoryze proposal that the next
@@ -18,10 +18,10 @@ const path = require('path');
 const os = require('os');
 
 function inferStateDir() {
-  if (process.env.MEMGRAPH_HOOK_STATE_DIR) return process.env.MEMGRAPH_HOOK_STATE_DIR;
+  if (process.env.GRAFT_HOOK_STATE_DIR) return process.env.GRAFT_HOOK_STATE_DIR;
   const scriptPath = __filename.toLowerCase();
   const agentDir = scriptPath.includes(`${path.sep}.codex${path.sep}`) ? '.codex' : '.claude';
-  return path.join(os.homedir(), agentDir, 'hooks', 'memgraph', 'state');
+  return path.join(os.homedir(), agentDir, 'hooks', 'graft', 'state');
 }
 
 const STATE_DIR = inferStateDir();

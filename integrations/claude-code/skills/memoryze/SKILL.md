@@ -1,6 +1,6 @@
 ---
 name: memoryze
-description: Distill the current conversation (or a specified excerpt) into N high-quality memgraph nodes and save them. Triggered by `/memoryze`, "save this to memory", "ricorda questo", "memorize this", or whenever the user explicitly wants the agent to commit knowledge to the persistent graph. The user can hint at granularity ("split into 3 atomic nodes", "one comprehensive node"), focus ("save the WHY, not the diff"), and target profile. Auto-classifies keywords. Prefer this over a raw `memgraph insert` whenever you're saving more than a one-liner.
+description: Distill the current conversation (or a specified excerpt) into N high-quality graft nodes and save them. Triggered by `/memoryze`, "save this to memory", "ricorda questo", "memorize this", or whenever the user explicitly wants the agent to commit knowledge to the persistent graph. The user can hint at granularity ("split into 3 atomic nodes", "one comprehensive node"), focus ("save the WHY, not the diff"), and target profile. Auto-classifies keywords. Prefer this over a raw `graft insert` whenever you're saving more than a one-liner.
 ---
 
 # memoryze — Distill and persist conversation knowledge
@@ -16,7 +16,7 @@ The user invokes you with a free-form prompt that may include:
 | **count / granularity**             | "3 nodi", "atomic", "one big node", "split per business rule"        | How many nodes to produce. Default: heuristic (see below).                   |
 | **focus**                           | "the WHY, not the diff", "include the workaround", "skip syntax"     | What aspect of the solution to emphasize in `body`.                        |
 | **scope**                           | "this conversation", "from the bug fix onwards", "only the SQL part" | Which slice of context to distill.                                           |
-| **target profile**                  | "in the work profile", "in test"                                     | Switch via `MEMGRAPH_PROFILE` for the inserts.                               |
+| **target profile**                  | "in the work profile", "in test"                                     | Switch via `GRAFT_PROFILE` for the inserts.                               |
 | **enrichment**                      | "expand with the official docs link", "add the error message"        | Inject extra data the agent should look up before saving.                    |
 
 Examples:
@@ -67,7 +67,7 @@ Skip:
 
 ### `keywords` (3-6)
 
-Run `memgraph classify --title "<your title>"` first. The system suggests keywords from existing graph keywords when possible, infers when novel. Use the suggestions verbatim **unless** they miss a critical axis (e.g., classify gave you `[spring-boot, validation]` but the node is also a `gotcha` worth flagging — add it).
+Run `graft classify --title "<your title>"` first. The system suggests keywords from existing graph keywords when possible, infers when novel. Use the suggestions verbatim **unless** they miss a critical axis (e.g., classify gave you `[spring-boot, validation]` but the node is also a `gotcha` worth flagging — add it).
 
 Conventional axis keywords to consider adding:
 - `gotcha` — non-obvious traps the docs don't mention.
@@ -81,10 +81,10 @@ For each node to be created (1 to N):
 
 ```bash
 # 1. Suggest keywords
-memgraph classify --title "<the title you drafted>"
+graft classify --title "<the title you drafted>"
 
 # 2. Insert. Idempotent — duplicate hashes return the existing id_hex.
-memgraph insert \
+graft insert \
   --title "<final title>" \
   --body  "<final body, Markdown is fine>" \
   --keyword <kw1> --keyword <kw2> --keyword <kw3>
@@ -109,7 +109,7 @@ If asked to save something refused, explain why in one line and propose a redact
 If the user said "in the X profile" / "nel profilo X":
 
 ```bash
-MEMGRAPH_PROFILE=X memgraph insert ...
+GRAFT_PROFILE=X graft insert ...
 ```
 
 Don't permanently switch the user's shell — pass the env var on the line. Tell the user which profile the inserts went into.
@@ -124,7 +124,7 @@ Saved to profile=<name>:
   ✓ <id_hex_short> — <title>
   • <id_hex_short> — <title>      (duplicate, not re-saved)
 
-Try: memgraph query "<one of the titles>"
+Try: graft query "<one of the titles>"
 ```
 
 Keep this terse. The user already knows what they asked you to save — they want confirmation, not an essay.

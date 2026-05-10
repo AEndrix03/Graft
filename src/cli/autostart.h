@@ -1,11 +1,11 @@
-#ifndef MEMGRAPH_CLI_AUTOSTART_H
-#define MEMGRAPH_CLI_AUTOSTART_H
+#ifndef GRAFT_CLI_AUTOSTART_H
+#define GRAFT_CLI_AUTOSTART_H
 
-#include "memgraph/error.h"
+#include "graft/error.h"
 #include <stddef.h>
 
-/* Auto-start memgraphd if it's not already listening on socket_path.
- * Locates memgraphd next to the running CLI binary, spawns it detached with
+/* Auto-start graftd if it's not already listening on socket_path.
+ * Locates graftd next to the running CLI binary, spawns it detached with
  * a sane environment, and polls the socket for readiness with a hard
  * deadline. Returns MG_OK if the socket eventually accepts connections.
  *

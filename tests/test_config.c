@@ -1,4 +1,4 @@
-#include "memgraph/config.h"
+#include "graft/config.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -41,7 +41,7 @@ int main(void) {
   failures += expect_int(mg_config_load(path, &cfg) == MG_OK, "load overrides");
   if (failures == 0) {
     failures += expect_int(strcmp(cfg.socket_path, "./custom.sock") == 0, "socket override");
-    failures += expect_int(strcmp(cfg.db_path, "./memgraph.db") == 0, "db default");
+    failures += expect_int(strcmp(cfg.db_path, "./graft.db") == 0, "db default");
     failures += expect_int(cfg.embed_threads == 2, "threads override");
     failures += expect_int(cfg.embed_ctx_size == 8192, "ctx default");
     failures += expect_int(cfg.cross_encoder_enabled, "cross encoder bool");

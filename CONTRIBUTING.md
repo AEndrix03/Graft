@@ -1,16 +1,16 @@
 # Contributing
 
-Thanks for considering a contribution. memgraph is a small C / CMake project and the bar for changes is straightforward.
+Thanks for considering a contribution. graft is a small C / CMake project and the bar for changes is straightforward.
 
 ## Setup
 
 ```bash
-git clone https://github.com/AEndrix03/lmemorygraph.git && cd lmemorygraph
+git clone https://github.com/AEndrix03/graft.git && cd graft
 bash scripts/install.sh        # Linux, macOS, Windows MSYS2
 pwsh scripts/install.ps1       # Windows (auto-installs MSYS2 if needed)
 ```
 
-The installer pulls submodules, builds llama.cpp (CPU by default; pass `MEMGRAPH_GPU=cuda|hip` for GPU), downloads BGE-M3 (~600 MB), builds `memgraph` + `memgraphd`, and activates the commit-msg hook described below. See the [README](./README.md#install) for manual steps.
+The installer pulls submodules, builds llama.cpp (CPU by default; pass `GRAFT_GPU=cuda|hip` for GPU), downloads BGE-M3 (~600 MB), builds `graft` + `graftd`, and activates the commit-msg hook described below. See the [README](./README.md#install) for manual steps.
 
 ## Build and test
 
@@ -23,7 +23,7 @@ ctest --test-dir build           # run the suite
 ## Project layout
 
 - `src/` — daemon, CLI, retrieval, embed, storage, config, http (one subdir per concern)
-- `include/memgraph/` — public C headers
+- `include/graft/` — public C headers
 - `tests/` — `test_*.c` files; CMake auto-registers each one
 - `integrations/` — per-agent adapters (skills, AGENTS.md files, MCP server, hooks)
 - `viewer/` — Vue 3 + Vite + three.js SPA served by the daemon's HTTP layer
@@ -79,9 +79,9 @@ git config core.hooksPath scripts/git-hooks
 Use GitHub Issues. Include:
 
 - Platform (OS, arch, shell)
-- `memgraph stats` output, if relevant
+- `graft stats` output, if relevant
 - Steps to reproduce, expected vs observed
-- Daemon logs from `~/.lmemorygraph/memgraphd.{out,err}.log` when applicable
+- Daemon logs from `~/.graft/graftd.{out,err}.log` when applicable
 
 ## Code of conduct
 

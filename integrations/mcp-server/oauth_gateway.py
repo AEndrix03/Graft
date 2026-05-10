@@ -1,9 +1,9 @@
-"""OAuth/OIDC resource-server gateway for memgraph.
+"""OAuth/OIDC resource-server gateway for graft.
 
 This ASGI app exposes:
 
 * `/mcp` as MCP streamable-http, backed by the same tools as server.py.
-* `/v1/*` as an authenticated proxy to the local memgraphd HTTP listener.
+* `/v1/*` as an authenticated proxy to the local graftd HTTP listener.
 
 Token issuance, login, consent, and client registration belong to an external
 OIDC provider. This process only validates access tokens and scopes.
@@ -73,12 +73,12 @@ class GatewaySettings:
     @classmethod
     def from_env(cls) -> "GatewaySettings":
         return cls(
-            issuer_url=_required_env("MEMGRAPH_OAUTH_ISSUER_URL"),
-            resource_server_url=_required_env("MEMGRAPH_OAUTH_RESOURCE_SERVER_URL"),
-            audience=_required_env("MEMGRAPH_OAUTH_AUDIENCE"),
-            required_scopes=_env_list("MEMGRAPH_OAUTH_REQUIRED_SCOPES", DEFAULT_REQUIRED_SCOPES),
-            upstream_http=os.environ.get("MEMGRAPH_UPSTREAM_HTTP", DEFAULT_UPSTREAM).rstrip("/"),
-            jwks_cache_seconds=int(os.environ.get("MEMGRAPH_OAUTH_JWKS_CACHE_SECONDS", "300")),
+            issuer_url=_required_env("GRAFT_OAUTH_ISSUER_URL"),
+            resource_server_url=_required_env("GRAFT_OAUTH_RESOURCE_SERVER_URL"),
+            audience=_required_env("GRAFT_OAUTH_AUDIENCE"),
+            required_scopes=_env_list("GRAFT_OAUTH_REQUIRED_SCOPES", DEFAULT_REQUIRED_SCOPES),
+            upstream_http=os.environ.get("GRAFT_UPSTREAM_HTTP", DEFAULT_UPSTREAM).rstrip("/"),
+            jwks_cache_seconds=int(os.environ.get("GRAFT_OAUTH_JWKS_CACHE_SECONDS", "300")),
         )
 
 

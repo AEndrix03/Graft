@@ -1,7 +1,7 @@
-#ifndef MEMGRAPH_CONFIG_H
-#define MEMGRAPH_CONFIG_H
+#ifndef GRAFT_CONFIG_H
+#define GRAFT_CONFIG_H
 
-#include "memgraph/error.h"
+#include "graft/error.h"
 #include <stdbool.h>
 
 typedef struct {

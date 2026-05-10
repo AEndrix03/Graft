@@ -1,10 +1,10 @@
-#ifndef MEMGRAPH_OPS_H
-#define MEMGRAPH_OPS_H
+#ifndef GRAFT_OPS_H
+#define GRAFT_OPS_H
 
-#include "memgraph/storage.h"
-#include "memgraph/embed.h"
-#include "memgraph/config.h"
-#include "memgraph/wire.h"
+#include "graft/storage.h"
+#include "graft/embed.h"
+#include "graft/config.h"
+#include "graft/wire.h"
 #include "mpack.h"
 
 typedef struct {

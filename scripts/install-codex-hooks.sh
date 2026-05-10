@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# Install memgraph hooks for Codex.
+# Install graft hooks for Codex.
 
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CODEX_HOME="${CODEX_HOME:-$HOME/.codex}"
-SOURCE_DIR="$REPO_ROOT/integrations/codex/hooks/memgraph"
-TARGET_DIR="$CODEX_HOME/hooks/memgraph"
+SOURCE_DIR="$REPO_ROOT/integrations/codex/hooks/graft"
+TARGET_DIR="$CODEX_HOME/hooks/graft"
 CONFIG_PATH="$CODEX_HOME/config.toml"
 HOOKS_PATH="$CODEX_HOME/hooks.json"
 
@@ -15,7 +15,7 @@ ok() { printf "  [OK] %s\n" "$*"; }
 
 [ -d "$SOURCE_DIR" ] || { echo "missing hook source directory: $SOURCE_DIR" >&2; exit 1; }
 
-step "Copying Codex memgraph hooks..."
+step "Copying Codex graft hooks..."
 mkdir -p "$TARGET_DIR"
 cp -f "$SOURCE_DIR"/*.js "$TARGET_DIR/"
 ok "hooks copied to $TARGET_DIR"
@@ -67,7 +67,7 @@ doc.hooks = {
           type: 'command',
           command: `node "${path.posix.join(targetDir, 'query_inject.js')}"`,
           timeout: 10,
-          statusMessage: 'memgraph cache lookup',
+          statusMessage: 'graft cache lookup',
         },
       ],
     },

@@ -1,8 +1,8 @@
 #ifndef MG_HTTP_INTERNAL_H
 #define MG_HTTP_INTERNAL_H
 
-#include "memgraph/error.h"
-#include "memgraph/ops.h"
+#include "graft/error.h"
+#include "graft/ops.h"
 
 #include <stddef.h>
 #include <stdbool.h>

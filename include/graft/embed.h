@@ -1,10 +1,10 @@
-#ifndef MEMGRAPH_EMBED_H
-#define MEMGRAPH_EMBED_H
+#ifndef GRAFT_EMBED_H
+#define GRAFT_EMBED_H
 
 #include <stdbool.h>
 
-#include "memgraph/types.h"
-#include "memgraph/error.h"
+#include "graft/types.h"
+#include "graft/error.h"
 
 typedef struct mg_embed_ctx mg_embed_ctx_t;
 

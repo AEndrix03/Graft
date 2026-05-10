@@ -9,9 +9,9 @@
  */
 
 #include "../src/retrieve/internal.h"
-#include "memgraph/ops.h"
-#include "memgraph/error.h"
-#include "memgraph/types.h"
+#include "graft/ops.h"
+#include "graft/error.h"
+#include "graft/types.h"
 #include "mpack.h"
 
 #include <assert.h>

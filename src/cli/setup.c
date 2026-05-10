@@ -305,7 +305,7 @@ static int candidate_integration_dir(char *out, size_t cap, const char *base,
 }
 
 static int find_integration_dir(char *out, size_t cap, enum mg_setup_agent agent) {
-    const char *env = getenv("MEMGRAPH_INTEGRATIONS_DIR");
+    const char *env = getenv("GRAFT_INTEGRATIONS_DIR");
     if (env && *env) {
         if (path_join(out, cap, env, agent_dir_name(agent)) == 0 && dir_exists(out)) return 0;
     }
@@ -323,10 +323,10 @@ static int find_integration_dir(char *out, size_t cap, enum mg_setup_agent agent
                 snprintf(out, cap, "%s", cand);
                 return 0;
             }
-            char share[1024], memgraph[1024], integrations[1024];
+            char share[1024], graft[1024], integrations[1024];
             if (path_join(share, sizeof(share), parent, "share") == 0
-                && path_join(memgraph, sizeof(memgraph), share, "memgraph") == 0
-                && path_join(integrations, sizeof(integrations), memgraph, "integrations") == 0
+                && path_join(graft, sizeof(graft), share, "graft") == 0
+                && path_join(integrations, sizeof(integrations), graft, "integrations") == 0
                 && path_join(cand, sizeof(cand), integrations, agent_dir_name(agent)) == 0
                 && dir_exists(cand)) {
                 snprintf(out, cap, "%s", cand);
@@ -476,7 +476,7 @@ static int write_hook_config(const char *path, const char *hook_dir,
     fputs("{\n  \"hooks\": {\n    \"UserPromptSubmit\": [\n      {\n        \"hooks\": [\n          { \"type\": \"command\", \"command\": \"node \\\"", f);
     json_write_escaped(f, query);
     fputs("\\\"\", \"timeout\": 10", f);
-    if (agent == MG_SETUP_CODEX) fputs(", \"statusMessage\": \"memgraph cache lookup\"", f);
+    if (agent == MG_SETUP_CODEX) fputs(", \"statusMessage\": \"graft cache lookup\"", f);
     fputs(" }\n        ]\n      }\n    ],\n    \"PostToolUse\": [\n      {\n        \"matcher\": \"", f);
     json_write_escaped(f, post_matcher);
     fputs("\",\n        \"hooks\": [\n          { \"type\": \"command\", \"command\": \"node \\\"", f);
@@ -495,14 +495,14 @@ static int setup_claudecode(const char *src, const char *home) {
         || path_join(dst_skills, sizeof(dst_skills), claude_home, "skills") != 0
         || path_join(src_hooks, sizeof(src_hooks), src, "hooks") != 0
         || path_join(dst_hooks_root, sizeof(dst_hooks_root), claude_home, "hooks") != 0
-        || path_join(dst_hooks, sizeof(dst_hooks), dst_hooks_root, "memgraph") != 0
+        || path_join(dst_hooks, sizeof(dst_hooks), dst_hooks_root, "graft") != 0
         || path_join(settings, sizeof(settings), claude_home, "settings.json") != 0) {
         return -1;
     }
-    char src_hook_memgraph[1024];
-    if (path_join(src_hook_memgraph, sizeof(src_hook_memgraph), src_hooks, "memgraph") != 0) return -1;
+    char src_hook_graft[1024];
+    if (path_join(src_hook_graft, sizeof(src_hook_graft), src_hooks, "graft") != 0) return -1;
     if (copy_tree(src_skills, dst_skills) != 0) return -1;
-    if (copy_tree(src_hook_memgraph, dst_hooks) != 0) return -1;
+    if (copy_tree(src_hook_graft, dst_hooks) != 0) return -1;
     if (write_hook_config(settings, dst_hooks, MG_SETUP_CLAUDECODE) != 0) return -1;
     printf("Installed Claude Code skills to %s\n", dst_skills);
     printf("Installed Claude Code hooks to %s\n", dst_hooks);
@@ -516,16 +516,16 @@ static int setup_codex(const char *src, const char *home) {
     if (path_join(codex_home, sizeof(codex_home), home, ".codex") != 0
         || path_join(src_hooks, sizeof(src_hooks), src, "hooks") != 0
         || path_join(dst_hooks_root, sizeof(dst_hooks_root), codex_home, "hooks") != 0
-        || path_join(dst_hooks, sizeof(dst_hooks), dst_hooks_root, "memgraph") != 0
+        || path_join(dst_hooks, sizeof(dst_hooks), dst_hooks_root, "graft") != 0
         || path_join(hooks_json, sizeof(hooks_json), codex_home, "hooks.json") != 0
         || path_join(src_agents, sizeof(src_agents), src, "AGENTS.md") != 0
         || path_join(dst_agents, sizeof(dst_agents), codex_home, "AGENTS.md") != 0
         || path_join(dst_skills, sizeof(dst_skills), codex_home, "skills") != 0) {
         return -1;
     }
-    char src_hook_memgraph[1024];
-    if (path_join(src_hook_memgraph, sizeof(src_hook_memgraph), src_hooks, "memgraph") != 0) return -1;
-    if (copy_tree(src_hook_memgraph, dst_hooks) != 0) return -1;
+    char src_hook_graft[1024];
+    if (path_join(src_hook_graft, sizeof(src_hook_graft), src_hooks, "graft") != 0) return -1;
+    if (copy_tree(src_hook_graft, dst_hooks) != 0) return -1;
     if (copy_file(src_agents, dst_agents) != 0) return -1;
 
     char src_parent[1024];
@@ -562,13 +562,13 @@ static int parse_agent(const char *s, enum mg_setup_agent *agent) {
 
 int mg_setup_cmd(int argc, char **argv) {
     if (argc != 3) {
-        fprintf(stderr, "usage: memgraph setup <claudecode|codex>\n");
+        fprintf(stderr, "usage: graft setup <claudecode|codex>\n");
         return 2;
     }
     enum mg_setup_agent agent;
     if (parse_agent(argv[2], &agent) != 0) {
         fprintf(stderr, "unknown setup target: %s\n", argv[2]);
-        fprintf(stderr, "usage: memgraph setup <claudecode|codex>\n");
+        fprintf(stderr, "usage: graft setup <claudecode|codex>\n");
         return 2;
     }
 
@@ -579,7 +579,7 @@ int mg_setup_cmd(int argc, char **argv) {
     }
     if (find_integration_dir(src, sizeof(src), agent) != 0) {
         fprintf(stderr,
-                "setup failed: could not find integrations/%s (set MEMGRAPH_INTEGRATIONS_DIR)\n",
+                "setup failed: could not find integrations/%s (set GRAFT_INTEGRATIONS_DIR)\n",
                 agent_dir_name(agent));
         return 1;
     }

@@ -1,4 +1,4 @@
-#include "memgraph/embed.h"
+#include "graft/embed.h"
 
 #include <math.h>
 #include <stdio.h>
@@ -19,7 +19,7 @@ static int near_one(float value) {
 }
 
 int main(void) {
-  const char *model_path = getenv("MEMGRAPH_TEST_MODEL");
+  const char *model_path = getenv("GRAFT_TEST_MODEL");
   mg_embed_ctx_t *ctx = NULL;
   mg_embedding_t hello;
   mg_embedding_t morning;

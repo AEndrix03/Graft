@@ -1,4 +1,4 @@
-# Gemini CLI — memgraph integration
+# Gemini CLI — graft integration
 
 [Gemini CLI](https://github.com/google-gemini/gemini-cli) reads `GEMINI.md` files (project- or user-level) as long-term context.
 
@@ -18,8 +18,8 @@ Multiple `GEMINI.md` files are concatenated with project-local overriding global
 ## Daemon
 
 ```bash
-./build/memgraphd --config ./config.example.yaml &
-export MEMGRAPH_SOCKET=/tmp/memgraph.sock
+./build/graftd --config ./config.example.yaml &
+export GRAFT_SOCKET=/tmp/graft.sock
 ```
 
 ## Tool allow-list
@@ -30,21 +30,21 @@ In `~/.gemini/settings.json` add:
 {
   "tool": {
     "shell": {
-      "allowList": ["memgraph"]
+      "allowList": ["graft"]
     }
   }
 }
 ```
 
-This skips per-command confirmation for `memgraph` invocations.
+This skips per-command confirmation for `graft` invocations.
 
 ## Tip: build a custom slash command
 
 Gemini CLI supports `.gemini/commands/*.toml`. Example `.gemini/commands/recall.toml`:
 
 ```toml
-description = "Search memgraph for prior knowledge."
-prompt = "Run `memgraph query \"$1\"` and summarize the response."
+description = "Search graft for prior knowledge."
+prompt = "Run `graft query \"$1\"` and summarize the response."
 ```
 
 Then `/recall "spring boot validation"` triggers it.

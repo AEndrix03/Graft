@@ -369,7 +369,7 @@ const stats = computed(() => `${nodes.value.length} nodes · ${edges.value.lengt
     </div>
 
     <div class="status">
-      <span class="brand">memgraph</span>
+      <span class="brand">graft</span>
       <span class="dim">·</span>
       <span class="stats">{{ stats }}</span>
       <span v-if="loadError" class="err">· {{ loadError }}</span>

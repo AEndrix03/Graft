@@ -7,8 +7,8 @@
  */
 
 #include "internal.h"
-#include "memgraph/http.h"
-#include "memgraph/ops.h"
+#include "graft/http.h"
+#include "graft/ops.h"
 #include "mpack.h"
 
 #include <stdio.h>
@@ -104,7 +104,7 @@ void mg_http_handler_healthz(mg_ctx_t *ctx, mg_http_request_t *req,
   (void)req;
   (void)ctx;
   n = snprintf(buf, sizeof(buf),
-               "{\"status\":\"ok\",\"service\":\"memgraphd\"}");
+               "{\"status\":\"ok\",\"service\":\"graftd\"}");
   if (n < 0 || (size_t)n >= sizeof(buf)) {
     mg_http_error(resp, 500, "internal error");
     return;

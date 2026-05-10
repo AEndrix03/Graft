@@ -20,8 +20,8 @@ compile_commands.json
 *.exe
 
 # Runtime data
-memgraph.db
-memgraph.db-*
+graft.db
+graft.db-*
 *.db
 *.db-shm
 *.db-wal

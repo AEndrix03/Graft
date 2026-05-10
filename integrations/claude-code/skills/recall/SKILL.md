@@ -1,11 +1,11 @@
 ---
 name: recall
-description: Smart memgraph search that picks the right tool (query → retrieve → explore) based on the question's shape, escalates when results are weak, and presents findings ranked by confidence with the originating evidence. Triggered by `/recall`, "do we have something about X", "have we seen this before", "ricordi se", "search the graph". Prefer this over a raw `memgraph query` whenever the user is exploring rather than confirming a known answer.
+description: Smart graft search that picks the right tool (query → retrieve → explore) based on the question's shape, escalates when results are weak, and presents findings ranked by confidence with the originating evidence. Triggered by `/recall`, "do we have something about X", "have we seen this before", "ricordi se", "search the graph". Prefer this over a raw `graft query` whenever the user is exploring rather than confirming a known answer.
 ---
 
 # recall — Smart, escalating search of the memory graph
 
-`memgraph` exposes three search modes and they have different sweet spots:
+`graft` exposes three search modes and they have different sweet spots:
 
 | Mode       | Best when                                                                  |
 | ---------- | -------------------------------------------------------------------------- |
@@ -33,41 +33,41 @@ If the user provides a `--keyword` style flag, respect it.
 
 ```
                                       ┌─── STRONG → done; cite + use ───┐
-   memgraph query <Q>  ──────────────┤                                   │
-                                      ├─── WEAK   → memgraph get <id>    │── present
+   graft query <Q>  ──────────────┤                                   │
+                                      ├─── WEAK   → graft get <id>    │── present
                                       │             then continue        │
-                                      └─── MISS   → memgraph retrieve <Q>│
+                                      └─── MISS   → graft retrieve <Q>│
                                                     if 0 useful results: │
-                                                    memgraph explore <Q>│
+                                                    graft explore <Q>│
                                                     --keyword <inferred>│
 ```
 
 ### Step 1 — `query`
 
 ```bash
-memgraph query "<concise restatement of the user's question>"
+graft query "<concise restatement of the user's question>"
 ```
 
 Read `result.hit`:
 
 - **STRONG** — high confidence near-exact match. Output: cite the node (`title`, `body`), state explicitly "this is from a previous session", and stop. Do NOT re-derive the answer.
-- **WEAK** — similar but not identical. Fetch the full body with `memgraph get <id_hex>`, present it labeled as "WEAK match — review before using". Then proceed to Step 2 to find better candidates.
+- **WEAK** — similar but not identical. Fetch the full body with `graft get <id_hex>`, present it labeled as "WEAK match — review before using". Then proceed to Step 2 to find better candidates.
 - **MISS** — go to Step 2.
 
 ### Step 2 — `retrieve`
 
 ```bash
-memgraph retrieve "<question>" --top-k 10
+graft retrieve "<question>" --top-k 10
 ```
 
 Read each result's `title`. Drop those with low `score`. If 1-3 are clearly relevant: present them ranked. If 0 useful: go to Step 3.
 
 ### Step 3 — `explore`
 
-Pick 1-3 keywords from the question. Use the same vocabulary the graph likely uses (run `memgraph stats` once if you've never seen this graph; the keyword distribution is implicit there). Then:
+Pick 1-3 keywords from the question. Use the same vocabulary the graph likely uses (run `graft stats` once if you've never seen this graph; the keyword distribution is implicit there). Then:
 
 ```bash
-memgraph explore "<question>" --keyword <kw1> --keyword <kw2> --depth 3 --beam 4
+graft explore "<question>" --keyword <kw1> --keyword <kw2> --depth 3 --beam 4
 ```
 
 If still nothing: tell the user explicitly "the graph has nothing on this", **don't fabricate**. Suggest they consider `/memoryze`-ing the eventual solution.
@@ -77,9 +77,9 @@ If still nothing: tell the user explicitly "the graph has nothing on this", **do
 If the user says "search across profiles" or you suspect the answer might be in a different profile:
 
 ```bash
-for p in $(memgraph profile list | jq -r '.profiles[]'); do
+for p in $(graft profile list | jq -r '.profiles[]'); do
   echo "=== $p ==="
-  MEMGRAPH_PROFILE=$p memgraph query "<question>"
+  GRAFT_PROFILE=$p graft query "<question>"
 done
 ```
 

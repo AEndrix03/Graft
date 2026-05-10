@@ -1,5 +1,5 @@
-#ifndef MEMGRAPH_TYPES_H
-#define MEMGRAPH_TYPES_H
+#ifndef GRAFT_TYPES_H
+#define GRAFT_TYPES_H
 
 #include <stdint.h>
 #include <stddef.h>

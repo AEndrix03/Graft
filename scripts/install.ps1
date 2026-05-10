@@ -1,7 +1,7 @@
 #!/usr/bin/env pwsh
-# memgraph - Windows installer.
+# graft - Windows installer.
 #
-# memgraph builds with MinGW64 from MSYS2. This script:
+# graft builds with MinGW64 from MSYS2. This script:
 #   1. checks for an MSYS2 install (offers to install it via winget)
 #   2. invokes scripts/install.sh inside the MSYS2 MINGW64 shell - which
 #      handles every other step (deps, llama.cpp, model, build, smoke test).
@@ -13,7 +13,7 @@
 param(
     [string]$Msys2Root = $env:MSYS2_ROOT,
     [ValidateSet("none","cuda","hip")]
-    [string]$Gpu = $(if ($env:MEMGRAPH_GPU) { $env:MEMGRAPH_GPU } else { "none" })
+    [string]$Gpu = $(if ($env:GRAFT_GPU) { $env:GRAFT_GPU } else { "none" })
 )
 
 $ErrorActionPreference = "Stop"
@@ -73,19 +73,19 @@ if ($Gpu -ne "none") { Write-Host "  GPU backend: $Gpu" -ForegroundColor Cyan }
 $bash = "$found\usr\bin\bash.exe"
 $env:CHERE_INVOKING = "1"
 $env:MSYSTEM        = "MINGW64"
-$env:MEMGRAPH_GPU   = $Gpu
+$env:GRAFT_GPU   = $Gpu
 
-& $bash -lc "cd '$repoMsys'; MEMGRAPH_GPU='$Gpu' bash scripts/install.sh --yes"
+& $bash -lc "cd '$repoMsys'; GRAFT_GPU='$Gpu' bash scripts/install.sh --yes"
 
 if ($LASTEXITCODE -ne 0) { Write-Err "install.sh exited with code $LASTEXITCODE" }
 
-$installDir = Join-Path $env:USERPROFILE ".lmemorygraph"
+$installDir = Join-Path $env:USERPROFILE ".graft"
 
-Write-Step ("All done. memgraph is installed at: " + $installDir)
+Write-Step ("All done. graft is installed at: " + $installDir)
 Write-Host ""
 Write-Host "The installer also added " ($installDir + "\bin") " to your user PATH."
 Write-Host "Open a NEW PowerShell window (so the PATH change is picked up) and try:"
-Write-Host "  memgraph profile list"
-Write-Host "  memgraph insert --summary hello --detail world --keyword test"
-Write-Host "  memgraph query hello"
-Write-Host "  memgraph analytics"
+Write-Host "  graft profile list"
+Write-Host "  graft insert --summary hello --detail world --keyword test"
+Write-Host "  graft query hello"
+Write-Host "  graft analytics"

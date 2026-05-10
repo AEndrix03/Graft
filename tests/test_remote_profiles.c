@@ -1,5 +1,5 @@
-#include "memgraph/storage.h"
-#include "memgraph/types.h"
+#include "graft/storage.h"
+#include "graft/types.h"
 #include "sqlite3.h"
 
 #include <stdio.h>

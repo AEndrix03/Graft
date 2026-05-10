@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /*
- * UserPromptSubmit hook for memgraph (Claude Code + Codex).
+ * UserPromptSubmit hook for graft (Claude Code + Codex).
  *
- * Reads { session_id, prompt, ... } from stdin, runs `memgraph query <prompt>`,
+ * Reads { session_id, prompt, ... } from stdin, runs `graft query <prompt>`,
  * and emits a compact context block on stdout — both Claude Code and Codex
  * inject UserPromptSubmit stdout into the agent's prompt for the upcoming turn.
  *
@@ -18,10 +18,10 @@ const path = require('path');
 const os = require('os');
 
 function inferStateDir() {
-  if (process.env.MEMGRAPH_HOOK_STATE_DIR) return process.env.MEMGRAPH_HOOK_STATE_DIR;
+  if (process.env.GRAFT_HOOK_STATE_DIR) return process.env.GRAFT_HOOK_STATE_DIR;
   const scriptPath = __filename.toLowerCase();
   const agentDir = scriptPath.includes(`${path.sep}.codex${path.sep}`) ? '.codex' : '.claude';
-  return path.join(os.homedir(), agentDir, 'hooks', 'memgraph', 'state');
+  return path.join(os.homedir(), agentDir, 'hooks', 'graft', 'state');
 }
 
 const STATE_DIR = inferStateDir();
@@ -30,9 +30,9 @@ const MIN_WORDS_FOR_QUERY = 4;
 function safeMkdir(d) { try { mkdirSync(d, { recursive: true }); } catch (_) {} }
 function readStdinSync() { try { return readFileSync(0, 'utf8'); } catch (_) { return ''; } }
 
-function runMemgraph(args) {
+function runGraft(args) {
   try {
-    return execFileSync('memgraph', args, {
+    return execFileSync('graft', args, {
       encoding: 'utf8',
       timeout: 5000,
       stdio: ['ignore', 'pipe', 'ignore'],
@@ -61,9 +61,9 @@ function runMemgraph(args) {
       try {
         const proposal = readFileSync(proposalFile, 'utf8').trim();
         if (proposal) {
-          process.stdout.write('<memgraph-proposal>\n');
+          process.stdout.write('<graft-proposal>\n');
           process.stdout.write(proposal + '\n');
-          process.stdout.write('</memgraph-proposal>\n\n');
+          process.stdout.write('</graft-proposal>\n\n');
         }
         unlinkSync(proposalFile);
       } catch (_) {}
@@ -73,8 +73,8 @@ function runMemgraph(args) {
   // (2) Skip query for trivial / acknowledgement-only prompts.
   if (!prompt || prompt.split(/\s+/).filter(Boolean).length < MIN_WORDS_FOR_QUERY) return;
 
-  // (3) Run memgraph query.
-  const out = runMemgraph(['query', prompt]);
+  // (3) Run graft query.
+  const out = runGraft(['query', prompt]);
   if (!out) return;
 
   let resp;
@@ -83,10 +83,10 @@ function runMemgraph(args) {
   if (!r || !r.hit) return;
 
   if (r.hit === 'STRONG' || r.hit === 'WEAK') {
-    process.stdout.write(`<memgraph-cache hit="${r.hit}">\n`);
+    process.stdout.write(`<graft-cache hit="${r.hit}">\n`);
     if (r.title) process.stdout.write(`title: ${r.title}\n`);
     if (r.hit === 'STRONG' && r.body) process.stdout.write(`body: ${r.body}\n`);
-    process.stdout.write('</memgraph-cache>\n');
+    process.stdout.write('</graft-cache>\n');
     return;
   }
 
@@ -98,6 +98,6 @@ function runMemgraph(args) {
     // in the graph, the top-5 fallback contained 1 tangentially relevant +
     // 4 unrelated nodes — 80% noise. The agent can call /recall explicitly
     // when it wants browsing.
-    process.stdout.write('<memgraph-cache hit="MISS"/>\n');
+    process.stdout.write('<graft-cache hit="MISS"/>\n');
   }
 })();

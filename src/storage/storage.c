@@ -1,4 +1,4 @@
-#include "memgraph/storage.h"
+#include "graft/storage.h"
 
 #include <sqlite3.h>
 

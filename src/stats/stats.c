@@ -16,9 +16,9 @@
  *   kind=1  "query_top1"    (cosine of best candidate at query time)
  */
 
-#include "memgraph/ops.h"
-#include "memgraph/storage.h"
-#include "memgraph/error.h"
+#include "graft/ops.h"
+#include "graft/storage.h"
+#include "graft/error.h"
 #include "mpack.h"
 
 #define MG_STATS_KIND_INSERT_TOPK 0

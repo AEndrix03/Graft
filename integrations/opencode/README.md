@@ -1,4 +1,4 @@
-# Open Code — memgraph integration
+# Open Code — graft integration
 
 [Open Code](https://opencode.ai) is an open-source AI coding assistant that reads `AGENTS.md` for repo-level instructions.
 
@@ -13,13 +13,13 @@ cat integrations/opencode/AGENTS.md >> ./AGENTS.md
 ## Daemon
 
 ```bash
-./build/memgraphd --config ./config.example.yaml &
-export MEMGRAPH_SOCKET=/tmp/memgraph.sock
+./build/graftd --config ./config.example.yaml &
+export GRAFT_SOCKET=/tmp/graft.sock
 ```
 
 ## Permission
 
-Open Code asks for permission per command by default. To pre-approve `memgraph`:
+Open Code asks for permission per command by default. To pre-approve `graft`:
 
 Edit `~/.config/opencode/opencode.json` (or project-local `.opencode/opencode.json`):
 
@@ -27,7 +27,7 @@ Edit `~/.config/opencode/opencode.json` (or project-local `.opencode/opencode.js
 {
   "permission": {
     "bash": {
-      "memgraph *": "allow"
+      "graft *": "allow"
     }
   }
 }

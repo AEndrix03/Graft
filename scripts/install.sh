@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# memgraph — interactive installer.
+# graft — interactive installer.
 #
 # Works on Linux (apt / dnf / pacman), macOS (brew), and Windows MSYS2
 # (pacman). Detects what is already in place and only asks the human for
@@ -9,7 +9,7 @@
 #   2. download the BGE-M3 embedding model?  (~600 MB)
 #   3. embedding threads value               (defaults to nproc/2)
 #
-# Everything else — git submodules, llama.cpp build, memgraph build,
+# Everything else — git submodules, llama.cpp build, graft build,
 # default profile creation, smoke test — is automatic.
 
 set -euo pipefail
@@ -222,9 +222,9 @@ LLAMA_LIB_GLOB=(third_party/llama.cpp/build/bin/libllama* third_party/llama.cpp/
 LLAMA_BUILT=0
 for f in "${LLAMA_LIB_GLOB[@]}"; do [ -e "$f" ] && LLAMA_BUILT=1 && break; done
 
-# GPU backend selection: opt-in via MEMGRAPH_GPU={cuda,hip,none}. Default none
+# GPU backend selection: opt-in via GRAFT_GPU={cuda,hip,none}. Default none
 # (CPU build). Set to cuda for NVIDIA, hip for AMD ROCm 6 or 7.
-GPU_BACKEND="${MEMGRAPH_GPU:-none}"
+GPU_BACKEND="${GRAFT_GPU:-none}"
 GPU_FLAGS=()
 case "$GPU_BACKEND" in
   none|cpu)
@@ -236,12 +236,12 @@ case "$GPU_BACKEND" in
     GPU_FLAGS=(-DGGML_HIP=ON)
     ;;
   *)
-    fail "MEMGRAPH_GPU='$GPU_BACKEND' invalid. Use cuda, hip, or none."
+    fail "GRAFT_GPU='$GPU_BACKEND' invalid. Use cuda, hip, or none."
     ;;
 esac
 
 if [ "$LLAMA_BUILT" = 1 ]; then
-  ok "llama.cpp already built (set MEMGRAPH_GPU and remove third_party/llama.cpp/build to rebuild with a different backend)"
+  ok "llama.cpp already built (set GRAFT_GPU and remove third_party/llama.cpp/build to rebuild with a different backend)"
 else
   [ "$GPU_BACKEND" != "none" ] && step "  -> with $GPU_BACKEND backend"
   pushd third_party/llama.cpp >/dev/null
@@ -303,7 +303,7 @@ else
   ok "config.yaml already present (leaving as-is)"
 fi
 
-# ---------- memgraph ----------
+# ---------- graft ----------
 
 # sqlite-vec ships only a header template; substitute the placeholders so
 # our CMakeLists picks up a real header. Idempotent.
@@ -329,18 +329,18 @@ else
   ok "already present"
 fi
 
-step "Building memgraph…"
+step "Building graft…"
 CMAKE_GEN_TOP=()
 [ "$OS" = "msys2" ] && CMAKE_GEN_TOP=(-G Ninja)
 cmake -B build -DCMAKE_BUILD_TYPE=Release "${CMAKE_GEN_TOP[@]}"
 cmake --build build -j
-ok "memgraph built"
+ok "graft built"
 
-# ---------- install into ~/.lmemorygraph ----------
+# ---------- install into ~/.graft ----------
 
-step "Installing into ~/.lmemorygraph/…"
+step "Installing into ~/.graft/…"
 # On MSYS2, $HOME points at /home/<user> inside the MSYS2 root, but the
-# Windows-side memgraph.exe resolves MEMGRAPH_HOME from $USERPROFILE
+# Windows-side graft.exe resolves GRAFT_HOME from $USERPROFILE
 # (e.g. C:\Users\<user>). Install where the CLI will look — otherwise the
 # files land in one place and the daemon looks in another.
 if [ "$OS" = "msys2" ]; then
@@ -358,7 +358,7 @@ if [ "$OS" = "msys2" ]; then
 else
   INSTALL_HOME="$HOME"
 fi
-INSTALL_DIR="$INSTALL_HOME/.lmemorygraph"
+INSTALL_DIR="$INSTALL_HOME/.graft"
 INSTALL_BIN="$INSTALL_DIR/bin"
 INSTALL_MODELS="$INSTALL_DIR/models"
 mkdir -p "$INSTALL_BIN" "$INSTALL_MODELS"
@@ -366,8 +366,8 @@ mkdir -p "$INSTALL_BIN" "$INSTALL_MODELS"
 # binaries
 EXE_SUFFIX=""
 [ "$OS" = "msys2" ] && EXE_SUFFIX=".exe"
-cp -f "build/memgraph${EXE_SUFFIX}"  "$INSTALL_BIN/"
-cp -f "build/memgraphd${EXE_SUFFIX}" "$INSTALL_BIN/"
+cp -f "build/graft${EXE_SUFFIX}"  "$INSTALL_BIN/"
+cp -f "build/graftd${EXE_SUFFIX}" "$INSTALL_BIN/"
 
 # llama.cpp shared libs (Windows DLLs / Linux .so / macOS .dylib)
 LLAMA_BIN="third_party/llama.cpp/build/bin"
@@ -376,7 +376,7 @@ LLAMA_GGML="third_party/llama.cpp/build/ggml/src"
 case "$OS" in
   msys2)
     cp -f "$LLAMA_BIN"/*.dll "$INSTALL_BIN/" 2>/dev/null || true
-    # Copy MinGW runtime + libyaml/sqlite DLLs that memgraphd depends on,
+    # Copy MinGW runtime + libyaml/sqlite DLLs that graftd depends on,
     # so the binary works without /mingw64/bin on the user's PATH.
     MGW_BIN="/mingw64/bin"
     [ -d "$MGW_BIN" ] || MGW_BIN="/c/msys64/mingw64/bin"
@@ -423,7 +423,7 @@ ok "installed binaries, model and config under $INSTALL_DIR"
 
 # ---------- PATH ----------
 
-step "Adding ~/.lmemorygraph/bin to your PATH…"
+step "Adding ~/.graft/bin to your PATH…"
 
 INSTALL_BIN_NATIVE="$INSTALL_BIN"
 if [ "$OS" = "msys2" ] && command -v cygpath >/dev/null 2>&1; then
@@ -459,9 +459,9 @@ case "$OS" in
     esac
     mkdir -p "$(dirname "$RC")"
     touch "$RC"
-    MARKER="# >>> lmemorygraph PATH <<<"
+    MARKER="# >>> graft PATH <<<"
     if grep -qF "$MARKER" "$RC"; then
-      ok "$RC already contains the lmemorygraph PATH entry"
+      ok "$RC already contains the graft PATH entry"
     else
       if [ "$SHELL_NAME" = "fish" ]; then
         printf '\n%s\nset -gx PATH %s $PATH\n' "$MARKER" "$INSTALL_BIN" >> "$RC"
@@ -476,12 +476,12 @@ esac
 # ---------- smoke test ----------
 
 step "Smoke test — auto-start daemon and ensure 'default' profile…"
-BIN_CLI="$INSTALL_BIN/memgraph${EXE_SUFFIX}"
-export MEMGRAPH_CONFIG="$INSTALL_CONFIG"
+BIN_CLI="$INSTALL_BIN/graft${EXE_SUFFIX}"
+export GRAFT_CONFIG="$INSTALL_CONFIG"
 if "$BIN_CLI" stats >/dev/null 2>&1; then
   ok "daemon up, profile 'default' usable"
 else
-  warn "smoke test failed — try '$BIN_CLI stats' to see the daemon logs at $INSTALL_DIR/memgraphd.log"
+  warn "smoke test failed — try '$BIN_CLI stats' to see the daemon logs at $INSTALL_DIR/graftd.log"
 fi
 
 # ---------- final hints ----------
@@ -490,23 +490,23 @@ step "Done."
 cat <<EOF
 
 The CLI is installed at:
-  $INSTALL_BIN/memgraph${EXE_SUFFIX}
+  $INSTALL_BIN/graft${EXE_SUFFIX}
 
 Open a NEW shell (so the PATH change is picked up) and try:
-  memgraph profile list
-  memgraph insert --summary "hello memgraph" --detail "first node" --keyword test
-  memgraph query  "hello memgraph"
-  memgraph analytics
+  graft profile list
+  graft insert --summary "hello graft" --detail "first node" --keyword test
+  graft query  "hello graft"
+  graft analytics
 
 Switch profile in the current shell:
-  eval "\$(memgraph profile set work)"        # bash/zsh/fish
-  memgraph profile set work | iex             # PowerShell
+  eval "\$(graft profile set work)"        # bash/zsh/fish
+  graft profile set work | iex             # PowerShell
 
 Layout:
   $INSTALL_DIR/
-  ├── bin/         (memgraph, memgraphd, llama dlls/so)
+  ├── bin/         (graft, graftd, llama dlls/so)
   ├── models/      (bge-m3.gguf)
   ├── config.yaml  (used by the daemon)
   ├── profiles/    (one DB per profile)
-  └── memgraphd.log
+  └── graftd.log
 EOF

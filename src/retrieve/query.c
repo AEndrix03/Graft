@@ -29,12 +29,12 @@
  */
 
 #include "internal.h"
-#include "memgraph/storage.h"
-#include "memgraph/embed.h"
-#include "memgraph/verify.h"
-#include "memgraph/config.h"
-#include "memgraph/types.h"
-#include "memgraph/error.h"
+#include "graft/storage.h"
+#include "graft/embed.h"
+#include "graft/verify.h"
+#include "graft/config.h"
+#include "graft/types.h"
+#include "graft/error.h"
 
 #include <stdlib.h>
 #include <string.h>

@@ -1,4 +1,4 @@
-"""MCP server that exposes memgraph operations to chat-based LLMs.
+"""MCP server that exposes graft operations to chat-based LLMs.
 
 The stdio entrypoint is intentionally local/dev friendly:
 
@@ -29,27 +29,27 @@ except ImportError as e:
     )
 
 
-READ_SCOPE = "memgraph:read"
-WRITE_SCOPE = "memgraph:write"
-ADMIN_SCOPE = "memgraph:admin"
+READ_SCOPE = "graft:read"
+WRITE_SCOPE = "graft:write"
+ADMIN_SCOPE = "graft:admin"
 
 
 def _resolve_binary() -> str:
-    """Locate the memgraph CLI binary."""
-    if env := os.environ.get("MEMGRAPH_BIN"):
+    """Locate the graft CLI binary."""
+    if env := os.environ.get("GRAFT_BIN"):
         return env
-    if found := shutil.which("memgraph"):
+    if found := shutil.which("graft"):
         return found
     home = Path.home()
     candidates = [
-        home / ".lmemorygraph" / "bin" / ("memgraph.exe" if os.name == "nt" else "memgraph"),
-        Path(__file__).resolve().parents[2] / "build" / ("memgraph.exe" if os.name == "nt" else "memgraph"),
+        home / ".graft" / "bin" / ("graft.exe" if os.name == "nt" else "graft"),
+        Path(__file__).resolve().parents[2] / "build" / ("graft.exe" if os.name == "nt" else "graft"),
     ]
     for c in candidates:
         if c.exists():
             return str(c)
     raise RuntimeError(
-        "memgraph CLI not found; set MEMGRAPH_BIN, add it to PATH, or run "
+        "graft CLI not found; set GRAFT_BIN, add it to PATH, or run "
         "scripts/install.sh / install.ps1."
     )
 
@@ -65,10 +65,10 @@ def _get_binary() -> str:
 
 
 def _run(args: list[str], profile: Optional[str] = None) -> dict[str, Any]:
-    """Invoke the memgraph CLI and parse its JSON-ish stdout."""
+    """Invoke the graft CLI and parse its JSON-ish stdout."""
     env = os.environ.copy()
     if profile:
-        env["MEMGRAPH_PROFILE"] = profile
+        env["GRAFT_PROFILE"] = profile
     proc = subprocess.run(
         [_get_binary(), *args],
         capture_output=True,
@@ -80,7 +80,7 @@ def _run(args: list[str], profile: Optional[str] = None) -> dict[str, Any]:
     )
     if proc.returncode not in (0, 3):  # 3 = handler reported status != 0
         raise RuntimeError(
-            f"memgraph CLI failed (rc={proc.returncode}): {proc.stderr.strip()}"
+            f"graft CLI failed (rc={proc.returncode}): {proc.stderr.strip()}"
         )
     out = proc.stdout.strip()
     if not out:
@@ -107,15 +107,15 @@ def _require_scopes(*required: str) -> None:
 
 
 def create_mcp(**kwargs: Any) -> FastMCP:
-    """Create a FastMCP app and register all memgraph tools on it."""
+    """Create a FastMCP app and register all graft tools on it."""
     mcp = FastMCP(
-        "memgraph",
+        "graft",
         instructions=(
             "Persistent graph memory for AI agents. ALWAYS check before solving "
-            "non-trivial problems (memgraph_query / memgraph_retrieve / memgraph_explore) "
-            "and save AFTER novel solutions (memgraph_classify + memgraph_insert). "
+            "non-trivial problems (graft_query / graft_retrieve / graft_explore) "
+            "and save AFTER novel solutions (graft_classify + graft_insert). "
             "Multi-tenant via profiles: pass `profile=<name>` to any tool to target "
-            "a specific tenant. Use memgraph_delete to remove obsolete/wrong nodes; "
+            "a specific tenant. Use graft_delete to remove obsolete/wrong nodes; "
             "to 'modify' a node, delete it then re-insert with the corrected fields."
         ),
         **kwargs,
@@ -125,16 +125,16 @@ def create_mcp(**kwargs: Any) -> FastMCP:
 
 
 def register_tools(mcp: FastMCP) -> FastMCP:
-    """Register memgraph tools on an existing FastMCP instance."""
+    """Register graft tools on an existing FastMCP instance."""
 
     @mcp.tool()
-    def memgraph_query(text: str, profile: Optional[str] = None) -> dict:
+    def graft_query(text: str, profile: Optional[str] = None) -> dict:
         """Cache lookup with multi-signal gating."""
         _require_scopes(READ_SCOPE)
         return _run(["query", text], profile=profile)
 
     @mcp.tool()
-    def memgraph_retrieve(
+    def graft_retrieve(
         text: str, top_k: int = 10, profile: Optional[str] = None
     ) -> dict:
         """Top-k hybrid retrieval (lexical BM25 + semantic via RRF)."""
@@ -142,7 +142,7 @@ def register_tools(mcp: FastMCP) -> FastMCP:
         return _run(["retrieve", text, "--top-k", str(top_k)], profile=profile)
 
     @mcp.tool()
-    def memgraph_explore(
+    def graft_explore(
         text: str,
         keywords: Optional[list[str]] = None,
         depth: int = 3,
@@ -157,13 +157,13 @@ def register_tools(mcp: FastMCP) -> FastMCP:
         return _run(args, profile=profile)
 
     @mcp.tool()
-    def memgraph_classify(title: str, profile: Optional[str] = None) -> dict:
+    def graft_classify(title: str, profile: Optional[str] = None) -> dict:
         """Suggest keywords semantically related to `title`."""
         _require_scopes(READ_SCOPE)
         return _run(["classify", "--title", title], profile=profile)
 
     @mcp.tool()
-    def memgraph_insert(
+    def graft_insert(
         title: str,
         body: str,
         keywords: Optional[list[str]] = None,
@@ -183,25 +183,25 @@ def register_tools(mcp: FastMCP) -> FastMCP:
         return _run(args, profile=profile)
 
     @mcp.tool()
-    def memgraph_get(id_hex: str, profile: Optional[str] = None) -> dict:
+    def graft_get(id_hex: str, profile: Optional[str] = None) -> dict:
         """Fetch a node by its 32-char hex id."""
         _require_scopes(READ_SCOPE)
         return _run(["get", id_hex], profile=profile)
 
     @mcp.tool()
-    def memgraph_delete(id_hex: str, profile: Optional[str] = None) -> dict:
+    def graft_delete(id_hex: str, profile: Optional[str] = None) -> dict:
         """Remove a node from the graph by its 32-char hex id."""
         _require_scopes(ADMIN_SCOPE)
         return _run(["delete", id_hex], profile=profile)
 
     @mcp.tool()
-    def memgraph_stats(profile: Optional[str] = None) -> dict:
+    def graft_stats(profile: Optional[str] = None) -> dict:
         """Inspect runtime metrics and similarity distributions."""
         _require_scopes(READ_SCOPE)
         return _run(["stats"], profile=profile)
 
     @mcp.tool()
-    def memgraph_analytics(
+    def graft_analytics(
         since: Optional[str] = None,
         seconds_per_hit: int = 60,
         profile: Optional[str] = None,
@@ -214,38 +214,38 @@ def register_tools(mcp: FastMCP) -> FastMCP:
         return _run(args, profile=profile)
 
     @mcp.tool()
-    def memgraph_profile_list() -> dict:
+    def graft_profile_list() -> dict:
         """List all profiles and the active one."""
         _require_scopes(ADMIN_SCOPE)
         return _run(["profile", "list"])
 
     @mcp.tool()
-    def memgraph_profile_current() -> dict:
+    def graft_profile_current() -> dict:
         """Show the currently active profile."""
         _require_scopes(ADMIN_SCOPE)
         return _run(["profile", "current"])
 
     @mcp.tool()
-    def memgraph_profile_add(name: str) -> dict:
+    def graft_profile_add(name: str) -> dict:
         """Create a new profile by name."""
         _require_scopes(ADMIN_SCOPE)
         return _run(["profile", "add", name])
 
     @mcp.tool()
-    def memgraph_profile_remove(name: str) -> dict:
+    def graft_profile_remove(name: str) -> dict:
         """Permanently delete a profile and all its data."""
         _require_scopes(ADMIN_SCOPE)
         return _run(["profile", "remove", name, "--yes"])
 
     @mcp.tool()
-    def memgraph_profile_export(name: str, path: str) -> dict:
+    def graft_profile_export(name: str, path: str) -> dict:
         """Backup a profile to a SQLite file at `path`."""
         _require_scopes(ADMIN_SCOPE)
         return _run(["profile", "export", name, "--path", path])
 
     @mcp.tool()
-    def memgraph_profile_import(name: str, file: str, force: bool = False) -> dict:
-        """Restore a .mgprofile file as a profile named `name`."""
+    def graft_profile_import(name: str, file: str, force: bool = False) -> dict:
+        """Restore a .graftprofile file as a profile named `name`."""
         _require_scopes(ADMIN_SCOPE)
         args = ["profile", "import", "--name", name, "--file", file]
         if force:
@@ -253,8 +253,8 @@ def register_tools(mcp: FastMCP) -> FastMCP:
         return _run(args)
 
     @mcp.tool()
-    def memgraph_profile_merge(into_: str, from_: str, overwrite: bool = False) -> dict:
-        """Merge nodes/keywords/edges from a .mgprofile file into a profile."""
+    def graft_profile_merge(into_: str, from_: str, overwrite: bool = False) -> dict:
+        """Merge nodes/keywords/edges from a .graftprofile file into a profile."""
         _require_scopes(ADMIN_SCOPE)
         args = ["profile", "merge", "--into", into_, "--from", from_]
         if overwrite:

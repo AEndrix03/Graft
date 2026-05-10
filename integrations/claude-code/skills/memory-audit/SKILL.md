@@ -1,6 +1,6 @@
 ---
 name: memory-audit
-description: Health check + maintenance audit of the memgraph graph. Reports hit rate, hoarding ratio, top reused nodes, never-reused nodes, stale entries, and similar-but-separate clusters that may be duplicates. Suggests concrete actions (re-save with a better title, promote to README, drop stale, narrow over-broad nodes) but does NOT modify the graph automatically — every action is proposed for the user to approve. Triggered by `/memory-audit`, "is the graph healthy", "audit memory", "check memgraph quality", or whenever the user wants a cleanup pass before a long-running session.
+description: Health check + maintenance audit of the graft graph. Reports hit rate, hoarding ratio, top reused nodes, never-reused nodes, stale entries, and similar-but-separate clusters that may be duplicates. Suggests concrete actions (re-save with a better title, promote to README, drop stale, narrow over-broad nodes) but does NOT modify the graph automatically — every action is proposed for the user to approve. Triggered by `/memory-audit`, "is the graph healthy", "audit memory", "check graft quality", or whenever the user wants a cleanup pass before a long-running session.
 ---
 
 # memory-audit — Read-only health check + actionable suggestions
@@ -15,20 +15,20 @@ Run these in order and aggregate:
 
 ```bash
 # 1. Distribution health
-memgraph stats
+graft stats
 
 # 2. Usage signal across the lifetime of the graph
-memgraph analytics
+graft analytics
 
 # 3. Last-week trend (compare with lifetime to spot degradation)
-memgraph analytics --since 7d
+graft analytics --since 7d
 
 # 4. Profile context
-memgraph profile current
-memgraph profile list
+graft profile current
+graft profile list
 ```
 
-If the user said "audit profile X" or "tutti i profili", iterate with `MEMGRAPH_PROFILE=X` per profile.
+If the user said "audit profile X" or "tutti i profili", iterate with `GRAFT_PROFILE=X` per profile.
 
 ## What you analyze
 
@@ -54,7 +54,7 @@ From `analytics.insert_to_query_ratio`:
 
 From `analytics.top_reused_nodes`:
 - The top 3-5 IDs by `hits` are **champions**. For each, show:
-  - `memgraph get <id_hex>` → the full content
+  - `graft get <id_hex>` → the full content
   - **Suggestion**: if `hits >= 5`, consider promoting the content to a README / docs page — it's load-bearing knowledge.
 
 For **orphans** (nodes that never got a STRONG hit), the data isn't directly available; infer indirectly:
@@ -64,7 +64,7 @@ For **orphans** (nodes that never got a STRONG hit), the data isn't directly ava
 
 If recent activity has **many WEAK hits** (`cache.weak / cache.strong > 1`), the graph likely contains semantically-near-but-textually-different nodes. Report this and suggest:
 - Pick 1-2 recent WEAK queries from memory of the conversation if any.
-- For each, run `memgraph retrieve "<query>" --top-k 5`.
+- For each, run `graft retrieve "<query>" --top-k 5`.
 - If two of the top-5 have very similar summaries (you eyeball this — there's no built-in dedup score), flag them as a candidate merge.
 
 ### E. Latency outliers
@@ -81,14 +81,14 @@ From `profile list`:
 
 - A single profile with hundreds of nodes spanning unrelated topics → suggest splitting into per-domain profiles (`work`, `personal`, `system-foo`).
 - Many profiles with < 5 nodes each → consolidate or remove unused ones.
-- The `default` profile should never be removed (it's not removable anyway), but if `current != default` for the project, suggest the user persist that with `eval "$(memgraph profile set <name>)"` in their shell rc.
+- The `default` profile should never be removed (it's not removable anyway), but if `current != default` for the project, suggest the user persist that with `eval "$(graft profile set <name>)"` in their shell rc.
 
 ## Output: the audit report
 
 Render a single readable report — **not** a JSON dump. Structure:
 
 ```
-memgraph audit — profile=<name>, <N> events lifetime, last 7d: <M>
+graft audit — profile=<name>, <N> events lifetime, last 7d: <M>
 
 Hit rate:           <pct>%        (lifetime) / <pct>% (last 7d)   [ok | warn | bad]
 Hoarding ratio:     <ratio>x      [ok | warn | bad]
@@ -128,9 +128,9 @@ Items 1, 2, 3 are concrete enough that you can act on them in the next turn with
 
 ## What this skill does NOT do
 
-- It does **not** delete nodes by itself — even when a node is clearly wrong, the action menu proposes the deletion, the user approves, then `memgraph delete <id>` runs as a follow-up step.
+- It does **not** delete nodes by itself — even when a node is clearly wrong, the action menu proposes the deletion, the user approves, then `graft delete <id>` runs as a follow-up step.
 - It does **not** re-classify keywords without explicit user approval.
 - It does **not** modify the active profile.
 - It does **not** export/import — the user owns those.
 
-When you want to act on a finding, route through `/memoryze` (for re-saves with better summaries), `memgraph delete <id>` (when the user confirms a node should go), or instruct the user to use `memgraph profile export/import` for backups.
+When you want to act on a finding, route through `/memoryze` (for re-saves with better summaries), `graft delete <id>` (when the user confirms a node should go), or instruct the user to use `graft profile export/import` for backups.

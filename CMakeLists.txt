@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(memgraph C)
+project(graft C)
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
@@ -83,7 +83,7 @@ target_include_directories(mpack PUBLIC ${MPACK_DIR})
 include_directories(${CMAKE_SOURCE_DIR}/include)
 
 # === Sorgenti core (libreria condivisa interna) ===
-file(GLOB MEMGRAPH_SRC CONFIGURE_DEPENDS
+file(GLOB GRAFT_SRC CONFIGURE_DEPENDS
   src/common/*.c
   src/storage/*.c
   src/embed/*.c
@@ -99,13 +99,13 @@ file(GLOB MEMGRAPH_SRC CONFIGURE_DEPENDS
   src/daemon/socket.c
 )
 
-add_library(memgraph_core STATIC ${MEMGRAPH_SRC})
+add_library(graft_core STATIC ${GRAFT_SRC})
 # Order matters: sqlite_vec depends on sqlite3 symbols, must precede ${SQLITE_LIBRARIES}.
 set(MG_PLATFORM_LIBS "")
 if(WIN32)
   list(APPEND MG_PLATFORM_LIBS ws2_32 bcrypt)
 endif()
-target_link_libraries(memgraph_core
+target_link_libraries(graft_core
   sqlite_vec
   ${SQLITE_LIBRARIES}
   ${YAML_LIBRARIES}
@@ -120,17 +120,17 @@ target_link_libraries(memgraph_core
 )
 
 # === Binari ===
-add_executable(memgraphd src/daemon/main.c)
-target_link_libraries(memgraphd memgraph_core)
+add_executable(graftd src/daemon/main.c)
+target_link_libraries(graftd graft_core)
 
-add_executable(memgraph
+add_executable(graft
   src/cli/main.c
   src/cli/autostart.c
   src/cli/usage_log.c
   src/cli/profile.c
   src/cli/setup.c
 )
-target_link_libraries(memgraph memgraph_core)
+target_link_libraries(graft graft_core)
 
 # === Tests ===
 enable_testing()
@@ -138,6 +138,6 @@ file(GLOB TEST_SRC tests/test_*.c)
 foreach(TFILE ${TEST_SRC})
   get_filename_component(TNAME ${TFILE} NAME_WE)
   add_executable(${TNAME} ${TFILE})
-  target_link_libraries(${TNAME} memgraph_core)
+  target_link_libraries(${TNAME} graft_core)
   add_test(NAME ${TNAME} COMMAND ${TNAME})
 endforeach()

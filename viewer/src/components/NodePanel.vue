@@ -41,12 +41,12 @@ const panelWidth = ref(PANEL_DEFAULT);
 const resizing = ref(false);
 function loadWidth() {
   try {
-    const v = parseInt(localStorage.getItem('memgraph_panel_width') || '0', 10);
+    const v = parseInt(localStorage.getItem('graft_panel_width') || '0', 10);
     if (v >= PANEL_MIN) panelWidth.value = v;
   } catch {}
 }
 function saveWidth(v) {
-  try { localStorage.setItem('memgraph_panel_width', String(v)); } catch {}
+  try { localStorage.setItem('graft_panel_width', String(v)); } catch {}
 }
 function clampWidth(w) {
   const max = Math.max(PANEL_MIN + 100, Math.floor(window.innerWidth * PANEL_MAX_VW_RATIO));

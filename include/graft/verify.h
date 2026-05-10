@@ -1,9 +1,9 @@
-#ifndef MEMGRAPH_VERIFY_H
-#define MEMGRAPH_VERIFY_H
+#ifndef GRAFT_VERIFY_H
+#define GRAFT_VERIFY_H
 
-#include "memgraph/error.h"
-#include "memgraph/types.h"
-#include "memgraph/config.h"
+#include "graft/error.h"
+#include "graft/types.h"
+#include "graft/config.h"
 
 typedef struct mg_verify_ctx mg_verify_ctx_t;
 

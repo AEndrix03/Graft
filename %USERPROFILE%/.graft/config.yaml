@@ -1,9 +1,9 @@
 daemon:
-  socket_path: "/tmp/memgraph.sock"
-  db_path: "./memgraph.db"
+  socket_path: "/tmp/graft.sock"
+  db_path: "./graft.db"
 
 embedding:
-  model_path: "%USERPROFILE%/.lmemorygraph/models/bge-m3.gguf"
+  model_path: "%USERPROFILE%/.graft/models/bge-m3.gguf"
   threads: 11
   ctx_size: 8192
 

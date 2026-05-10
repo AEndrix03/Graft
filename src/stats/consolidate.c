@@ -13,8 +13,8 @@
  *   }
  */
 
-#include "memgraph/ops.h"
-#include "memgraph/error.h"
+#include "graft/ops.h"
+#include "graft/error.h"
 #include "mpack.h"
 
 mg_err_t mg_op_consolidate(mg_ctx_t *ctx, mpack_node_t args,

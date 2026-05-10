@@ -4,11 +4,11 @@
  *   3. NULL input is rejected
  *
  * Frame I/O is not covered here (would require a socketpair, which is
- * non-trivial cross-platform); manual end-to-end is via memgraphd.
+ * non-trivial cross-platform); manual end-to-end is via graftd.
  */
 
-#include "memgraph/wire.h"
-#include "memgraph/error.h"
+#include "graft/wire.h"
+#include "graft/error.h"
 
 #include <assert.h>
 #include <stdio.h>

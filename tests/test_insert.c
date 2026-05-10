@@ -1,5 +1,5 @@
-#include "memgraph/config.h"
-#include "memgraph/storage.h"
+#include "graft/config.h"
+#include "graft/storage.h"
 
 #include <stdlib.h>
 #include <string.h>

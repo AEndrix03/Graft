@@ -1,6 +1,6 @@
 daemon:
-  socket_path: "/tmp/memgraph.sock"
-  db_path: "./memgraph.db"
+  socket_path: "/tmp/graft.sock"
+  db_path: "./graft.db"
 
 embedding:
   model_path: "./models/bge-m3.gguf"
@@ -44,7 +44,7 @@ explore:
 # integrations/mcp-server/oauth_gateway.py in front for OAuth/OIDC.
 http:
   enabled: false
-  bind: "127.0.0.1"             # local-first; do not expose memgraphd directly
+  bind: "127.0.0.1"             # local-first; do not expose graftd directly
   port: 9977
   endpoint_match:    true       # GET  /v1/match
   endpoint_search:   true       # GET  /v1/search

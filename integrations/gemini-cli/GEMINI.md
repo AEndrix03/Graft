@@ -1,30 +1,30 @@
-# memgraph — agent long-term memory
+# graft — agent long-term memory
 
-You have access to `memgraph`, a graph-based persistent memory CLI backed by `memgraphd` (running locally on `MEMGRAPH_SOCKET`, default `/tmp/memgraph.sock`).
+You have access to `graft`, a graph-based persistent memory CLI backed by `graftd` (running locally on `GRAFT_SOCKET`, default `/tmp/graft.sock`).
 
 ## Use it BEFORE solving non-trivial problems
 
 ```
-memgraph query "<concise restatement of what the user is asking>"
+graft query "<concise restatement of what the user is asking>"
 ```
 
 Read `result.hit`:
 - `STRONG`: there's a near-exact match in memory. Cite and reuse: "Last time we hit this, we found that…".
-- `WEAK`: similar; consider `memgraph get <id_hex>` for the full body.
+- `WEAK`: similar; consider `graft get <id_hex>` for the full body.
 - `MISS`: see `result.fallback_retrieve.results[]` for related items.
 
 For broader exploration:
 
 ```
-memgraph retrieve "<text>" --top-k 10
-memgraph explore  "<text>" --keyword K1 --keyword K2 --depth 3
+graft retrieve "<text>" --top-k 10
+graft explore  "<text>" --keyword K1 --keyword K2 --depth 3
 ```
 
 ## Use it AFTER successfully solving non-trivial problems
 
 ```
-memgraph classify --title "<one-line restatement>"          # suggested keywords
-memgraph insert --title "<title>" --body "<solution + WHY>" \
+graft classify --title "<one-line restatement>"          # suggested keywords
+graft insert --title "<title>" --body "<solution + WHY>" \
                 --keyword K1 --keyword K2 --keyword K3
 ```
 
@@ -37,12 +37,12 @@ Trivial tasks (typos, renames, syntax errors with obvious fixes), pure file oper
 ## Health check
 
 ```
-memgraph stats
+graft stats
 ```
 
 Errors? The daemon isn't running:
 ```
-./build/memgraphd --config ./config.example.yaml &
+./build/graftd --config ./config.example.yaml &
 ```
 
 ## Output format

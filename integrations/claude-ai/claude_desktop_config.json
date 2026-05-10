@@ -1,12 +1,12 @@
 {
   "mcpServers": {
-    "memgraph": {
+    "graft": {
       "command": "python",
       "args": [
-        "C:/personal/LMemoryGraph/integrations/mcp-server/server.py"
+        "C:/personal/Graft/integrations/mcp-server/server.py"
       ],
       "env": {
-        "MEMGRAPH_BIN": "C:/Users/aredegalli/.lmemorygraph/bin/memgraph.exe"
+        "GRAFT_BIN": "C:/Users/aredegalli/.graft/bin/graft.exe"
       }
     }
   }

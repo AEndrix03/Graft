@@ -1,6 +1,6 @@
 daemon:
-  socket_path: "/tmp/memgraph.sock"
-  db_path: "./memgraph.db"
+  socket_path: "/tmp/graft.sock"
+  db_path: "./graft.db"
 
 embedding:
   model_path: "./models/bge-m3.gguf"

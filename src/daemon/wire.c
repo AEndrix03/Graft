@@ -8,8 +8,8 @@
  * MG_ERR_WIRE without consuming the rest (caller should close the fd).
  */
 
-#include "memgraph/wire.h"
-#include "memgraph/error.h"
+#include "graft/wire.h"
+#include "graft/error.h"
 
 #include <stdlib.h>
 #include <stdint.h>

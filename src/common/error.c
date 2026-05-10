@@ -1,4 +1,4 @@
-#include "memgraph/error.h"
+#include "graft/error.h"
 
 const char *mg_strerror(mg_err_t e) {
   switch (e) {

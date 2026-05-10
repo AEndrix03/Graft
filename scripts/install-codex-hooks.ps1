@@ -1,5 +1,5 @@
 #!/usr/bin/env pwsh
-# Install memgraph hooks for Codex.
+# Install graft hooks for Codex.
 
 [CmdletBinding()]
 param(
@@ -16,8 +16,8 @@ function Write-Utf8NoBom($path, $text) {
 }
 
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
-$sourceDir = Join-Path $repoRoot "integrations\codex\hooks\memgraph"
-$targetDir = Join-Path $CodexHome "hooks\memgraph"
+$sourceDir = Join-Path $repoRoot "integrations\codex\hooks\graft"
+$targetDir = Join-Path $CodexHome "hooks\graft"
 $configPath = Join-Path $CodexHome "config.toml"
 $hooksPath = Join-Path $CodexHome "hooks.json"
 
@@ -25,7 +25,7 @@ if (-not (Test-Path $sourceDir)) {
     throw "Missing hook source directory: $sourceDir"
 }
 
-Write-Step "Copying Codex memgraph hooks..."
+Write-Step "Copying Codex graft hooks..."
 New-Item -ItemType Directory -Force -Path $targetDir | Out-Null
 Copy-Item -Force (Join-Path $sourceDir "*.js") $targetDir
 Write-Ok "hooks copied to $targetDir"
@@ -74,7 +74,7 @@ $hooksDoc | Add-Member -Force -MemberType NoteProperty -Name hooks -Value ([pscu
                     type = "command"
                     command = "node `"$query`""
                     timeout = 10
-                    statusMessage = "memgraph cache lookup"
+                    statusMessage = "graft cache lookup"
                 }
             )
         }

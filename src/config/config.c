@@ -1,4 +1,4 @@
-#include "memgraph/config.h"
+#include "graft/config.h"
 
 #include <errno.h>
 #include <stdio.h>
@@ -40,8 +40,8 @@ void mg_config_defaults(mg_config_t *cfg) {
   }
 
   memset(cfg, 0, sizeof(*cfg));
-  cfg->socket_path = mg_config_strdup("/tmp/memgraph.sock");
-  cfg->db_path = mg_config_strdup("./memgraph.db");
+  cfg->socket_path = mg_config_strdup("/tmp/graft.sock");
+  cfg->db_path = mg_config_strdup("./graft.db");
   cfg->embed_model_path = mg_config_strdup("./models/bge-m3.gguf");
   cfg->embed_threads = 4;
   cfg->embed_ctx_size = 8192;

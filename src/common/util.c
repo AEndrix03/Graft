@@ -1,4 +1,4 @@
-#include "memgraph/types.h"
+#include "graft/types.h"
 
 #include "blake3.h"
 

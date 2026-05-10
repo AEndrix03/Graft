@@ -10,9 +10,9 @@
  * thread pool or epoll/kqueue. We keep it boring.
  */
 
-#include "memgraph/http.h"
+#include "graft/http.h"
 #include "internal.h"
-#include "memgraph/error.h"
+#include "graft/error.h"
 
 #include <pthread.h>
 #include <stdio.h>

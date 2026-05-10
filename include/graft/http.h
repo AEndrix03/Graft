@@ -1,8 +1,8 @@
-#ifndef MEMGRAPH_HTTP_H
-#define MEMGRAPH_HTTP_H
+#ifndef GRAFT_HTTP_H
+#define GRAFT_HTTP_H
 
-#include "memgraph/error.h"
-#include "memgraph/ops.h"
+#include "graft/error.h"
+#include "graft/ops.h"
 
 /* HTTP layer (REST + viewer). Off by default. When enabled, the daemon
  * spawns a background TCP listener on cfg->http_bind:cfg->http_port and

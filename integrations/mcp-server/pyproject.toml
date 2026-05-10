@@ -1,7 +1,7 @@
 [project]
-name = "memgraph-mcp"
+name = "graft-mcp"
 version = "0.1.0"
-description = "MCP server bridging chat LLMs to the memgraph CLI"
+description = "MCP server bridging chat LLMs to the graft CLI"
 requires-python = ">=3.10"
 dependencies = [
   "mcp>=1.0",
@@ -12,7 +12,7 @@ dependencies = [
 ]
 
 [project.scripts]
-memgraph-mcp = "server:main"
+graft-mcp = "server:main"
 
 [build-system]
 requires = ["hatchling"]

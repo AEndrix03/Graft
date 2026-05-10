@@ -1,6 +1,6 @@
-# memgraph viewer
+# graft viewer
 
-3D graph viewer for memgraph. Vue 3 + Vite + three.js + CodeMirror. Dark mode, color-coded edges, click-to-edit with atomic supersession on save.
+3D graph viewer for graft. Vue 3 + Vite + three.js + CodeMirror. Dark mode, color-coded edges, click-to-edit with atomic supersession on save.
 
 ## Build
 
@@ -23,7 +23,7 @@ The dev server proxies `/v1/*` to `http://127.0.0.1:9977`, so the daemon must be
 
 The viewer is a local/dev surface and talks to the local daemon REST API. For
 public deployments, put the OAuth/OIDC gateway in `integrations/mcp-server/`
-in front of `/v1/*` and keep `memgraphd` bound to `127.0.0.1`.
+in front of `/v1/*` and keep `graftd` bound to `127.0.0.1`.
 
 ---
 

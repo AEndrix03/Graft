@@ -1,5 +1,5 @@
-#ifndef MEMGRAPH_CLI_SETUP_H
-#define MEMGRAPH_CLI_SETUP_H
+#ifndef GRAFT_CLI_SETUP_H
+#define GRAFT_CLI_SETUP_H
 
 int mg_setup_cmd(int argc, char **argv);
 

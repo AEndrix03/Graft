@@ -3,7 +3,7 @@ name: learn
 description: Batch knowledge ingestion from external sources (a folder, a codebase, a docs tree, a set of files). Plans the ingestion as a list of well-shaped nodes with reconciled keywords, shows the user the plan for approval, then executes idempotently. Triggered by `/learn`, "ingest this folder into memory", "porta questo codice nella memoria", "acquire this documentation", "memorize this codebase". Differs from `/memoryze` (1-5 nodes from conversation) — `/learn` produces 10-200 nodes from external corpora and is plan-first by design.
 ---
 
-# learn — Batch ingestion of external knowledge into memgraph
+# learn — Batch ingestion of external knowledge into graft
 
 `/learn` is a **plan-first** ingestion pipeline. It is NOT "scan and dump everything you see". It is: scout, distill, propose a plan, get the user's approval, then execute. This separation matters because uncontrolled ingestion creates duplicates, garbage summaries, and a keyword vocabulary that fragments into noise. The plan-and-confirm gate is the heart of the skill.
 
@@ -18,7 +18,7 @@ The user invokes you with a free-form prompt that may include:
 | **target**                        | "this folder", "src/auth/", "the README + docs/", a glob, a list of paths | What to read.                                                            |
 | **lens / focus**                  | "as a Spring Boot reference", "extract only public APIs", "design decisions only" | The angle of distillation. Without this you'd save trivia.       |
 | **node cap**                      | "max 30 nodes", "atomico per file", "one node per module"              | Soft upper bound; default 50 per invocation, hard cap 200.               |
-| **target profile**                | "in profile=docs-springboot", "nel profilo work"                       | `MEMGRAPH_PROFILE=X` for the inserts.                                    |
+| **target profile**                | "in profile=docs-springboot", "nel profilo work"                       | `GRAFT_PROFILE=X` for the inserts.                                    |
 | **excludes**                      | "skip tests/", "ignore generated/", a `.gitignore`-style list          | Glob/regex skip rules layered on top of the defaults below.              |
 | **rerun mode**                    | "incremental" / "force" / "dry-run"                                    | See "Rerunning on the same source" below.                                |
 
@@ -101,11 +101,11 @@ Don't write the full `body` text yet — it's expensive and may be wasted if the
 
 **Keyword reconciliation** (critical for quality):
 
-Before showing the plan, run **one** `memgraph classify` call per top-K topic to learn what keywords already exist in the graph for similar content:
+Before showing the plan, run **one** `graft classify` call per top-K topic to learn what keywords already exist in the graph for similar content:
 
 ```bash
 # Run per topic, collect suggestions:
-memgraph classify --title "<draft title for this topic>"
+graft classify --title "<draft title for this topic>"
 ```
 
 Aggregate the suggestions across topics and produce a **vocabulary table**:
@@ -120,10 +120,10 @@ Use this to align all node `keyword_candidates` to the same vocabulary. The goal
 
 **Pre-dedup search** (cheap optimization):
 
-For each draft node, run a quick `memgraph query` and skip from the plan any candidate that returns STRONG hit (already covered):
+For each draft node, run a quick `graft query` and skip from the plan any candidate that returns STRONG hit (already covered):
 
 ```bash
-memgraph query "<draft title>"
+graft query "<draft title>"
 # if hit=STRONG: mark as 'already-covered', show id_hex in the plan, don't re-insert
 ```
 
@@ -177,11 +177,11 @@ What now? Reply with one of:
 Once approved, execute the plan in batches. For each approved node:
 
 1. Compose the final `body` text from the outline + sources. **Now** is when you write it, not before.
-2. `memgraph classify --title "<final title>"` for last-mile keyword check.
-3. `memgraph insert --title S --body D --keyword K1 --keyword K2 …`
+2. `graft classify --title "<final title>"` for last-mile keyword check.
+3. `graft insert --title S --body D --keyword K1 --keyword K2 …`
 4. If `result.duplicate=true`, count it but don't error.
 
-**Profile targeting**: prefix each insert with `MEMGRAPH_PROFILE=<name>` if the user specified a target profile.
+**Profile targeting**: prefix each insert with `GRAFT_PROFILE=<name>` if the user specified a target profile.
 
 **Throughput**: insert ~5-10 nodes/second on a warm daemon. For 50 nodes, ~10s. Don't parallelize — serial is fine and keeps the daemon happy.
 
@@ -209,8 +209,8 @@ Top new nodes:
   …
 
 Try:
-  memgraph query "how do we issue JWTs"
-  memgraph explore "auth" --keyword jwt --keyword security
+  graft query "how do we issue JWTs"
+  graft explore "auth" --keyword jwt --keyword security
 ```
 
 If insertions failed, list them with the error verbatim — surface the real reason.

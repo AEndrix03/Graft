@@ -1,4 +1,4 @@
-# Claude Code — memgraph skill suite
+# Claude Code — graft skill suite
 
 Due livelli di integrazione:
 
@@ -11,8 +11,8 @@ Sei skill collaborano:
 
 | Skill              | Trigger                                           | Cosa fa                                                                  |
 | ------------------ | ------------------------------------------------- | ------------------------------------------------------------------------ |
-| `memgraph`         | Auto su qualunque problema tecnico non banale     | Master: orchestrazione, profili, reference CLI, troubleshooting.         |
-| `memgraph-init`    | `/memgraph-init`, "configura memgraph"            | Configuratore one-shot: scrive il blocco istruzioni in CLAUDE.md (global o local). |
+| `graft`         | Auto su qualunque problema tecnico non banale     | Master: orchestrazione, profili, reference CLI, troubleshooting.         |
+| `graft-init`    | `/graft-init`, "configura graft"            | Configuratore one-shot: scrive il blocco istruzioni in CLAUDE.md (global o local). |
 | `recall`           | `/recall …`, "do we have X?", "ricordi se..."     | Cerca con strategia smart: query → retrieve → explore in cascata.        |
 | `memoryze`         | `/memoryze …`, "save this", "ricorda questo"      | Distilla la conversazione in 1-5 nodi ben formati e li inserisce.        |
 | `learn`            | `/learn …`, "ingest this folder", "porting"       | Batch-ingestion da fonti esterne (codebase, docs): plan + conferma + ingest. |
@@ -23,7 +23,7 @@ Sei skill collaborano:
 Installazione user-scoped automatica:
 
 ```bash
-memgraph setup claudecode
+graft setup claudecode
 ```
 
 Copia tutta la directory `skills/` (le 4 sotto-cartelle) nella skill folder di Claude Code:
@@ -54,7 +54,7 @@ In una sessione Claude Code:
 /help
 ```
 
-Dovresti vedere `memgraph`, `recall`, `memoryze`, `memory-audit` tra le skill disponibili. Claude le invoca autonomamente quando i `description` matchano il contesto, oppure puoi forzarle con `/<nome>`.
+Dovresti vedere `graft`, `recall`, `memoryze`, `memory-audit` tra le skill disponibili. Claude le invoca autonomamente quando i `description` matchano il contesto, oppure puoi forzarle con `/<nome>`.
 
 ## Reload
 
@@ -68,8 +68,8 @@ Per ridurre i prompt di permesso, in `~/.claude/settings.json` (o project-scoped
 {
   "permissions": {
     "allow": [
-      "Bash(memgraph:*)",
-      "Bash(memgraph profile:*)"
+      "Bash(graft:*)",
+      "Bash(graft profile:*)"
     ]
   }
 }
@@ -84,6 +84,6 @@ Per ridurre i prompt di permesso, in `~/.claude/settings.json` (o project-scoped
 
 ## Note tecniche
 
-- Le skill assumono che `memgraph` sia in PATH (`scripts/install.sh` lo aggiunge automaticamente).
+- Le skill assumono che `graft` sia in PATH (`scripts/install.sh` lo aggiunge automaticamente).
 - Il daemon si auto-avvia al primo comando del CLI; non serve avviarlo manualmente.
 - I prompt di tutte le skill sono in inglese per coerenza con la lingua di Claude Code.

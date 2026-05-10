@@ -1,14 +1,14 @@
-#ifndef MEMGRAPH_CLI_USAGE_LOG_H
-#define MEMGRAPH_CLI_USAGE_LOG_H
+#ifndef GRAFT_CLI_USAGE_LOG_H
+#define GRAFT_CLI_USAGE_LOG_H
 
 #include <stdint.h>
 #include <stddef.h>
 
 /* Append one usage record as a single JSON line to the usage log file.
  * The log path resolves to:
- *   - $MEMGRAPH_USAGE_LOG (if set), else
- *   - $HOME/.memgraph/usage.jsonl    (POSIX), or
- *   - %LOCALAPPDATA%/memgraph/usage.jsonl (Windows).
+ *   - $GRAFT_USAGE_LOG (if set), else
+ *   - $HOME/.graft/usage.jsonl    (POSIX), or
+ *   - %LOCALAPPDATA%/graft/usage.jsonl (Windows).
  *
  * `op`, `hit`, `id_hex` may be NULL/empty. `latency_ms` and `status` are
  * always written. The record schema is:
@@ -27,7 +27,7 @@ void mg_usage_log_append(const char *op,
  * Returns -1 if no path can be resolved (no HOME and no LOCALAPPDATA). */
 int mg_usage_log_path(char *out, size_t cap);
 
-/* Run the `memgraph analytics` command: read the usage log, aggregate, and
+/* Run the `graft analytics` command: read the usage log, aggregate, and
  * print a JSON-ish summary to stdout. Returns 0 on success. */
 int mg_usage_analytics(int argc, char **argv);
 

@@ -1,17 +1,17 @@
-/* memgraph CLI — profile management.
+/* graft CLI — profile management.
  *
  * A profile tenant-isolates the graph: each profile gets its own SQLite
  * DB file and its own daemon listening on its own socket.
  *
- *   <MEMGRAPH_HOME>/profiles/<name>/memgraph.db   — the per-profile DB
+ *   <GRAFT_HOME>/profiles/<name>/graft.db   — the per-profile DB
  *
  * Socket path:
- *   POSIX  : /tmp/memgraph-<name>.sock
- *   Windows: <MEMGRAPH_HOME>\sockets\<name>.sock
+ *   POSIX  : /tmp/graft-<name>.sock
+ *   Windows: <GRAFT_HOME>\sockets\<name>.sock
  *
  * The CLI is the only component that knows about profiles. Before
- * connecting to (or auto-starting) the daemon, main.c sets MEMGRAPH_SOCKET
- * and MEMGRAPH_DB_PATH in its own env, which the daemon honors as
+ * connecting to (or auto-starting) the daemon, main.c sets GRAFT_SOCKET
+ * and GRAFT_DB_PATH in its own env, which the daemon honors as
  * overrides on top of the YAML config.
  *
  * Export/import use a plain file copy (the file IS a SQLite DB carrying
@@ -21,8 +21,8 @@
 
 #include "profile.h"
 #include "../daemon/internal.h"
-#include "memgraph/error.h"
-#include "memgraph/storage.h"
+#include "graft/error.h"
+#include "graft/storage.h"
 
 #include <ctype.h>
 #include <stdio.h>
@@ -212,7 +212,7 @@ int mg_profile_name_valid(const char *name) {
 /* ---------- path resolution ---------- */
 
 int mg_profile_home(char *out, size_t cap) {
-    const char *env = getenv("MEMGRAPH_HOME");
+    const char *env = getenv("GRAFT_HOME");
     if (env && *env) {
         if (snprintf(out, cap, "%s", env) >= (int)cap) return -1;
     } else {
@@ -220,11 +220,11 @@ int mg_profile_home(char *out, size_t cap) {
         const char *base = getenv("USERPROFILE");
         if (!base || !*base) base = getenv("LOCALAPPDATA");
         if (!base || !*base) return -1;
-        if (snprintf(out, cap, "%s\\.lmemorygraph", base) >= (int)cap) return -1;
+        if (snprintf(out, cap, "%s\\.graft", base) >= (int)cap) return -1;
 #else
         const char *home = getenv("HOME");
         if (!home || !*home) return -1;
-        if (snprintf(out, cap, "%s/.lmemorygraph", home) >= (int)cap) return -1;
+        if (snprintf(out, cap, "%s/.graft", home) >= (int)cap) return -1;
 #endif
     }
     if (mkdir_p(out) != 0) return -1;
@@ -232,7 +232,7 @@ int mg_profile_home(char *out, size_t cap) {
 }
 
 int mg_profile_active(char *out, size_t cap) {
-    const char *env = getenv("MEMGRAPH_PROFILE");
+    const char *env = getenv("GRAFT_PROFILE");
     if (env && *env && mg_profile_name_valid(env) == 0) {
         if (snprintf(out, cap, "%s", env) >= (int)cap) return -1;
         return 0;
@@ -253,7 +253,7 @@ int mg_profile_dir(const char *name, char *out, size_t cap, int create) {
 int mg_profile_db_path(const char *name, char *out, size_t cap, int create) {
     char dir[1024];
     if (mg_profile_dir(name, dir, sizeof(dir), create) != 0) return -1;
-    if (snprintf(out, cap, "%s%cmemgraph.db", dir, MG_PATH_SEP) >= (int)cap) return -1;
+    if (snprintf(out, cap, "%s%cgraft.db", dir, MG_PATH_SEP) >= (int)cap) return -1;
     return 0;
 }
 
@@ -269,7 +269,7 @@ int mg_profile_socket_path(const char *name, char *out, size_t cap, int create) 
     return 0;
 #else
     (void)create;
-    if (snprintf(out, cap, "/tmp/memgraph-%s.sock", name) >= (int)cap) return -1;
+    if (snprintf(out, cap, "/tmp/graft-%s.sock", name) >= (int)cap) return -1;
     return 0;
 #endif
 }
@@ -286,7 +286,7 @@ int mg_profile_exists(const char *name) {
 static int cmd_list(void) {
     char home[1024];
     if (mg_profile_home(home, sizeof(home)) != 0) {
-        fprintf(stderr, "cannot resolve MEMGRAPH_HOME\n");
+        fprintf(stderr, "cannot resolve GRAFT_HOME\n");
         return 1;
     }
     char active[128];
@@ -447,7 +447,7 @@ static int cmd_set(const char *name, const char *shell_hint) {
         return 2;
     }
     if (!mg_profile_exists(name) && strcmp(name, MG_PROFILE_DEFAULT) != 0) {
-        fprintf(stderr, "profile '%s' does not exist (run: memgraph profile add %s)\n",
+        fprintf(stderr, "profile '%s' does not exist (run: graft profile add %s)\n",
                 name, name);
         return 1;
     }
@@ -458,18 +458,18 @@ static int cmd_set(const char *name, const char *shell_hint) {
     char syntax[16];
     detect_shell_syntax(shell_hint, syntax, sizeof(syntax));
     if (!strcmp(syntax, "fish")) {
-        printf("set -x MEMGRAPH_PROFILE %s\n", name);
+        printf("set -x GRAFT_PROFILE %s\n", name);
     } else if (!strcmp(syntax, "powershell")) {
-        printf("$env:MEMGRAPH_PROFILE = '%s'\n", name);
+        printf("$env:GRAFT_PROFILE = '%s'\n", name);
     } else if (!strcmp(syntax, "cmd")) {
-        printf("set MEMGRAPH_PROFILE=%s\n", name);
+        printf("set GRAFT_PROFILE=%s\n", name);
     } else {
-        printf("export MEMGRAPH_PROFILE=%s\n", name);
+        printf("export GRAFT_PROFILE=%s\n", name);
     }
     fprintf(stderr,
         "Apply to the current shell:\n"
-        "  bash/zsh/fish:  eval \"$(memgraph profile set %s)\"\n"
-        "  PowerShell:     memgraph profile set %s | Out-String | Invoke-Expression\n",
+        "  bash/zsh/fish:  eval \"$(graft profile set %s)\"\n"
+        "  PowerShell:     graft profile set %s | Out-String | Invoke-Expression\n",
         name, name);
     return 0;
 }
@@ -523,7 +523,7 @@ static int cmd_import(const char *name, const char *path, int force) {
     }
     if (!looks_like_sqlite(path)) {
         fprintf(stderr,
-            "file does not look like a memgraph profile (missing SQLite "
+            "file does not look like a graft profile (missing SQLite "
             "header). Aborting to avoid corrupting the profile.\n");
         return 1;
     }
@@ -575,7 +575,7 @@ static int cmd_merge(const char *into_name, const char *from_path, int overwrite
     }
     if (!looks_like_sqlite(from_path)) {
         fprintf(stderr,
-            "--from is not a memgraph profile file (missing SQLite header)\n");
+            "--from is not a graft profile file (missing SQLite header)\n");
         return 1;
     }
     if (ensure_profile_file_schema(from_path) != 0) {
@@ -584,7 +584,7 @@ static int cmd_merge(const char *into_name, const char *from_path, int overwrite
     }
     if (!mg_profile_exists(into_name)) {
         fprintf(stderr,
-            "target profile '%s' does not exist (run: memgraph profile add %s)\n",
+            "target profile '%s' does not exist (run: graft profile add %s)\n",
             into_name, into_name);
         return 1;
     }
@@ -699,7 +699,7 @@ static int cmd_remote_bind(const char *name, const char *url, const char *token)
         return 2;
     }
     if (!mg_profile_exists(name)) {
-        fprintf(stderr, "profile '%s' does not exist (run: memgraph profile add %s)\n",
+        fprintf(stderr, "profile '%s' does not exist (run: graft profile add %s)\n",
                 name, name);
         return 1;
     }
@@ -708,7 +708,7 @@ static int cmd_remote_bind(const char *name, const char *url, const char *token)
         return 1;
     }
     if (!is_http_url(url) && !looks_like_sqlite(url)) {
-        fprintf(stderr, "remote file is not a memgraph SQLite profile: %s\n", url);
+        fprintf(stderr, "remote file is not a graft SQLite profile: %s\n", url);
         return 1;
     }
     if (write_remote_meta(name, url, token) != 0) {
@@ -783,7 +783,7 @@ static int cmd_remote_sync(const char *name) {
         return 1;
     }
     if (!file_exists(url) || !looks_like_sqlite(url)) {
-        fprintf(stderr, "remote file is not a memgraph SQLite profile: %s\n", url);
+        fprintf(stderr, "remote file is not a graft SQLite profile: %s\n", url);
         return 1;
     }
     if (ensure_profile_file_schema(url) != 0) {
@@ -863,15 +863,15 @@ static int cmd_remote(int argc, char **argv) {
 static int profile_usage(void) {
     fprintf(stderr,
         "usage:\n"
-        "  memgraph profile list\n"
-        "  memgraph profile current\n"
-        "  memgraph profile add    <name>\n"
-        "  memgraph profile remove <name> [--yes]\n"
-        "  memgraph profile set    <name> [--shell bash|zsh|fish|powershell|cmd]\n"
-        "  memgraph profile export <name> --path <file>\n"
-        "  memgraph profile import --name <name> --file <file> [--force]\n"
-        "  memgraph profile merge  --into <name> --from <file> [--overwrite]\n"
-        "  memgraph profile remote <bind|detach|status|sync> <name> [--url <file-or-url>] [--token T]\n");
+        "  graft profile list\n"
+        "  graft profile current\n"
+        "  graft profile add    <name>\n"
+        "  graft profile remove <name> [--yes]\n"
+        "  graft profile set    <name> [--shell bash|zsh|fish|powershell|cmd]\n"
+        "  graft profile export <name> --path <file>\n"
+        "  graft profile import --name <name> --file <file> [--force]\n"
+        "  graft profile merge  --into <name> --from <file> [--overwrite]\n"
+        "  graft profile remote <bind|detach|status|sync> <name> [--url <file-or-url>] [--token T]\n");
     return 2;
 }
 

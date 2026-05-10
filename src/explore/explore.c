@@ -27,12 +27,12 @@
  *   }
  */
 
-#include "memgraph/ops.h"
-#include "memgraph/storage.h"
-#include "memgraph/embed.h"
-#include "memgraph/config.h"
-#include "memgraph/types.h"
-#include "memgraph/error.h"
+#include "graft/ops.h"
+#include "graft/storage.h"
+#include "graft/embed.h"
+#include "graft/config.h"
+#include "graft/types.h"
+#include "graft/error.h"
 #include "mpack.h"
 
 #include <math.h>

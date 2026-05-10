@@ -1,4 +1,4 @@
-#include "memgraph/storage.h"
+#include "graft/storage.h"
 
 #include <math.h>
 #include <stdio.h>

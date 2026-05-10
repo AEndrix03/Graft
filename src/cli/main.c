@@ -1,24 +1,24 @@
-/* memgraph — thin CLI client.
+/* graft — thin CLI client.
  *
- *   memgraph insert     --title "..." --body "..." [--keyword K | --tag K]...
+ *   graft insert     --title "..." --body "..." [--keyword K | --tag K]...
  *                       [--author NAME] [--expires-at <unix-ms>]
- *   memgraph query      "question text"
- *   memgraph retrieve   "text" [--top-k 25]
- *   memgraph explore    "text" --keyword k1 --depth 3 [--beam 4]
- *   memgraph get        <hex_id> [--markdown]
- *   memgraph stats
- *   memgraph classify   --title "..."
- *   memgraph consolidate
+ *   graft query      "question text"
+ *   graft retrieve   "text" [--top-k 25]
+ *   graft explore    "text" --keyword k1 --depth 3 [--beam 4]
+ *   graft get        <hex_id> [--markdown]
+ *   graft stats
+ *   graft classify   --title "..."
+ *   graft consolidate
  *
- * Connects to the daemon socket (default /tmp/memgraph.sock, override via
- * env MEMGRAPH_SOCKET), sends a single request frame, prints the parsed
+ * Connects to the daemon socket (default /tmp/graft.sock, override via
+ * env GRAFT_SOCKET), sends a single request frame, prints the parsed
  * response in mpack's JSON-ish format (or as Markdown for `get --markdown`)
  * and exits.
  */
 
 #include "../daemon/internal.h"
-#include "memgraph/wire.h"
-#include "memgraph/error.h"
+#include "graft/wire.h"
+#include "graft/error.h"
 #include "mpack.h"
 #include "autostart.h"
 #include "usage_log.h"
@@ -32,24 +32,24 @@
 #  define mg_setenv(k, v) setenv((k), (v), 1)
 #endif
 
-/* Set MEMGRAPH_SOCKET and MEMGRAPH_DB_PATH to the per-profile defaults
+/* Set GRAFT_SOCKET and GRAFT_DB_PATH to the per-profile defaults
  * unless the caller already set them. The daemon honors both as overrides
  * on top of the YAML config — see src/daemon/main.c. */
 static void mg_apply_profile_env(void) {
     char active[128];
     if (mg_profile_active(active, sizeof(active)) != 0) return;
 
-    const char *cur_sock = getenv("MEMGRAPH_SOCKET");
+    const char *cur_sock = getenv("GRAFT_SOCKET");
     if (!cur_sock || !*cur_sock) {
         char sock[1024];
         if (mg_profile_socket_path(active, sock, sizeof(sock), 1) == 0)
-            mg_setenv("MEMGRAPH_SOCKET", sock);
+            mg_setenv("GRAFT_SOCKET", sock);
     }
-    const char *cur_db = getenv("MEMGRAPH_DB_PATH");
+    const char *cur_db = getenv("GRAFT_DB_PATH");
     if (!cur_db || !*cur_db) {
         char db[1024];
         if (mg_profile_db_path(active, db, sizeof(db), 1) == 0)
-            mg_setenv("MEMGRAPH_DB_PATH", db);
+            mg_setenv("GRAFT_DB_PATH", db);
     }
 }
 
@@ -155,20 +155,20 @@ static void print_value(mpack_node_t n, int indent) {
 static int usage(void) {
     fprintf(stderr,
         "usage:\n"
-        "  memgraph insert --title T --body B [--keyword K | --tag K]...\n"
+        "  graft insert --title T --body B [--keyword K | --tag K]...\n"
         "                  [--author NAME] [--expires-at UNIX_MS]\n"
-        "  memgraph query <text>\n"
-        "  memgraph retrieve <text> [--top-k N]\n"
-        "  memgraph explore <text> [--keyword K]... [--depth N] [--beam N]\n"
-        "  memgraph get <hex_id> [--markdown]\n"
-        "  memgraph delete <hex_id>\n"
-        "  memgraph classify --title T\n"
-        "  memgraph stats\n"
-        "  memgraph consolidate\n"
-        "  memgraph analytics [--since 7d|24h] [--seconds-per-hit 60]\n"
-        "  memgraph profile <list|current|add|remove|set|import|export> ...\n"
-        "  memgraph setup <claudecode|codex>\n"
-        "  memgraph view [--port 9977]   (opens 3D viewer in browser; needs http.enabled)\n");
+        "  graft query <text>\n"
+        "  graft retrieve <text> [--top-k N]\n"
+        "  graft explore <text> [--keyword K]... [--depth N] [--beam N]\n"
+        "  graft get <hex_id> [--markdown]\n"
+        "  graft delete <hex_id>\n"
+        "  graft classify --title T\n"
+        "  graft stats\n"
+        "  graft consolidate\n"
+        "  graft analytics [--since 7d|24h] [--seconds-per-hit 60]\n"
+        "  graft profile <list|current|add|remove|set|import|export> ...\n"
+        "  graft setup <claudecode|codex>\n"
+        "  graft view [--port 9977]   (opens 3D viewer in browser; needs http.enabled)\n");
     return 2;
 }
 
@@ -186,9 +186,9 @@ static void mg_iso8601_utc(int64_t unix_ms, char *out, size_t out_len) {
 }
 
 /* Resolve an author string. Priority: --author flag (caller-provided arg) >
- * MEMGRAPH_AUTHOR env var > <user>@<host> from environment. Returns malloc'd
+ * GRAFT_AUTHOR env var > <user>@<host> from environment. Returns malloc'd
  * string or NULL. The CLI sends this on every insert; the daemon stores it
- * verbatim. Set MEMGRAPH_AUTHOR='' to opt out. */
+ * verbatim. Set GRAFT_AUTHOR='' to opt out. */
 static char *mg_resolve_author(const char *flag) {
     if (flag && *flag) {
         size_t n = strlen(flag);
@@ -196,7 +196,7 @@ static char *mg_resolve_author(const char *flag) {
         if (s) { memcpy(s, flag, n + 1); }
         return s;
     }
-    const char *envv = getenv("MEMGRAPH_AUTHOR");
+    const char *envv = getenv("GRAFT_AUTHOR");
     if (envv) {
         if (!*envv) return NULL;  /* explicit opt-out */
         size_t n = strlen(envv);
@@ -518,8 +518,8 @@ int main(int argc, char **argv) {
     }
 
     /* ---- connect & exchange ---- */
-    const char *sock_path = getenv("MEMGRAPH_SOCKET");
-    if (!sock_path || !*sock_path) sock_path = "/tmp/memgraph.sock";
+    const char *sock_path = getenv("GRAFT_SOCKET");
+    if (!sock_path || !*sock_path) sock_path = "/tmp/graft.sock";
 
     long long t_start = mg_now_ms();
 

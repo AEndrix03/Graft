@@ -1,5 +1,5 @@
-#ifndef MEMGRAPH_ERROR_H
-#define MEMGRAPH_ERROR_H
+#ifndef GRAFT_ERROR_H
+#define GRAFT_ERROR_H
 
 typedef enum {
   MG_OK              = 0,

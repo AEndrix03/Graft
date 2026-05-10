@@ -1,9 +1,9 @@
 ---
-name: memgraph
+name: graft
 description: Persistent graph memory across conversations. The master skill — search BEFORE answering non-trivial questions, save AFTER solving non-obvious ones. Three companion skills handle the heavy lifting: `/memoryze` (save with smart granularity), `/recall` (escalating search query→retrieve→explore), `/memory-audit` (read-only health check). The daemon auto-starts on first command. Multi-tenant via profiles. Use this skill ALWAYS for any non-trivial technical question, framework quirk, design decision, or learned-the-hard-way fix.
 ---
 
-# memgraph — Persistent agent memory
+# graft — Persistent agent memory
 
 You have a long-term memory graph that persists across conversations and across agents. Treat it as your **first stop** for anything non-trivial: another past-you (or another agent on the team) may have already solved it, and the answer lives there.
 
@@ -24,7 +24,7 @@ You have a long-term memory graph that persists across conversations and across 
 - File listings, "what's in this folder", trivial reads.
 - The question is fully answered by code already on screen.
 
-When in doubt: **search**. A `memgraph query` is cheap (tens of ms warm, ~100-300ms cold). The cost of NOT checking and re-doing past work is much higher.
+When in doubt: **search**. A `graft query` is cheap (tens of ms warm, ~100-300ms cold). The cost of NOT checking and re-doing past work is much higher.
 
 ## Companion skills — what to invoke when
 
@@ -39,22 +39,22 @@ Use the right skill for the action; don't reinvent inside this one.
 
 `/memoryze` vs `/learn` rule of thumb: source is the conversation → `/memoryze`; source is files outside the conversation → `/learn`.
 
-This skill (`memgraph`) covers everything else: the raw CLI, profile management, troubleshooting, and the underlying conceptual model.
+This skill (`graft`) covers everything else: the raw CLI, profile management, troubleshooting, and the underlying conceptual model.
 
 ## Setup
 
-Nothing to configure. The CLI auto-starts `memgraphd` if it isn't running — first command pays ~1-2s for cold-start, subsequent calls are fast.
+Nothing to configure. The CLI auto-starts `graftd` if it isn't running — first command pays ~1-2s for cold-start, subsequent calls are fast.
 
 Standard install layout (created by `scripts/install.sh` / `scripts/install.ps1`):
 
 ```
-~/.lmemorygraph/
-├── bin/         memgraph + memgraphd + DLLs/so
+~/.graft/
+├── bin/         graft + graftd + DLLs/so
 ├── models/      bge-m3.gguf (~600 MB)
 ├── config.yaml  daemon config (absolute model path)
-├── profiles/<name>/memgraph.db   one DB per profile
+├── profiles/<name>/graft.db   one DB per profile
 ├── sockets/     per-profile UNIX socket (Windows; POSIX uses /tmp)
-└── memgraphd.log
+└── graftd.log
 ```
 
 If the CLI errors with `connect failed: …` AND `auto-start failed: …`, the second line tells you why (binary missing, model missing, port conflict). Surface it verbatim to the user.
@@ -64,21 +64,21 @@ If the CLI errors with `connect failed: …` AND `auto-start failed: …`, the s
 A profile = its own DB + its own daemon. Default profile is `default` (auto-created, not removable).
 
 ```bash
-memgraph profile list                              # show all + active
-memgraph profile current                           # quick check
-memgraph profile add work                          # create new
-memgraph profile remove work                       # delete (asks confirmation; pass --yes to skip)
-memgraph profile export work --path work.mgprofile # backup (file is a valid SQLite DB)
-memgraph profile import --name work2 --file work.mgprofile [--force]
+graft profile list                              # show all + active
+graft profile current                           # quick check
+graft profile add work                          # create new
+graft profile remove work                       # delete (asks confirmation; pass --yes to skip)
+graft profile export work --path work.graftprofile # backup (file is a valid SQLite DB)
+graft profile import --name work2 --file work.graftprofile [--force]
 ```
 
-**Active profile resolution**: `$MEMGRAPH_PROFILE` env, else `default`. There is no global state file.
+**Active profile resolution**: `$GRAFT_PROFILE` env, else `default`. There is no global state file.
 
 To switch profile in the current shell:
 
 ```bash
-eval "$(memgraph profile set work)"        # bash/zsh/fish — auto-detects
-memgraph profile set work | iex            # PowerShell
+eval "$(graft profile set work)"        # bash/zsh/fish — auto-detects
+graft profile set work | iex            # PowerShell
 ```
 
 To make it persistent: copy the printed export line into your shell rc (`.bashrc`, `.zshrc`, `profile.ps1`).
@@ -86,23 +86,23 @@ To make it persistent: copy the printed export line into your shell rc (`.bashrc
 For one-off cross-profile operations:
 
 ```bash
-MEMGRAPH_PROFILE=work memgraph query "deployment workflow"
+GRAFT_PROFILE=work graft query "deployment workflow"
 ```
 
 ## CLI reference (advanced)
 
 | Goal                                  | Command                                                              |
 | ------------------------------------- | -------------------------------------------------------------------- |
-| Cache lookup with STRONG/WEAK/MISS    | `memgraph query "<text>"`                                            |
-| Top-k hybrid (lex + vec via RRF)      | `memgraph retrieve "<text>" --top-k 10`                              |
-| Graph walk from keywords              | `memgraph explore "<text>" --keyword foo --depth 3`                  |
-| Save knowledge                        | `memgraph insert --title S --body D --keyword K`                 |
-| Suggest keywords for a title        | `memgraph classify --title "<text>"`                               |
-| Fetch node by id                      | `memgraph get <hex_id>`                                              |
-| Delete node by id                     | `memgraph delete <hex_id>`                                           |
-| Distribution percentiles              | `memgraph stats`                                                     |
-| Usage report (hit-rate, est. saved)   | `memgraph analytics [--since 7d] [--seconds-per-hit 60]`             |
-| Profile management                    | `memgraph profile <list\|current\|add\|remove\|set\|export\|import>` |
+| Cache lookup with STRONG/WEAK/MISS    | `graft query "<text>"`                                            |
+| Top-k hybrid (lex + vec via RRF)      | `graft retrieve "<text>" --top-k 10`                              |
+| Graph walk from keywords              | `graft explore "<text>" --keyword foo --depth 3`                  |
+| Save knowledge                        | `graft insert --title S --body D --keyword K`                 |
+| Suggest keywords for a title        | `graft classify --title "<text>"`                               |
+| Fetch node by id                      | `graft get <hex_id>`                                              |
+| Delete node by id                     | `graft delete <hex_id>`                                           |
+| Distribution percentiles              | `graft stats`                                                     |
+| Usage report (hit-rate, est. saved)   | `graft analytics [--since 7d] [--seconds-per-hit 60]`             |
+| Profile management                    | `graft profile <list\|current\|add\|remove\|set\|export\|import>` |
 
 `insert` is idempotent: same `title+body+keywords` returns `"duplicate": true` with the existing id.
 
@@ -122,10 +122,10 @@ Exit codes: `0` ok, `1` transport/encode failure, `3` handler returned non-zero 
 | Symptom                                 | Cause                              | Action                                                                |
 | --------------------------------------- | ---------------------------------- | --------------------------------------------------------------------- |
 | `connect failed` + `auto-start failed`  | Binary/model missing               | Run `bash scripts/install.sh` or `pwsh scripts/install.ps1`.          |
-| `status: 5` (MG_ERR_EMBED)              | Model file unreadable              | Re-check `~/.lmemorygraph/models/bge-m3.gguf`.                        |
+| `status: 5` (MG_ERR_EMBED)              | Model file unreadable              | Re-check `~/.graft/models/bge-m3.gguf`.                        |
 | Empty `nodes` / `results`               | Graph empty for this query         | Don't fabricate — proceed and consider `/memoryze` of the solution.   |
 | `daemon spawned but socket not ready`   | Daemon crashed silently            | On Windows, MSYS2 DLLs may be missing — re-run install.sh.            |
-| `profile X is currently in use`         | Daemon for that profile is up      | `pkill memgraphd` (POSIX) / `Stop-Process memgraphd` (Win), then retry. |
+| `profile X is currently in use`         | Daemon for that profile is up      | `pkill graftd` (POSIX) / `Stop-Process graftd` (Win), then retry. |
 
 ## Save / search ground rules
 
@@ -162,15 +162,15 @@ If a `/recall` or a `get` surfaces a node whose content you can verify is **wron
 
 1. **Remove only** — the node is just noise, no replacement needed:
    ```bash
-   memgraph delete <hex_id>
+   graft delete <hex_id>
    ```
 
 2. **Modify (= delete + re-insert)** — the underlying knowledge is real but the saved node is broken:
    ```
-   1. fetch:    memgraph get <hex_id>
+   1. fetch:    graft get <hex_id>
    2. redesign: write new title / body / keywords
-   3. delete:   memgraph delete <hex_id>
-   4. re-save:  memgraph insert --title S --body D --keyword K1 --keyword K2 …
+   3. delete:   graft delete <hex_id>
+   4. re-save:  graft insert --title S --body D --keyword K1 --keyword K2 …
    ```
    The insert pipeline rebuilds embedding + edges automatically. Content-hash dedup means re-running the same insert is safe (returns the existing id).
 

@@ -1,9 +1,9 @@
 #ifndef MG_RETRIEVE_INTERNAL_H
 #define MG_RETRIEVE_INTERNAL_H
 
-#include "memgraph/ops.h"
-#include "memgraph/types.h"
-#include "memgraph/error.h"
+#include "graft/ops.h"
+#include "graft/types.h"
+#include "graft/error.h"
 #include "mpack.h"
 
 /* Hex helpers (lowercase). out buffer must hold 2*len + 1 bytes. */

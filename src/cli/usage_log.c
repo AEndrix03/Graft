@@ -1,12 +1,12 @@
-/* memgraph CLI — usage logging + analytics.
+/* graft CLI — usage logging + analytics.
  *
  * The CLI appends one JSON line per invocation to a usage log file so the
- * user (and `memgraph analytics`) can later answer: "is the graph actually
+ * user (and `graft analytics`) can later answer: "is the graph actually
  * paying off?" — i.e. is the cache hit rate high enough that we're saving
  * agent reasoning time, or are we just hoarding nodes that never get reused?
  *
- * Storage location: `$MEMGRAPH_USAGE_LOG`, else `$HOME/.memgraph/usage.jsonl`
- * (POSIX) or `%LOCALAPPDATA%\memgraph\usage.jsonl` (Windows). The file is
+ * Storage location: `$GRAFT_USAGE_LOG`, else `$HOME/.graft/usage.jsonl`
+ * (POSIX) or `%LOCALAPPDATA%\graft\usage.jsonl` (Windows). The file is
  * append-only newline-delimited JSON; aggregation streams it once.
  *
  * The aggregator does NOT depend on a JSON library: each line follows a
@@ -39,12 +39,12 @@
 /* ---- path resolution ---- */
 
 int mg_usage_log_path(char *out, size_t cap) {
-    const char *env = getenv("MEMGRAPH_USAGE_LOG");
+    const char *env = getenv("GRAFT_USAGE_LOG");
     if (env && *env) {
         if (snprintf(out, cap, "%s", env) >= (int)cap) return -1;
         return 0;
     }
-    const char *mh = getenv("MEMGRAPH_HOME");
+    const char *mh = getenv("GRAFT_HOME");
     char dir[1024];
     if (mh && *mh) {
         if (snprintf(dir, sizeof(dir), "%s", mh) >= (int)sizeof(dir)) return -1;
@@ -53,12 +53,12 @@ int mg_usage_log_path(char *out, size_t cap) {
         const char *base = getenv("USERPROFILE");
         if (!base || !*base) base = getenv("LOCALAPPDATA");
         if (!base || !*base) return -1;
-        if (snprintf(dir, sizeof(dir), "%s%c.lmemorygraph", base, MG_PATH_SEP)
+        if (snprintf(dir, sizeof(dir), "%s%c.graft", base, MG_PATH_SEP)
             >= (int)sizeof(dir)) return -1;
 #else
         const char *home = getenv("HOME");
         if (!home || !*home) return -1;
-        if (snprintf(dir, sizeof(dir), "%s/.lmemorygraph", home) >= (int)sizeof(dir))
+        if (snprintf(dir, sizeof(dir), "%s/.graft", home) >= (int)sizeof(dir))
             return -1;
 #endif
     }
@@ -229,7 +229,7 @@ int mg_usage_analytics(int argc, char **argv) {
     FILE *f = fopen(path, "rb");
     if (!f) {
         fputs("{\n  \"path\": ", stdout); write_quoted(stdout, path);
-        fputs(",\n  \"events\": 0,\n  \"note\": \"no log yet - run any memgraph command first\"\n}\n", stdout);
+        fputs(",\n  \"events\": 0,\n  \"note\": \"no log yet - run any graft command first\"\n}\n", stdout);
         return 0;
     }
 

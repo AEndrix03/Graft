@@ -1,8 +1,8 @@
-#ifndef MEMGRAPH_STORAGE_H
-#define MEMGRAPH_STORAGE_H
+#ifndef GRAFT_STORAGE_H
+#define GRAFT_STORAGE_H
 
-#include "memgraph/types.h"
-#include "memgraph/error.h"
+#include "graft/types.h"
+#include "graft/error.h"
 
 typedef struct mg_storage mg_storage_t;
 
@@ -123,7 +123,7 @@ mg_err_t mg_storage_node_keywords(
 
 /* === Merge another profile's DB into this one === */
 /* Imports nodes / keywords / edges from `source_path` (a SQLite file from
- * `memgraph profile export`) into the connected DB. Idempotent on
+ * `graft profile export`) into the connected DB. Idempotent on
  * content_hash: nodes already in the target are skipped (overwrite=0) or
  * replaced (overwrite=1). Keyword ids are remapped by text (keywords.text
  * is UNIQUE COLLATE NOCASE), so the source's auto-increment ids don't

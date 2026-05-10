@@ -1,11 +1,11 @@
-# Claude Code — memgraph hooks
+# Claude Code — graft hooks
 
-Three event hooks that move memgraph from "the agent should remember to use it" to "the harness guarantees it":
+Three event hooks that move graft from "the agent should remember to use it" to "the harness guarantees it":
 
 | Event              | Script                  | What it does                                                                                              |
 | ------------------ | ----------------------- | --------------------------------------------------------------------------------------------------------- |
-| `UserPromptSubmit` | `query_inject.js`       | Runs `memgraph query <prompt>`. STRONG/WEAK hits inject title (and body on STRONG). MISS injects only `<memgraph-cache hit="MISS"/>` — no fallback neighbors (see "MISS policy" below). Also surfaces any `<memgraph-proposal>` queued by the previous turn's Stop hook. |
-| `PostToolUse` (matcher `Edit\|Write\|MultiEdit\|NotebookEdit`) | `mark_candidate.js`     | Records the tool call + file path in `~/.claude/hooks/memgraph/state/<session>.candidates`. Silent. |
+| `UserPromptSubmit` | `query_inject.js`       | Runs `graft query <prompt>`. STRONG/WEAK hits inject title (and body on STRONG). MISS injects only `<graft-cache hit="MISS"/>` — no fallback neighbors (see "MISS policy" below). Also surfaces any `<graft-proposal>` queued by the previous turn's Stop hook. |
+| `PostToolUse` (matcher `Edit\|Write\|MultiEdit\|NotebookEdit`) | `mark_candidate.js`     | Records the tool call + file path in `~/.claude/hooks/graft/state/<session>.candidates`. Silent. |
 | `Stop`             | `propose_memoryze.js`   | If the session accumulated candidates, writes a compact `/memoryze` proposal to `<session>.proposal`. The next `UserPromptSubmit` surfaces it. Proposes, never auto-saves. |
 
 The scripts are pure Node, no external deps, BOM-tolerant, all silent on error (exit 0 always). Latency cap via per-hook timeouts.
@@ -14,8 +14,8 @@ The scripts are pure Node, no external deps, BOM-tolerant, all silent on error (
 
 ```bash
 # 1. Copy scripts to user-level hooks dir.
-mkdir -p ~/.claude/hooks/memgraph
-cp integrations/claude-code/hooks/memgraph/*.js ~/.claude/hooks/memgraph/
+mkdir -p ~/.claude/hooks/graft
+cp integrations/claude-code/hooks/graft/*.js ~/.claude/hooks/graft/
 
 # 2. Wire the hooks into ~/.claude/settings.json (merge with any existing
 #    hooks). Example block:
@@ -27,7 +27,7 @@ cp integrations/claude-code/hooks/memgraph/*.js ~/.claude/hooks/memgraph/
     "UserPromptSubmit": [
       {
         "hooks": [
-          { "type": "command", "command": "node \"$HOME/.claude/hooks/memgraph/query_inject.js\"", "timeout": 10 }
+          { "type": "command", "command": "node \"$HOME/.claude/hooks/graft/query_inject.js\"", "timeout": 10 }
         ]
       }
     ],
@@ -35,14 +35,14 @@ cp integrations/claude-code/hooks/memgraph/*.js ~/.claude/hooks/memgraph/
       {
         "matcher": "Edit|Write|MultiEdit|NotebookEdit",
         "hooks": [
-          { "type": "command", "command": "node \"$HOME/.claude/hooks/memgraph/mark_candidate.js\"", "timeout": 5 }
+          { "type": "command", "command": "node \"$HOME/.claude/hooks/graft/mark_candidate.js\"", "timeout": 5 }
         ]
       }
     ],
     "Stop": [
       {
         "hooks": [
-          { "type": "command", "command": "node \"$HOME/.claude/hooks/memgraph/propose_memoryze.js\"", "timeout": 5 }
+          { "type": "command", "command": "node \"$HOME/.claude/hooks/graft/propose_memoryze.js\"", "timeout": 5 }
         ]
       }
     ]
@@ -50,7 +50,7 @@ cp integrations/claude-code/hooks/memgraph/*.js ~/.claude/hooks/memgraph/
 }
 ```
 
-On Windows, replace `$HOME` with the absolute path: `C:/Users/<you>/.claude/hooks/memgraph/...`. The hooks need `node` and `memgraph` in the PATH visible to Claude Code at session start.
+On Windows, replace `$HOME` with the absolute path: `C:/Users/<you>/.claude/hooks/graft/...`. The hooks need `node` and `graft` in the PATH visible to Claude Code at session start.
 
 ## MISS policy
 
@@ -63,4 +63,4 @@ On a cache MISS, the hook **does not inject the `fallback_retrieve` neighbors**.
 
 ## State files
 
-`~/.claude/hooks/memgraph/state/` accumulates per-session `<session>.candidates` (JSONL) and `<session>.proposal` (text). The proposal is consumed and deleted on the next `UserPromptSubmit`. The candidates file is consumed and deleted by `Stop`. Stale files from crashed sessions are harmless but you can clean them periodically.
+`~/.claude/hooks/graft/state/` accumulates per-session `<session>.candidates` (JSONL) and `<session>.proposal` (text). The proposal is consumed and deleted on the next `UserPromptSubmit`. The candidates file is consumed and deleted by `Stop`. Stale files from crashed sessions are harmless but you can clean them periodically.

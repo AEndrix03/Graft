@@ -1,7 +1,7 @@
 #ifndef MG_DAEMON_INTERNAL_H
 #define MG_DAEMON_INTERNAL_H
 
-#include "memgraph/error.h"
+#include "graft/error.h"
 #include <stddef.h>
 
 /* Cross-platform AF_UNIX socket helpers shared by the daemon and the CLI. */

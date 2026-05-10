@@ -19,9 +19,9 @@
  */
 
 #include "internal.h"
-#include "memgraph/storage.h"
-#include "memgraph/types.h"
-#include "memgraph/error.h"
+#include "graft/storage.h"
+#include "graft/types.h"
+#include "graft/error.h"
 
 #include <string.h>
 

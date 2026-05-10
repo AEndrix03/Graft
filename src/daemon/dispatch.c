@@ -14,9 +14,9 @@
  * the result field is nil. Callers should always look at "status".
  */
 
-#include "memgraph/ops.h"
-#include "memgraph/wire.h"
-#include "memgraph/error.h"
+#include "graft/ops.h"
+#include "graft/wire.h"
+#include "graft/error.h"
 #include "mpack.h"
 
 #include <stdlib.h>

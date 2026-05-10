@@ -1,4 +1,4 @@
-#include "memgraph/verify.h"
+#include "graft/verify.h"
 
 #include <ctype.h>
 #include <stdint.h>
@@ -81,7 +81,7 @@ mg_err_t mg_verify_init(const mg_config_t *cfg, mg_verify_ctx_t **out) {
   if (ctx->cfg.cross_encoder_enabled) {
     ctx->ce_runtime_enabled = mg_ce_try_enable(ctx) == 0;
     if (!ctx->ce_runtime_enabled) {
-      fprintf(stderr, "memgraph: cross-encoder unavailable; continuing with CE disabled\n");
+      fprintf(stderr, "graft: cross-encoder unavailable; continuing with CE disabled\n");
     }
   }
 

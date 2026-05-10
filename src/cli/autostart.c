@@ -1,14 +1,14 @@
-/* memgraph CLI — daemon auto-start.
+/* graft CLI — daemon auto-start.
  *
- * If a connect attempt fails (daemon not running), spawn memgraphd next
+ * If a connect attempt fails (daemon not running), spawn graftd next
  * to the CLI binary as a detached process and poll the socket until it's
  * ready, with a hard deadline. The first command of a session pays this
  * cost (~1-2s on a warm OS, more on first model load); later commands hit
  * the already-running daemon.
  *
  * Resolution order:
- *   - daemon binary: <dir-of-cli>/memgraphd[.exe]
- *   - config file:   $MEMGRAPH_CONFIG, then <cwd>/config.yaml,
+ *   - daemon binary: <dir-of-cli>/graftd[.exe]
+ *   - config file:   $GRAFT_CONFIG, then <cwd>/config.yaml,
  *                    then <cwd>/config.example.yaml,
  *                    then <dir-of-cli>/../config.example.yaml
  *
@@ -23,7 +23,7 @@
 
 #include "autostart.h"
 
-#include "memgraph/error.h"
+#include "graft/error.h"
 #include "../daemon/internal.h"
 
 #include <stdio.h>
@@ -97,14 +97,14 @@ static int mg_file_exists(const char *path) {
 /* ----- config resolution ----- */
 
 static int mg_resolve_config(const char *cli_dir, char *out, size_t cap) {
-    const char *env = getenv("MEMGRAPH_CONFIG");
+    const char *env = getenv("GRAFT_CONFIG");
     if (env && *env && mg_file_exists(env)) {
         if (snprintf(out, cap, "%s", env) >= (int)cap) return -1;
         return 0;
     }
-    /* When the user runs `memgraph` from anywhere on the PATH after a
-     * regular install, the config lives at $MEMGRAPH_HOME/config.yaml. */
-    const char *mh = getenv("MEMGRAPH_HOME");
+    /* When the user runs `graft` from anywhere on the PATH after a
+     * regular install, the config lives at $GRAFT_HOME/config.yaml. */
+    const char *mh = getenv("GRAFT_HOME");
     char buf[1024];
     if (mh && *mh) {
         if (snprintf(buf, sizeof(buf), "%s%cconfig.yaml", mh, MG_PATH_SEP)
@@ -113,7 +113,7 @@ static int mg_resolve_config(const char *cli_dir, char *out, size_t cap) {
             return 0;
         }
     } else {
-        /* Same default that profile.c uses for MEMGRAPH_HOME. */
+        /* Same default that profile.c uses for GRAFT_HOME. */
 #ifdef _WIN32
         const char *base = getenv("USERPROFILE");
         if (!base || !*base) base = getenv("LOCALAPPDATA");
@@ -123,9 +123,9 @@ static int mg_resolve_config(const char *cli_dir, char *out, size_t cap) {
         if (base && *base) {
             if (snprintf(buf, sizeof(buf),
 #ifdef _WIN32
-                         "%s\\.lmemorygraph\\config.yaml",
+                         "%s\\.graft\\config.yaml",
 #else
-                         "%s/.lmemorygraph/config.yaml",
+                         "%s/.graft/config.yaml",
 #endif
                          base) < (int)sizeof(buf) && mg_file_exists(buf)) {
                 if (snprintf(out, cap, "%s", buf) >= (int)cap) return -1;
@@ -162,7 +162,7 @@ static int mg_spawn_daemon(const char *daemon_path,
                            const char *config_path,
                            char *err, size_t err_cap) {
     /* Augment PATH with third_party/llama.cpp/build/bin (relative to cli_dir's
-     * parent). The exe layout is <repo>/build/memgraph.exe, so llama.cpp dlls
+     * parent). The exe layout is <repo>/build/graft.exe, so llama.cpp dlls
      * live at <repo>/third_party/llama.cpp/build/bin. */
     char llama_bin[1024];
     snprintf(llama_bin, sizeof(llama_bin),
@@ -243,7 +243,7 @@ static int mg_spawn_daemon(const char *daemon_path,
         if (pid2 > 0) _exit(0);
         /* grandchild: redirect std fds to a log file */
         char log_path[1024];
-        snprintf(log_path, sizeof(log_path), "%s/memgraphd.log", cli_dir);
+        snprintf(log_path, sizeof(log_path), "%s/graftd.log", cli_dir);
         int devnull = open("/dev/null", O_RDONLY);
         int log_fd  = open(log_path, O_CREAT | O_WRONLY | O_APPEND, 0644);
         if (devnull >= 0) { dup2(devnull, 0); close(devnull); }
@@ -286,13 +286,13 @@ mg_err_t mg_autostart_daemon(const char *socket_path, char *err, size_t err_cap)
     }
     char daemon_path[1024];
     if (mg_path_join(daemon_path, sizeof(daemon_path), cli_dir,
-                     "memgraphd" MG_EXE_SUFFIX) != 0) {
+                     "graftd" MG_EXE_SUFFIX) != 0) {
         if (err) snprintf(err, err_cap, "daemon path build failed");
         return MG_ERR_IO;
     }
     if (!mg_file_exists(daemon_path)) {
         if (err) snprintf(err, err_cap,
-                          "memgraphd not found at %s — run cmake --build build",
+                          "graftd not found at %s — run cmake --build build",
                           daemon_path);
         return MG_ERR_IO;
     }
@@ -300,7 +300,7 @@ mg_err_t mg_autostart_daemon(const char *socket_path, char *err, size_t err_cap)
     char config_path[1024];
     if (mg_resolve_config(cli_dir, config_path, sizeof(config_path)) != 0) {
         if (err) snprintf(err, err_cap,
-                          "config not found ($MEMGRAPH_CONFIG, ./config.yaml, "
+                          "config not found ($GRAFT_CONFIG, ./config.yaml, "
                           "./config.example.yaml, %s/../config.example.yaml)",
                           cli_dir);
         return MG_ERR_IO;

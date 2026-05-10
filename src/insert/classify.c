@@ -1,4 +1,4 @@
-#include "memgraph/ops.h"
+#include "graft/ops.h"
 
 #include <stdint.h>
 #include <stdlib.h>

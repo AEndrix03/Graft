@@ -1,4 +1,4 @@
-/* memgraphd — long-running daemon listening on an AF_UNIX socket.
+/* graftd — long-running daemon listening on an AF_UNIX socket.
  *
  * Wiring:
  *   parse argv -> config_load -> storage_open + apply_schema
@@ -16,14 +16,14 @@
  * read EOF when their fd is closed at shutdown.
  */
 
-#include "memgraph/ops.h"
-#include "memgraph/wire.h"
-#include "memgraph/storage.h"
-#include "memgraph/embed.h"
-#include "memgraph/verify.h"
-#include "memgraph/config.h"
-#include "memgraph/error.h"
-#include "memgraph/http.h"
+#include "graft/ops.h"
+#include "graft/wire.h"
+#include "graft/storage.h"
+#include "graft/embed.h"
+#include "graft/verify.h"
+#include "graft/config.h"
+#include "graft/error.h"
+#include "graft/http.h"
 #include "internal.h"
 
 #include <pthread.h>
@@ -50,12 +50,12 @@
  * point the daemon at a per-profile DB / socket without rewriting the
  * config file. */
 static void apply_env_overrides(mg_config_t *cfg) {
-    const char *e = getenv("MEMGRAPH_SOCKET");
+    const char *e = getenv("GRAFT_SOCKET");
     if (e && *e) {
         free(cfg->socket_path);
         cfg->socket_path = strdup(e);
     }
-    e = getenv("MEMGRAPH_DB_PATH");
+    e = getenv("GRAFT_DB_PATH");
     if (e && *e) {
         free(cfg->db_path);
         cfg->db_path = strdup(e);
@@ -63,7 +63,7 @@ static void apply_env_overrides(mg_config_t *cfg) {
 }
 
 /* Ensure the parent directory of db_path exists so SQLite can create the
- * file on first start (relevant for per-profile DBs under MEMGRAPH_HOME). */
+ * file on first start (relevant for per-profile DBs under GRAFT_HOME). */
 static void ensure_parent_dir(const char *path) {
     if (!path) return;
     char buf[1024];
@@ -143,7 +143,7 @@ int main(int argc, char **argv) {
             /* default; flag accepted for forward-compat */
         } else if (!strcmp(argv[i], "--help") || !strcmp(argv[i], "-h")) {
             fprintf(stderr,
-                "usage: memgraphd [--config PATH] [--foreground]\n");
+                "usage: graftd [--config PATH] [--foreground]\n");
             return 0;
         } else {
             fprintf(stderr, "unknown flag: %s\n", argv[i]);
@@ -203,7 +203,7 @@ int main(int argc, char **argv) {
         fprintf(stderr, "socket listen failed on %s\n", cfg.socket_path);
         goto cleanup;
     }
-    fprintf(stderr, "memgraphd: listening on %s\n", cfg.socket_path);
+    fprintf(stderr, "graftd: listening on %s\n", cfg.socket_path);
 
     /* Optional HTTP layer — off by default. */
     if (mg_http_start(&ctx, &g_http_srv) != MG_OK) {
@@ -229,7 +229,7 @@ int main(int argc, char **argv) {
         pthread_detach(th);
     }
 
-    fprintf(stderr, "memgraphd: shutting down\n");
+    fprintf(stderr, "graftd: shutting down\n");
     if (g_http_srv) {
         mg_http_stop(g_http_srv);
         g_http_srv = NULL;

@@ -1,6 +1,6 @@
 #!/usr/bin/env pwsh
-# Avvia memgraphd se non è già in esecuzione.
-# Uso: .\scripts\memgraphd-start.ps1 [-Config <path>]
+# Avvia graftd se non è già in esecuzione.
+# Uso: .\scripts\graftd-start.ps1 [-Config <path>]
 
 param(
     [string]$Config = "$PSScriptRoot\..\config.example.yaml"
@@ -9,18 +9,18 @@ param(
 $ErrorActionPreference = "Stop"
 
 $root = Resolve-Path "$PSScriptRoot\.."
-$daemon = Join-Path $root "build\memgraphd.exe"
+$daemon = Join-Path $root "build\graftd.exe"
 $llamaBin = Join-Path $root "third_party\llama.cpp\build\bin"
-$logOut = Join-Path $root "memgraphd.out.log"
-$logErr = Join-Path $root "memgraphd.err.log"
+$logOut = Join-Path $root "graftd.out.log"
+$logErr = Join-Path $root "graftd.err.log"
 
-if (Get-Process -Name memgraphd -ErrorAction SilentlyContinue) {
+if (Get-Process -Name graftd -ErrorAction SilentlyContinue) {
     Write-Output "Already running."
     exit 0
 }
 
 if (-not (Test-Path $daemon)) {
-    Write-Error "memgraphd.exe non trovato in $daemon. Esegui prima: cmake --build build"
+    Write-Error "graftd.exe non trovato in $daemon. Esegui prima: cmake --build build"
     exit 1
 }
 
@@ -34,7 +34,7 @@ $proc = Start-Process -FilePath $daemon `
 
 Start-Sleep -Milliseconds 500
 if ($proc.HasExited) {
-    Write-Error "memgraphd è uscito subito. Controlla $logErr"
+    Write-Error "graftd è uscito subito. Controlla $logErr"
     exit 1
 }
 
@@ -46,7 +46,7 @@ while ((Get-Date) -lt $deadline) {
         exit 0
     }
     if ($proc.HasExited) {
-        Write-Error "memgraphd è uscito durante l'avvio. Controlla $logErr"
+        Write-Error "graftd è uscito durante l'avvio. Controlla $logErr"
         exit 1
     }
     Start-Sleep -Milliseconds 300

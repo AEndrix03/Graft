@@ -106,7 +106,7 @@ mg_err_t mg_http_send_response(int fd, const mg_http_response_t *resp) {
                "Content-Type: %s\r\n"
                "Content-Length: %zu\r\n"
                "Connection: close\r\n"
-               "Server: memgraphd\r\n",
+               "Server: graftd\r\n",
                resp->status, reason_phrase(resp->status),
                ct, resp->body_len);
   if (n < 0 || (size_t)n >= sizeof(head)) return MG_ERR_INTERNAL;
