@@ -88,6 +88,19 @@ It is not a vector database, a RAG framework, or a chatbot platform. It is the s
 
 ## Install
 
+### Homebrew (macOS / Linux)
+
+```bash
+brew tap AEndrix03/graft https://github.com/AEndrix03/Graft.git
+brew install graft
+graft stats
+```
+
+The formula builds `graft` and `graftd` from source, installs the pinned BGE-M3
+model resource, and keeps user profiles under `~/.graft`. For unreleased
+development builds use `brew install --HEAD graft` or `brew reinstall --HEAD graft`.
+See [docs/Homebrew.md](./docs/Homebrew.md) for tap maintenance and release checks.
+
 ### One-shot
 
 ```bash

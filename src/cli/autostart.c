@@ -44,6 +44,9 @@
 #  include <fcntl.h>
 #  include <time.h>
 #  include <errno.h>
+#  ifdef __APPLE__
+#    include <mach-o/dyld.h>
+#  endif
 #  define MG_PATH_SEP    '/'
 #  define MG_PATH_LIST_SEP ':'
 #  define MG_EXE_SUFFIX  ""
@@ -59,14 +62,19 @@ static int mg_own_exe_dir(char *out, size_t cap) {
     char buf[MAX_PATH];
     DWORD n = GetModuleFileNameA(NULL, buf, sizeof(buf));
     if (n == 0 || n >= sizeof(buf)) return -1;
+#elif defined(__APPLE__)
+    char buf[4096];
+    char raw[4096];
+    uint32_t raw_len = (uint32_t)sizeof(raw);
+    if (_NSGetExecutablePath(raw, &raw_len) != 0) return -1;
+    char resolved[4096];
+    const char *path = realpath(raw, resolved);
+    const char *src = path ? path : raw;
+    if (snprintf(buf, sizeof(buf), "%s", src) >= (int)sizeof(buf)) return -1;
 #else
     char buf[4096];
     ssize_t n = readlink("/proc/self/exe", buf, sizeof(buf) - 1);
-    if (n <= 0) {
-        /* macOS / others: fallback to argv-less probe via _NSGetExecutablePath
-         * is omitted here for simplicity; main passes argv[0] as a hint. */
-        return -1;
-    }
+    if (n <= 0) return -1;
     buf[n] = '\0';
 #endif
     /* strip last component */
