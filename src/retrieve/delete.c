@@ -29,6 +29,7 @@ mg_err_t mg_op_delete(mg_ctx_t *ctx, mpack_node_t args, mpack_writer_t *result) 
     if (!ctx || !ctx->storage || !result) return MG_ERR_INVALID_ARG;
 
     mpack_node_t id_node = mpack_node_map_cstr(args, "id_hex");
+    if (mpack_node_type(id_node) != mpack_type_str) return MG_ERR_INVALID_ARG;
     const char *hex_ptr  = mpack_node_str(id_node);
     size_t      hex_len  = mpack_node_strlen(id_node);
     if (!hex_ptr || hex_len != 2 * MG_NODE_ID_BYTES) return MG_ERR_INVALID_ARG;

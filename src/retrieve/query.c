@@ -103,6 +103,10 @@ mg_err_t mg_op_query(mg_ctx_t *ctx, mpack_node_t args, mpack_writer_t *result) {
     bool signals_only = false;
     mpack_node_t so_node = mpack_node_map_cstr_optional(args, "signals_only");
     if (!mpack_node_is_missing(so_node) && !mpack_node_is_nil(so_node)) {
+        if (mpack_node_type(so_node) != mpack_type_bool) {
+            free(text);
+            return MG_ERR_INVALID_ARG;
+        }
         signals_only = mpack_node_bool(so_node);
     }
 

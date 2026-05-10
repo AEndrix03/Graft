@@ -897,7 +897,7 @@ mg_err_t mg_storage_node_keywords(mg_storage_t *s,
                                   const mg_node_id_t node_id,
                                   mg_keyword_id_t *out_ids,
                                   int max_out, int *out_count) {
-  if (!s || !out_ids || !out_count || max_out <= 0) return MG_ERR_INVALID_ARG;
+  if (!s || !node_id || !out_ids || !out_count || max_out <= 0) return MG_ERR_INVALID_ARG;
 
   sqlite3_stmt *stmt = NULL;
   mg_err_t err = prepare(s->db,

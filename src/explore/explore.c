@@ -230,6 +230,10 @@ mg_err_t mg_op_explore(mg_ctx_t *ctx, mpack_node_t args, mpack_writer_t *result)
 
     mpack_node_t kws_node = mpack_node_map_cstr_optional(args, "keywords");
     if (!mpack_node_is_missing(kws_node) && !mpack_node_is_nil(kws_node)) {
+        if (mpack_node_type(kws_node) != mpack_type_array) {
+            free(text);
+            return MG_ERR_INVALID_ARG;
+        }
         size_t arr_n = mpack_node_array_length(kws_node);
         for (size_t i = 0;
              i < arr_n && n_kw_filter < MG_EXPLORE_MAX_KW_FILTER; i++) {

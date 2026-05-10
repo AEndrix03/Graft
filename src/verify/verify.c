@@ -41,11 +41,15 @@ static mg_err_t mg_verify_copy_config(const mg_config_t *src, mg_config_t *dst) 
   dst->db_path = mg_verify_strdup(src->db_path);
   dst->embed_model_path = mg_verify_strdup(src->embed_model_path);
   dst->cross_encoder_model_path = mg_verify_strdup(src->cross_encoder_model_path);
+  dst->http_bind = mg_verify_strdup(src->http_bind);
+  dst->http_viewer_path = mg_verify_strdup(src->http_viewer_path);
 
   if ((src->socket_path && !dst->socket_path) ||
       (src->db_path && !dst->db_path) ||
       (src->embed_model_path && !dst->embed_model_path) ||
-      (src->cross_encoder_model_path && !dst->cross_encoder_model_path)) {
+      (src->cross_encoder_model_path && !dst->cross_encoder_model_path) ||
+      (src->http_bind && !dst->http_bind) ||
+      (src->http_viewer_path && !dst->http_viewer_path)) {
     mg_config_free(dst);
     return MG_ERR_OOM;
   }
