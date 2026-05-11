@@ -129,6 +129,7 @@ add_executable(graft
   src/cli/usage_log.c
   src/cli/profile.c
   src/cli/setup.c
+  src/cli/view.c
 )
 target_link_libraries(graft graft_core)
 

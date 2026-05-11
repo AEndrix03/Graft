@@ -421,6 +421,32 @@ awk -v model="$MODEL_ABS" '
 ' config.yaml > "$INSTALL_CONFIG"
 ok "installed binaries, model and config under $INSTALL_DIR"
 
+# ---------- viewer source ----------
+# Copy the 3D viewer source (sans node_modules / dist) so `graft view` can
+# auto-build it on first run without needing the user to clone this repo.
+if [ -d viewer ] && [ -f viewer/package.json ]; then
+  INSTALL_VIEWER="$INSTALL_DIR/viewer"
+  mkdir -p "$INSTALL_VIEWER"
+  if command -v rsync >/dev/null 2>&1; then
+    rsync -a --delete \
+      --exclude node_modules --exclude dist \
+      viewer/ "$INSTALL_VIEWER/"
+  else
+    rm -rf "$INSTALL_VIEWER"
+    mkdir -p "$INSTALL_VIEWER"
+    (
+      cd viewer
+      find . -mindepth 1 \
+        \( -path ./node_modules -prune -o -path ./dist -prune \) -o -print \
+        | while read -r f; do
+            dst="$INSTALL_VIEWER/${f#./}"
+            if [ -d "$f" ]; then mkdir -p "$dst"; else cp "$f" "$dst"; fi
+          done
+    )
+  fi
+  ok "installed viewer source under $INSTALL_VIEWER (built lazily by graft view)"
+fi
+
 # ---------- PATH ----------
 
 step "Adding ~/.graft/bin to your PATH…"

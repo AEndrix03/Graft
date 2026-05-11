@@ -24,6 +24,7 @@
 #include "usage_log.h"
 #include "profile.h"
 #include "setup.h"
+#include "view.h"
 
 #ifdef _WIN32
 #  define mg_setenv(k, v) _putenv_s((k), (v))
@@ -451,31 +452,9 @@ int main(int argc, char **argv) {
     if (!strcmp(cmd, "setup")) {
         return mg_setup_cmd(argc, argv);
     }
-    /* `view` opens the browser at the daemon's HTTP layer. The HTTP layer
-     * has to be enabled in config.yaml — we don't reach into the config
-     * here, just print a helpful note alongside the URL. */
-    if (!strcmp(cmd, "view")) {
-        int port = 9977;
-        for (int i = 2; i < argc; i++) {
-            if (!strcmp(argv[i], "--port") && i + 1 < argc) port = atoi(argv[++i]);
-        }
-        char url[128];
-        snprintf(url, sizeof(url), "http://127.0.0.1:%d/", port);
-        fprintf(stderr, "Opening %s — requires `http.enabled: true` in config.yaml.\n", url);
-#ifdef _WIN32
-        char cmdline[256];
-        snprintf(cmdline, sizeof(cmdline), "start \"\" \"%s\"", url);
-        return system(cmdline);
-#elif defined(__APPLE__)
-        char cmdline[256];
-        snprintf(cmdline, sizeof(cmdline), "open '%s'", url);
-        return system(cmdline);
-#else
-        char cmdline[256];
-        snprintf(cmdline, sizeof(cmdline), "xdg-open '%s'", url);
-        return system(cmdline);
-#endif
-    }
+    /* `view` opens the browser at the daemon's HTTP layer, auto-building
+     * the viewer SPA (npm install + npm run build) on first run. */
+    if (!strcmp(cmd, "view")) return mg_view_cmd(argc, argv);
 
     /* For everything else, lock socket and DB path to the active profile so
      * each profile gets its own daemon, isolated from the others. */
