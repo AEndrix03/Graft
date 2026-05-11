@@ -8,7 +8,7 @@ embedding:
   ctx_size: 8192
 
 verification:
-  cross_encoder_enabled: false # MVP: false. Accendi in v2 con il modello reranker.
+  cross_encoder_enabled: false # Optional: true enables the GGUF reranker below.
   cross_encoder_model_path: "./models/bge-reranker-v2-m3.gguf"
   nli_enabled: false
 

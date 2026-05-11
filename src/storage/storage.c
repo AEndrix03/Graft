@@ -811,6 +811,130 @@ mg_err_t mg_storage_count(mg_storage_t *s, int kind, int64_t *out) {
   return MG_ERR_STORAGE;
 }
 
+static mg_err_t scalar_i64(mg_storage_t *s, const char *sql, int64_t *out) {
+  sqlite3_stmt *stmt = NULL;
+  int rc;
+  if (!s || !sql || !out) {
+    return MG_ERR_INVALID_ARG;
+  }
+  *out = 0;
+  if (prepare(s->db, sql, &stmt) != MG_OK) {
+    return MG_ERR_STORAGE;
+  }
+  rc = sqlite3_step(stmt);
+  if (rc == SQLITE_ROW) {
+    *out = (int64_t)sqlite3_column_int64(stmt, 0);
+    sqlite3_finalize(stmt);
+    return MG_OK;
+  }
+  sqlite3_finalize(stmt);
+  return rc == SQLITE_DONE ? MG_OK : MG_ERR_STORAGE;
+}
+
+static mg_err_t exec_count_changes(mg_storage_t *s, const char *sql, int64_t *out_changes) {
+  mg_err_t err;
+  if (!s || !sql || !out_changes) {
+    return MG_ERR_INVALID_ARG;
+  }
+  *out_changes = 0;
+  err = exec_sql(s->db, sql);
+  if (err != MG_OK) {
+    return err;
+  }
+  *out_changes = (int64_t)sqlite3_changes(s->db);
+  return MG_OK;
+}
+
+mg_err_t mg_storage_consolidate(mg_storage_t *s, mg_storage_consolidate_report_t *out) {
+  mg_err_t err;
+
+  if (!s || !out) {
+    return MG_ERR_INVALID_ARG;
+  }
+  memset(out, 0, sizeof(*out));
+
+  err = mg_storage_prune_expired(s, &out->expired_deleted);
+  if (err != MG_OK) {
+    return err;
+  }
+
+  err = exec_sql(s->db, "BEGIN IMMEDIATE;");
+  if (err != MG_OK) {
+    return err;
+  }
+
+  err = exec_count_changes(s,
+    "DELETE FROM node_keywords "
+    "WHERE NOT EXISTS (SELECT 1 FROM nodes WHERE id = node_keywords.node_id) "
+    "   OR NOT EXISTS (SELECT 1 FROM keywords WHERE id = node_keywords.keyword_id);",
+    &out->orphan_node_keywords_deleted);
+  if (err != MG_OK) goto rollback;
+
+  err = exec_count_changes(s,
+    "DELETE FROM edges "
+    "WHERE NOT EXISTS (SELECT 1 FROM nodes WHERE id = edges.src) "
+    "   OR NOT EXISTS (SELECT 1 FROM nodes WHERE id = edges.dst) "
+    "   OR (keyword_id IS NOT NULL AND NOT EXISTS "
+    "       (SELECT 1 FROM keywords WHERE id = edges.keyword_id));",
+    &out->orphan_edges_deleted);
+  if (err != MG_OK) goto rollback;
+
+  err = exec_count_changes(s,
+    "DELETE FROM edges "
+    "WHERE rowid NOT IN ("
+    "  SELECT MIN(rowid) FROM edges "
+    "  GROUP BY src, dst, kind, COALESCE(keyword_id, -1)"
+    ");",
+    &out->duplicate_edges_deleted);
+  if (err != MG_OK) goto rollback;
+
+  err = exec_count_changes(s,
+    "DELETE FROM edges WHERE weight IS NULL OR weight <= 0.0;",
+    &out->invalid_edges_deleted);
+  if (err != MG_OK) goto rollback;
+
+  err = exec_sql(s->db, "COMMIT;");
+  if (err != MG_OK) {
+    return err;
+  }
+
+  (void)exec_sql(s->db, "ANALYZE;");
+  (void)exec_sql(s->db, "PRAGMA optimize;");
+
+  (void)mg_storage_count(s, MG_STORAGE_COUNT_NODES, &out->n_nodes);
+  (void)mg_storage_count(s, MG_STORAGE_COUNT_EDGES, &out->n_edges);
+  (void)mg_storage_count(s, MG_STORAGE_COUNT_KEYWORDS, &out->n_keywords);
+
+  (void)scalar_i64(s,
+    "SELECT COUNT(*) FROM nodes n "
+    "WHERE n.state != 2 "
+    "  AND NOT EXISTS (SELECT 1 FROM edges e WHERE e.src = n.id OR e.dst = n.id) "
+    "  AND NOT EXISTS (SELECT 1 FROM node_keywords nk WHERE nk.node_id = n.id);",
+    &out->isolated_nodes);
+
+  (void)scalar_i64(s,
+    "SELECT COUNT(*) FROM edges e "
+    "WHERE e.kind IN (0,1) "
+    "  AND e.src < e.dst "
+    "  AND EXISTS ("
+    "    SELECT 1 FROM edges r "
+    "    WHERE r.src = e.dst AND r.dst = e.src "
+    "      AND r.kind = e.kind "
+    "      AND COALESCE(r.keyword_id, -1) = COALESCE(e.keyword_id, -1)"
+    "  );",
+    &out->physical_bidirectional_pairs);
+
+  (void)scalar_i64(s,
+    "SELECT COUNT(*) FROM edges WHERE kind = 2;",
+    &out->contradictions_found);
+
+  return MG_OK;
+
+rollback:
+  (void)exec_sql(s->db, "ROLLBACK;");
+  return err;
+}
+
 mg_err_t mg_storage_delete_node(mg_storage_t *s, const mg_node_id_t id) {
   if (!s || !id) return MG_ERR_INVALID_ARG;
 

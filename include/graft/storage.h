@@ -6,6 +6,20 @@
 
 typedef struct mg_storage mg_storage_t;
 
+typedef struct {
+  int64_t n_nodes;
+  int64_t n_edges;
+  int64_t n_keywords;
+  int64_t expired_deleted;
+  int64_t duplicate_edges_deleted;
+  int64_t orphan_edges_deleted;
+  int64_t orphan_node_keywords_deleted;
+  int64_t invalid_edges_deleted;
+  int64_t isolated_nodes;
+  int64_t physical_bidirectional_pairs;
+  int64_t contradictions_found;
+} mg_storage_consolidate_report_t;
+
 mg_err_t mg_storage_open(const char *db_path, mg_storage_t **out);
 void     mg_storage_close(mg_storage_t *s);
 
@@ -114,6 +128,13 @@ mg_err_t mg_storage_get_embedding(mg_storage_t *s, const mg_node_id_t id, mg_emb
 #define MG_STORAGE_COUNT_EDGES    1
 #define MG_STORAGE_COUNT_KEYWORDS 2
 mg_err_t mg_storage_count(mg_storage_t *s, int kind, int64_t *out);
+
+/* Safe maintenance pass for consolidate:
+ * - prunes expired nodes,
+ * - removes legacy orphan/duplicate/invalid graph rows,
+ * - refreshes SQLite planner statistics,
+ * - reports graph-health signals without merging content destructively. */
+mg_err_t mg_storage_consolidate(mg_storage_t *s, mg_storage_consolidate_report_t *out);
 
 /* === Per-node keyword ownership === */
 /* Reads the node_keywords link table directly (NOT the graph edges).

@@ -2,6 +2,7 @@
 #include "graft/verify.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 
 static int expect_int(int cond, const char *msg) {
   if (!cond) {
@@ -37,6 +38,21 @@ int main(void) {
     failures += expect_int(mg_verify_score(ctx, "alpha beta", "delta gamma", 0.5f, 0.01f, &sig) == MG_OK,
                            "none score call");
     failures += expect_int(sig.hit_level == MG_HIT_NONE, "none gate");
+  }
+
+  mg_verify_shutdown(ctx);
+  ctx = NULL;
+
+  cfg.cross_encoder_enabled = true;
+  free(cfg.cross_encoder_model_path);
+  cfg.cross_encoder_model_path = NULL;
+  failures += expect_int(mg_verify_init(&cfg, &ctx) == MG_OK,
+                         "verify init with unavailable ce");
+  if (ctx) {
+    failures += expect_int(mg_verify_score(ctx, "alpha beta", "alpha beta", 0.75f, 0.2f, &sig) == MG_OK,
+                           "score call with unavailable ce");
+    failures += expect_int(sig.hit_level == MG_HIT_STRONG, "fallback gate with unavailable ce");
+    failures += expect_int(sig.s_ce < 0.0f, "unavailable ce leaves signal disabled");
   }
 
   mg_verify_shutdown(ctx);

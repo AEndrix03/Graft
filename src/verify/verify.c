@@ -1,19 +1,10 @@
-#include "graft/verify.h"
+#include "graft/verify_internal.h"
 
 #include <ctype.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-struct mg_verify_ctx {
-  mg_config_t cfg;
-  bool ce_runtime_enabled;
-};
-
-int mg_ce_try_enable(mg_verify_ctx_t *ctx);
-int mg_ce_score_pair(mg_verify_ctx_t *ctx, const char *query, const char *candidate, float *out);
-void mg_ce_shutdown(mg_verify_ctx_t *ctx);
 
 static char *mg_verify_strdup(const char *s) {
   size_t len;

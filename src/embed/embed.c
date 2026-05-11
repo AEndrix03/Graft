@@ -1,5 +1,6 @@
 /* requires llama built */
 #include "graft/embed.h"
+#include "graft/llama_backend.h"
 
 #include <limits.h>
 #include <math.h>
@@ -60,36 +61,6 @@ struct mg_embed_ctx {
   int                   n_ctx;
 };
 
-static mg_mutex_t g_backend_lock = MG_MUTEX_INITIALIZER;
-static int g_backend_refs = 0;
-
-static mg_err_t mg_backend_acquire(void) {
-  if (mg_mutex_lock(&g_backend_lock) != 0) {
-    return MG_ERR_INTERNAL;
-  }
-  if (g_backend_refs == 0) {
-    llama_backend_init();
-  }
-  g_backend_refs++;
-  if (mg_mutex_unlock(&g_backend_lock) != 0) {
-    return MG_ERR_INTERNAL;
-  }
-  return MG_OK;
-}
-
-static void mg_backend_release(void) {
-  if (mg_mutex_lock(&g_backend_lock) != 0) {
-    return;
-  }
-  if (g_backend_refs > 0) {
-    g_backend_refs--;
-    if (g_backend_refs == 0) {
-      llama_backend_free();
-    }
-  }
-  (void)mg_mutex_unlock(&g_backend_lock);
-}
-
 static void mg_embed_ctx_free_partial(mg_embed_ctx_t *ctx, int lock_initialized) {
   if (!ctx) {
     return;
@@ -143,7 +114,7 @@ mg_err_t mg_embed_init(const char *model_path, int threads, int ctx_size,
 
   *out = NULL;
 
-  err = mg_backend_acquire();
+  err = mg_llama_backend_acquire();
   if (err != MG_OK) {
     return err;
   }
@@ -170,7 +141,7 @@ mg_err_t mg_embed_init(const char *model_path, int threads, int ctx_size,
               "embed: hardware_accel=true but no GPU/accelerator device is "
               "available. Rebuild llama.cpp with -DGGML_CUDA=ON (NVIDIA) or "
               "-DGGML_HIP=ON (ROCm 6/7), or set hardware_accel: false.\n");
-      mg_backend_release();
+      mg_llama_backend_release();
       return MG_ERR_CONFIG;
     }
     fprintf(stderr, "embed: hardware_accel=true, using device '%s'\n",
@@ -179,13 +150,13 @@ mg_err_t mg_embed_init(const char *model_path, int threads, int ctx_size,
 
   ctx = (mg_embed_ctx_t *)calloc(1, sizeof(*ctx));
   if (!ctx) {
-    mg_backend_release();
+    mg_llama_backend_release();
     return MG_ERR_OOM;
   }
 
   if (mg_mutex_init(&ctx->lock) != 0) {
     free(ctx);
-    mg_backend_release();
+    mg_llama_backend_release();
     return MG_ERR_INTERNAL;
   }
 
@@ -197,7 +168,7 @@ mg_err_t mg_embed_init(const char *model_path, int threads, int ctx_size,
   ctx->model = llama_model_load_from_file(model_path, model_params);
   if (!ctx->model) {
     mg_embed_ctx_free_partial(ctx, 1);
-    mg_backend_release();
+    mg_llama_backend_release();
     return MG_ERR_EMBED;
   }
 
@@ -207,7 +178,7 @@ mg_err_t mg_embed_init(const char *model_path, int threads, int ctx_size,
   }
   if (n_embd != MG_EMBEDDING_DIM) {
     mg_embed_ctx_free_partial(ctx, 1);
-    mg_backend_release();
+    mg_llama_backend_release();
     return MG_ERR_EMBED;
   }
 
@@ -224,7 +195,7 @@ mg_err_t mg_embed_init(const char *model_path, int threads, int ctx_size,
   ctx->ctx = llama_init_from_model(ctx->model, ctx_params);
   if (!ctx->ctx) {
     mg_embed_ctx_free_partial(ctx, 1);
-    mg_backend_release();
+    mg_llama_backend_release();
     return MG_ERR_EMBED;
   }
 
@@ -239,7 +210,7 @@ void mg_embed_shutdown(mg_embed_ctx_t *ctx) {
   }
 
   mg_embed_ctx_free_partial(ctx, 1);
-  mg_backend_release();
+  mg_llama_backend_release();
 }
 
 mg_err_t mg_embed_text(mg_embed_ctx_t *ctx, const char *text, mg_embedding_t out) {

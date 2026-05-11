@@ -1,51 +1,71 @@
 <div align="center">
 
-# graft
+<h1>graft</h1>
 
-**Persistent graph memory for AI agents.**
-Save what you learned. Retrieve it across sessions, machines, and agents. Local-first, no SaaS, no API key.
+<p><strong>Persistent graph memory for AI agents and microservices.</strong><br/>
+Save what you learned. Retrieve it across sessions, machines, agents, and services — in milliseconds.<br/>
+Local-first. No SaaS. No API key. One binary. One SQLite file.</p>
 
-<sub>C11 · SQLite + sqlite-vec + FTS5 · llama.cpp + BGE-M3 · MessagePack · AF_UNIX socket</sub>
+<sub>C11 · SQLite + sqlite-vec + FTS5 · llama.cpp + BGE-M3 · MessagePack · AF_UNIX socket · optional REST + 3D viewer</sub>
 
-[![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](./LICENSE)
-[![Status: alpha](https://img.shields.io/badge/status-alpha-orange.svg)](#status)
-[![Platforms: Linux · macOS · Windows](https://img.shields.io/badge/platforms-linux%20%7C%20macOS%20%7C%20windows-lightgrey.svg)](#install)
+<br/><br/>
+
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg?style=flat-square)](./LICENSE)
+[![Status: alpha](https://img.shields.io/badge/status-alpha-orange.svg?style=flat-square)](#project-status)
+[![Platforms](https://img.shields.io/badge/platforms-linux%20%7C%20macOS%20%7C%20windows-lightgrey.svg?style=flat-square)](./docs/install/)
+[![Install: 2 minutes](https://img.shields.io/badge/install-2%20min%20with%20brew-success.svg?style=flat-square)](./docs/install/)
+[![Multi-tenant](https://img.shields.io/badge/multi--tenant-profiles-blueviolet.svg?style=flat-square)](./docs/profiles/)
+[![Docs](https://img.shields.io/badge/docs-by%20feature-informational.svg?style=flat-square)](./docs/)
+
+<br/>
+
+<sub>Made for Claude Code · Codex · ChatGPT · Claude Desktop · Gemini CLI · Open Code · and your own microservices.</sub>
 
 </div>
 
 ---
 
-graft is a daemon plus a CLI. The daemon owns a small SQLite database that stores every "thing you learned" as a node with a 1024-dim embedding, lexical signals, and graph edges to related nodes. The CLI is the agent-facing surface: a few subcommands (`insert`, `query`, `retrieve`, `explore`, …) that any agent can call as a tool.
+## Why graft exists
 
-The result: an LLM session that ends doesn't take its hard-won lessons with it. The next session — or another agent on the same box — can find them in milliseconds.
+Every AI agent has the same problem: it forgets. The session ends, the context window scrolls, the next conversation starts from zero. Hard-won lessons evaporate.
 
-## Table of contents
+`graft` is the smallest useful thing that fixes that.
 
-- [What you get](#what-you-get)
-- [See it in action](#see-it-in-action)
-- [Why graft](#why-graft)
-- [Install](#install)
-- [Use it](#use-it)
-- [Plug it into your agent](#plug-it-into-your-agent)
-- [HTTP API + 3D viewer](#http-api--3d-viewer)
-- [Architecture](#architecture)
-- [Configuration](#configuration)
-- [Status](#status)
-- [Roadmap](#roadmap)
-- [Contributing](#contributing)
-- [License](#license)
+- **One binary.** No Python runtime to align, no SDK to import, no cloud account to create.
+- **One SQLite file.** Backups are `cp`. Sharing a profile is `cp`. Migrating to a new machine is `cp`.
+- **Verified semantic cache.** Most reads are answered by a verified **top-1** lookup in milliseconds — not a top-k semantic spray that floods your agent's context.
+- **A graph, not a list.** Memories link to each other via keyword and semantic edges, so "what do I know about X?" walks the connected sub-graph, not the whole corpus.
+- **Multi-tenant by profile.** `work`, `personal`, `project-a`, `project-b` are isolated DBs and isolated daemons. Switching is one env var.
 
-## What you get
+If you're tired of "I asked Claude to remember the constraint and it forgot in three turns" — graft is the answer.
 
-- **Cache-first retrieval** — `graft query <text>` returns `STRONG` / `WEAK` / `MISS` in milliseconds. STRONG hits inject title + body (and the body is rendered as Markdown) directly into the agent's context.
-- **Hybrid search** — `graft retrieve` fuses dense (BGE-M3 cosine) and lexical (BM25 over title and body) via Reciprocal Rank Fusion.
-- **Graph walks** — `graft explore` follows keyword and semantic edges with beam search and MMR diversity, decay `gamma^step`.
-- **Multi-tenant profiles** — isolated DBs and sockets per profile (`work`, `personal`, project-scoped). Import/export as files.
-- **Local-first** — single binary, single DB file, no network. Models run on CPU out of the box; opt-in to CUDA or ROCm 6/7 with a flag.
-- **Pluggable into anything** — Claude Code (skills + hooks), Codex (AGENTS.md + hooks), ChatGPT / Claude Desktop (MCP server), Gemini CLI, Open Code.
-- **Optional HTTP / REST + 3D viewer** — flip a flag in `config.yaml`, get six JSON endpoints and a browser-based graph explorer with click-to-edit (atomic supersession), search/retrieve/explore overlays, and ranked-result navigation.
+---
 
-## See it in action
+## Install in 30 seconds
+
+```bash
+brew tap AEndrix03/graft https://github.com/AEndrix03/Graft.git
+brew install graft
+graft stats
+```
+
+That's it. No daemon to start. No model to download by hand. No config to write.
+
+> Not on macOS / Linux Homebrew? Run the cross-platform installer:
+>
+> ```bash
+> git clone https://github.com/AEndrix03/graft.git && cd graft
+> bash scripts/install.sh         # Linux, macOS, Windows MSYS2
+> pwsh scripts/install.ps1        # Windows (auto-installs MSYS2 if needed)
+> ```
+>
+> Optional GPU acceleration: `GRAFT_GPU=cuda bash scripts/install.sh` (NVIDIA CUDA) or `GRAFT_GPU=hip bash scripts/install.sh` (AMD ROCm 6 / 7). The build is **fast** — under 3 minutes on a laptop — so contributors can iterate without pain.
+
+Full installation reference: [`docs/install/`](./docs/install/).
+
+---
+
+## See it in action — 60 seconds
 
 ```console
 $ graft query "spring boot validation cascade nested DTO"
@@ -65,234 +85,217 @@ $ graft query "why is my @Valid annotation not cascading on a nested DTO field"
 {
   "status": 0,
   "result": {
-    "hit": "STRONG",
+    "hit":   "STRONG",
     "title": "Spring Boot @Valid cascade on nested DTOs needs @Valid on the field plus @Validated on the controller",
     "body":  "Without @Valid on the nested field, constraints inside it are silently ignored. ..."
   }
 }
 ```
 
-The two queries used different phrasing. The match is semantic plus lexical, gated by a verify step that refuses to claim a hit when the signals are weak.
+The two queries used **different phrasing**. The match is semantic plus lexical, gated by a verify step that **refuses to claim a hit when the signals are weak** — so your agent never quotes confidently-wrong answers.
 
-## Why graft
+---
 
-Plenty of agent-memory projects exist (mem0, Letta, Zep, Cognee, Graphiti, …). They are libraries you import into a Python app or services you self-host with a database. graft picks a different shape:
+## What you get
 
-- **A binary, not a library.** The CLI is the contract. Any agent that can run a subprocess can use it — no Python runtime, no SDK to import, no version drift between client and server.
-- **Daemon + AF_UNIX socket.** State lives in one process; the CLI is a thin client. Cold start ~1–2 s the first time; subsequent calls under 100 ms warm.
-- **Multi-agent by design.** Claude Code, Codex, ChatGPT, and Claude Desktop already share the same graph on this machine — different surfaces, one memory. The `integrations/` directory ships the adapters.
-- **Local-first, no managed service.** SQLite on disk, llama.cpp for embeddings, no telemetry. Backups are `cp graft.db dest/`.
-- **Cache-first, then retrieve.** Most reads are answered by a verified top-1 cache lookup, not a top-k semantic spray. Lower latency, less context noise, fewer hallucinations.
+<table>
+<tr>
+<td width="33%" valign="top">
 
-It is not a vector database, a RAG framework, or a chatbot platform. It is the smallest useful thing that makes an agent's hard-won knowledge survive its session.
+#### Cache-first retrieval
+`graft query <text>` returns `STRONG` / `WEAK` / `MISS` in milliseconds.
+STRONG injects title + body straight into the agent's context.
 
-## Install
+</td>
+<td width="33%" valign="top">
 
-### Homebrew (macOS / Linux)
+#### Hybrid search
+`graft retrieve` fuses dense (BGE-M3 cosine) and lexical (BM25 over title and body) via Reciprocal Rank Fusion.
 
-```bash
-brew tap AEndrix03/graft https://github.com/AEndrix03/Graft.git
-brew install graft
-graft stats
+</td>
+<td width="33%" valign="top">
+
+#### Graph walks
+`graft explore` follows keyword and semantic edges with beam search and MMR diversity, decay `gamma^step`.
+
+</td>
+</tr>
+<tr>
+<td valign="top">
+
+#### Multi-tenant profiles
+Isolated DBs and sockets per profile (`work`, `personal`, project-scoped).
+Import / export / merge as plain SQLite files.
+
+</td>
+<td valign="top">
+
+#### Local-first
+Single binary, single DB file, no network.
+Models run on CPU out of the box; opt-in to CUDA or ROCm 6 / 7 with a flag.
+
+</td>
+<td valign="top">
+
+#### Optional REST + 3D viewer
+Flip a flag in `config.yaml`, get nine JSON endpoints and a browser-based graph explorer with click-to-edit (atomic supersession).
+
+</td>
+</tr>
+<tr>
+<td valign="top">
+
+#### Pluggable into anything
+Claude Code (skills + hooks), Codex (`AGENTS.md` + hooks), Claude Desktop / ChatGPT (MCP), Gemini CLI, Open Code.
+
+</td>
+<td valign="top">
+
+#### Microservices-friendly
+Behind your REST gateway: <b>L1 Redis</b> + <b>L2 graft semantic cache</b> + <b>L3 graft + AI agentic retrieve</b>.
+[See the pattern](./docs/microservices/).
+
+</td>
+<td valign="top">
+
+#### Easy to contribute
+Small C11 codebase (~10 K LOC of project code). Builds in under 3 min. Tests + commit-msg policy included.
+
+</td>
+</tr>
+</table>
+
+---
+
+## The recommended microservice stack
+
+Most "GPT in a microservice" deployments burn money on tokens because every request runs an LLM, even when the answer hasn't changed. Graft fits naturally as the layer that **kills most of those LLM calls before they happen**:
+
+```text
+                       ┌──────────────────────────────┐
+        ┌────────────► │  L1 — Redis                  │  ~1 ms  · exact key match
+        │              │  cache:<sha256(prompt)>      │
+        │              └──────────────┬───────────────┘
+        │                  MISS       │
+        │                             ▼
+  Client                 ┌──────────────────────────────┐
+   request ─────────────►│  L2 — graft semantic cache   │  ~30–80 ms · paraphrase-aware,
+        ▲                │  GET /v1/match?text=...      │              verified STRONG/WEAK/MISS
+        │                └──────────────┬───────────────┘
+        │                    MISS       │
+        │                               ▼
+        │                 ┌──────────────────────────────┐
+        │                 │  L3 — graft + AI agentic     │  ~500 ms+ · top-k retrieve +
+        │                 │  GET /v1/search → LLM        │             LLM synthesis
+        │                 │  POST /v1/insert (writeback) │             writeback for next time
+        └─────────────────└──────────────────────────────┘
 ```
 
-The formula builds `graft` and `graftd` from source, installs the pinned BGE-M3
-model resource, and keeps user profiles under `~/.graft`. For unreleased
-development builds use `brew install --HEAD graft` or `brew reinstall --HEAD graft`.
-See [docs/Homebrew.md](./docs/Homebrew.md) for tap maintenance and release checks.
+| Layer | Latency | Cost | What it answers |
+| ----- | ------- | ---- | --------------- |
+| **L1** Redis              | ~1 ms        | RAM bytes    | "Have we seen *this exact prompt* before?" |
+| **L2** graft semantic     | ~30–80 ms    | CPU (~free)  | "Have we seen *a question that means this* before?" |
+| **L3** graft + AI agent   | ~500 ms–N s  | LLM tokens   | "We haven't. Let me reason from related memories." |
 
-### One-shot
+Every L3 answer is written back through `POST /v1/insert`, so the next caller hits L2 STRONG instead. **The system gets cheaper and faster over time, with zero ops effort.**
 
-```bash
-git clone https://github.com/AEndrix03/graft.git && cd graft
-bash scripts/install.sh        # Linux, macOS, Windows MSYS2
-pwsh scripts/install.ps1       # Windows (auto-installs MSYS2 if needed)
+Full pattern, sample code, deployment shapes, and failure modes: **[`docs/microservices/`](./docs/microservices/)**.
+
+---
+
+## Built for AI development tools
+
+```text
+┌─────────────────────────────┐    ┌─────────────────────────────┐
+│ LLM chat clients            │    │ Coding agents (CLI-based)   │
+│ Claude Desktop · ChatGPT    │    │ Claude Code · Codex · ...   │
+└──────────────┬──────────────┘    └──────────────┬──────────────┘
+               │ MCP (stdio or HTTPS)             │ subprocess
+               ▼                                  ▼
+┌─────────────────────────────┐    ┌─────────────────────────────┐
+│ integrations/mcp-server/    │    │ graft CLI                   │
+│  · server.py  (stdio)       │───▶│  → unix socket              │
+│  · oauth_gateway.py (HTTP)  │    │                             │
+└─────────────────────────────┘    └──────────────┬──────────────┘
+                                                  ▼
+                                     ┌─────────────────────────────┐
+                                     │ graftd (daemon)             │
+                                     │  SQLite + sqlite-vec + FTS5 │
+                                     │  + BGE-M3 (llama.cpp)       │
+                                     └─────────────────────────────┘
 ```
 
-The installer is idempotent. It checks system packages, initialises submodules, builds llama.cpp, downloads BGE-M3 (~600 MB, Q8_0 GGUF), builds `graft` + `graftd`, runs a smoke test, and activates the commit-msg policy hook for contributors.
+| Agent          | Integration               | Setup |
+| -------------- | ------------------------- | ----- |
+| Claude Code    | Skills + Hooks            | `graft setup claudecode` |
+| Codex          | `AGENTS.md` + Hooks       | `graft setup codex` |
+| Claude Desktop | MCP server (stdio)        | `integrations/claude-ai/claude_desktop_config.json` |
+| ChatGPT        | MCP server (stdio or HTTP)| `integrations/chatgpt/mcp_config.json` |
+| Gemini CLI     | `GEMINI.md` memory file   | `integrations/gemini-cli/` |
+| Open Code      | `AGENTS.md`               | `integrations/opencode/` |
 
-### GPU acceleration (optional)
+Each adapter ships **skills** (telling the model *when* to search and *when* to save) and, where the harness supports them, **hooks** (running deterministically on `UserPromptSubmit` / `PostToolUse` / `Stop` so the model can't "forget").
 
-CPU is the default. To build llama.cpp with GPU support pass `GRAFT_GPU` to the installer:
+Full integration matrix and setup: **[`docs/integrations/`](./docs/integrations/)**.
 
-```bash
-GRAFT_GPU=cuda  bash scripts/install.sh           # NVIDIA CUDA
-GRAFT_GPU=hip   bash scripts/install.sh           # AMD ROCm 6 or 7
-pwsh scripts/install.ps1 -Gpu cuda                   # PowerShell equivalent
-```
+---
 
-Then enable offload in `config.yaml`:
-
-```yaml
-embedding:
-  hardware_accel: true
-```
-
-The daemon refuses to start with `hardware_accel: true` on a CPU-only build (no silent CPU fallback).
-
-### Manual
-
-If you prefer to drive each step yourself:
-
-```bash
-# 1. Submodules
-git submodule update --init --recursive
-
-# 2. llama.cpp (CPU; add -DGGML_CUDA=ON or -DGGML_HIP=ON for GPU)
-cd third_party/llama.cpp
-cmake -B build -DBUILD_SHARED_LIBS=ON -DGGML_NATIVE=ON \
-               -DLLAMA_CURL=OFF -DLLAMA_BUILD_SERVER=OFF \
-               -DLLAMA_BUILD_TOOLS=OFF -DLLAMA_BUILD_EXAMPLES=OFF \
-               -DLLAMA_BUILD_TESTS=OFF -DLLAMA_BUILD_COMMON=OFF \
-               -DCMAKE_BUILD_TYPE=Release
-cmake --build build -j
-cd ../..
-
-# 3. BGE-M3 (~600 MB, Q8_0 GGUF)
-mkdir -p models
-curl -L --ssl-no-revoke -o models/bge-m3.gguf \
-  https://huggingface.co/lm-kit/bge-m3-gguf/resolve/main/bge-m3-Q8_0.gguf
-
-# 4. graft
-cmake -B build && cmake --build build
-```
-
-Output: `build/graft` (CLI) and `build/graftd` (daemon).
-
-## Use it
-
-The CLI auto-starts the daemon on the first call. You don't need to manage process lifecycle.
-
-### Save knowledge
+## Try it now — a real round-trip
 
 ```bash
 graft insert \
-  --title "Short, retrieval-shaped statement of what you learned" \
-  --body  "Longer prose: the why, the trap, a code snippet, references" \
-  --keyword <kw1> --keyword <kw2> --keyword <kw3>
+  --title "First memory" \
+  --body  "If this is retrievable below, graft is wired correctly." \
+  --keyword smoke-test
+
+graft query "the very first thing I saved"
+# → "hit": "STRONG" + the body you just inserted
 ```
 
-Idempotent: re-inserting the same `title + body + keywords` returns `duplicate: true`.
+If you see `"hit": "STRONG"`, your pipeline is healthy: BGE-M3 embedding ↔ `sqlite-vec` vector index ↔ FTS5 lexical ↔ multi-signal verifier are all talking to each other.
 
-### Search
+---
 
-```bash
-# Verified cache lookup
-graft query "the question or topic"
+## Documentation
 
-# Hybrid top-k (lexical + semantic, fused via RRF)
-graft retrieve "topic" --top-k 10
+Everything is broken down by feature. Each page ends with a **"What's missing and how to improve it"** section — pick one and open a PR.
 
-# Graph walk from a seed, filtered by keyword
-graft explore "topic" --keyword <kw> --depth 3 --beam 4
+| Folder | What's inside |
+| ------ | ------------- |
+| [`install/`](./docs/install/)               | Homebrew, install scripts, manual build, GPU builds, first-run check. |
+| [`architecture/`](./docs/architecture/)     | CLI ↔ daemon split, wire protocol, request lifecycle. |
+| [`cli/`](./docs/cli/)                       | Every `graft` / `graftd` subcommand and flag. |
+| [`storage/`](./docs/storage/)               | SQLite schema, sqlite-vec, FTS5, atomic supersession, idempotency, WAL. |
+| [`embeddings/`](./docs/embeddings/)         | BGE-M3 (1024-dim), llama.cpp, CPU vs CUDA vs ROCm. |
+| [`retrieval/`](./docs/retrieval/)           | `query` (cache), `retrieve` (RRF), `explore` (beam + MMR), the verify pipeline. |
+| [`insert/`](./docs/insert/)                 | Insert pipeline, keyword / semantic edges, MMR diversity, content hashing, `classify`. |
+| [`profiles/`](./docs/profiles/)             | Multi-tenancy, per-profile DB + socket + daemon, export / import / merge / remote sync. |
+| [`http-api/`](./docs/http-api/)             | Optional REST layer (`/v1/*`), per-endpoint flags, examples. |
+| [`viewer/`](./docs/viewer/)                 | Browser 3D viewer (Vue + three.js + CodeMirror), modes, edit-with-supersession. |
+| [`integrations/`](./docs/integrations/)     | Per-agent adapters + MCP gateway. |
+| [`microservices/`](./docs/microservices/)   | The L1 Redis + L2 graft + L3 graft + AI stack. |
+| [`maintenance/`](./docs/maintenance/)       | `stats`, `consolidate`, usage log, `analytics`. |
+| [`configuration/`](./docs/configuration/)   | Every key in `config.yaml`, every recognised environment variable. |
 
-# Suggest keywords for a draft title (uses existing graph keywords)
-graft classify --title "your draft"
-```
+The full index lives at **[`docs/`](./docs/)**.
 
-### Inspect
+---
 
-```bash
-graft get <id_hex>             # fetch one node (JSON)
-graft get <id_hex> --markdown  # human-readable Markdown rendering
-graft stats                    # similarity-distribution percentiles
-graft analytics --since 7d     # hit rate, latency, time-saved estimate
-```
+## Why graft, not _other-thing_?
 
-The `--markdown` flag prints the node as YAML-frontmatter Markdown — title, author, date, optional expiration, hashtag-style keywords, and the body. Optional rows are skipped when missing. Designed for human consumption; agents continue to use the JSON form.
+Plenty of agent-memory projects exist (mem0, Letta, Zep, Cognee, Graphiti, ...). They're libraries you import into a Python app, or services you self-host with a database. Graft picks a different shape:
 
-### Profiles
+- **A binary, not a library.** The CLI is the contract. Any agent that can run a subprocess can use it — no Python runtime, no SDK version drift between client and server.
+- **Daemon + AF_UNIX socket.** State lives in one process; the CLI is a thin client. Cold start ~1–2 s the first time; subsequent calls under 100 ms warm.
+- **Multi-agent by design.** Claude Code, Codex, ChatGPT, and Claude Desktop already share the same graph on this machine — different surfaces, one memory.
+- **Local-first, no managed service.** SQLite on disk, llama.cpp for embeddings, no telemetry, no account. Backups are `cp graft.db dest/`.
+- **Cache-first, then retrieve.** Most reads are answered by a verified top-1 cache lookup, not a top-k semantic spray. Lower latency, less context noise, fewer hallucinations.
 
-Each profile is a tenant: its own DB, its own daemon, its own socket. The `default` profile is created at first run.
+Graft is **not** a vector database, a RAG framework, or a chatbot platform. It is the smallest useful thing that makes an agent's hard-won knowledge survive its session.
 
-```bash
-graft profile list
-graft profile add work
-graft profile add personal
+---
 
-# Switch profile for the current shell:
-eval "$(graft profile set work)"      # bash / zsh / fish
-graft profile set work | iex          # PowerShell
-
-# Backup / move a profile:
-graft profile export work --path work-2026-05.graftprofile
-graft profile import --name work-restored --file work-2026-05.graftprofile
-
-# Bind a profile to a remote SQLite profile file and sync manually:
-graft profile remote bind work --url /path/to/remote.graft.db
-graft profile remote status work
-graft profile remote sync work
-graft profile remote detach work
-```
-
-There is no global state file — `set` prints an env var, you decide whether to apply it for the session or persist it in your shell rc.
-
-## Plug it into your agent
-
-Adapters live under `integrations/`. Each one has its own README with install steps.
-
-| Agent          | Integration type             | Where it lives                                       |
-| -------------- | ---------------------------- | ---------------------------------------------------- |
-| Claude Code    | Skills + Hooks               | `integrations/claude-code/`                          |
-| Codex          | `AGENTS.md` + Hooks          | `integrations/codex/`                                |
-| Claude Desktop | MCP server                   | `integrations/claude-ai/` + `integrations/mcp-server/` |
-| ChatGPT        | MCP server                   | `integrations/chatgpt/` + `integrations/mcp-server/` |
-| Gemini CLI     | `GEMINI.md`                  | `integrations/gemini-cli/`                           |
-| Open Code      | `AGENTS.md`                  | `integrations/opencode/`                             |
-
-Two complementary layers across most clients:
-
-- **Skills / `AGENTS.md`** instruct the model on _when_ to use graft (search before answering non-trivial questions, save after solving non-obvious ones, skip for trivial work).
-- **Hooks** (Claude Code, Codex) are run by the harness deterministically: `UserPromptSubmit` injects the cache result before the model responds; `PostToolUse` records edits as save-candidates; `Stop` proposes `/memoryze` at end of turn. The model can no longer "forget" to consult the graph — that's the harness's job now.
-
-## HTTP API + 3D viewer
-
-graft ships an optional REST layer alongside the unix socket. **Off by default**; enable in `config.yaml`:
-
-```yaml
-http:
-  enabled: true
-  bind: "127.0.0.1"
-  port: 9977
-```
-
-Then either `curl` directly or open the browser viewer:
-
-```bash
-graft view              # opens http://127.0.0.1:9977/ in your default browser
-```
-
-You get:
-
-- **Six JSON endpoints** under `/v1/*` — `match`, `search`, `explore`, `classify`, `insert`, `nodes/{id}` (GET + DELETE), plus `view` for the full graph dump and `healthz` for liveness probes.
-- **A 3D graph viewer** (Vue 3 + three.js + CodeMirror) served as a static SPA from the same daemon. Color-coded edges (semantic / keyword / supersedes), per-node coloring by primary keyword hash, content-proportional sphere size, search/retrieve/explore overlays with red→orange ranked result colors, click-to-edit with atomic supersession on save.
-- **Local-first defaults** — bind is `127.0.0.1`, `delete` is off by default. No telemetry, no CDN dependencies in the SPA.
-- **Per-endpoint enable flags** — `endpoint_match: true`, `endpoint_delete: false`, etc. Disable what you don't want exposed.
-
-The daemon has no OAuth/JWT logic and should remain bound to `127.0.0.1`.
-For production, run the Python gateway in `integrations/mcp-server/`:
-
-```bash
-cd integrations/mcp-server
-export GRAFT_OAUTH_ISSUER_URL="https://issuer.example.com"
-export GRAFT_OAUTH_RESOURCE_SERVER_URL="https://graft.example.com/mcp"
-export GRAFT_OAUTH_AUDIENCE="https://graft.example.com"
-uvicorn oauth_gateway:app --host 127.0.0.1 --port 8080
-```
-
-The gateway mounts MCP streamable HTTP at `/mcp` and proxies authenticated
-`/v1/*` calls to `GRAFT_UPSTREAM_HTTP` (default `http://127.0.0.1:9977`).
-It validates externally issued OIDC access tokens as an OAuth resource server.
-Use HTTPS in front of the gateway for any public deployment.
-
-Full reference: [`docs/HTTP-API.md`](./docs/HTTP-API.md). Viewer specifics: [`viewer/README.md`](./viewer/README.md).
-
-```bash
-# Build the viewer once after install (or after pulling viewer changes)
-cd viewer && npm install && npm run build
-```
-
-## Architecture
+## Architecture in one diagram
 
 ```mermaid
 flowchart LR
@@ -301,6 +304,7 @@ flowchart LR
       A2["Codex"]
       A3["ChatGPT / Claude Desktop"]
       A4["Gemini CLI / Open Code"]
+      A5["Your microservice"]
     end
 
     subgraph Adapters["Adapters (integrations/)"]
@@ -314,6 +318,7 @@ flowchart LR
     A2 --> S
     A4 --> S
     A3 --> M
+    A5 -->|HTTPS / OAuth| M
     S --> CLI["graft (CLI)"]
     M --> CLI
     Browser -->|HTTP/JSON| Daemon
@@ -324,48 +329,64 @@ flowchart LR
 
 Pipelines:
 
-- **insert** — `embed(title)` → upsert keywords → `vector_topk` per keyword for keyword-edges → `vector_topk + MMR` for semantic edges → atomic INSERT.
-- **query** — `embed(text)` → `vector_topk(1)` → trigram Jaccard verify (cross-encoder optional) → STRONG / WEAK / MISS gating.
+- **insert** — `embed(title)` → upsert keywords → `vector_topk` per keyword (KEYWORD edges) → `vector_topk + MMR` (SEMANTIC edges) → **one atomic SQLite transaction**.
+- **query** — `embed(text)` → `vector_topk(10)` → trigram-Jaccard + cosine (+ optional cross-encoder) verify → STRONG / WEAK / MISS gating.
 - **retrieve** — three lists (vec, BM25 title, BM25 body) → RRF fusion → top-k.
 - **explore** — seed via `vector_topk` filtered by keyword → beam search with MMR + decay `gamma^step`.
 
-For per-module reference open the headers in `include/graft/` (`storage.h`, `embed.h`, `verify.h`, `ops.h`).
+Full architecture: [`docs/architecture/`](./docs/architecture/).
 
-## Configuration
+---
 
-`config.example.yaml` ships the defaults. Copy to `config.yaml` to customise. The keys you'll touch most:
+## Project status
 
-| Key                                  | Default | What it does                                                                |
-| ------------------------------------ | ------- | --------------------------------------------------------------------------- |
-| `embedding.threads`                  | `4`     | llama.cpp thread count                                                      |
-| `embedding.hardware_accel`           | `false` | Offload all model layers to GPU (requires GPU build)                        |
-| `cache.weak_hit_min_vec`             | `0.85`  | Cosine floor for a WEAK hit                                                 |
-| `cache.strong_hit_min_lex`           | `0.15`  | Trigram Jaccard floor for a STRONG hit                                      |
-| `retrieval.top_k`                    | `25`    | Top-k for `graft retrieve`                                               |
-| `retrieval.query_fallback_top_k`     | `5`     | Cap on neighbours surfaced when `graft query` MISSes                     |
-| `edges.edge_semantic_min`            | `0.6`   | Cosine floor for a semantic edge between nodes                              |
+Graft is **alpha**. It works end-to-end on Linux, macOS, and Windows MSYS2 / native. The CLI surface is stable enough that the shipped integrations rely on it. Honest disclosures:
 
-## Status
+- The **cross-encoder reranker** is a stub (`mg_ce_score_pair` returns `-1`). Today the verify gate uses trigram-Jaccard + cosine, which is plenty for most corpora. Wiring BGE-reranker-v2-m3 is on the roadmap.
+- **Tests** cover storage, retrieval, insert, verify, and config paths, but coverage is uneven.
+- **No prebuilt binaries** yet — every install path builds from source.
+- **API contract**: the CLI JSON schema is the public surface. Internal C APIs may change without notice.
 
-graft is **alpha**. It works end-to-end on Linux, macOS, and Windows MSYS2; the CLI surface is stable enough that the integrations rely on it. Things to know:
-
-- The cross-encoder reranker is a stub (`mg_ce_score_pair` returns `-1`). The "rerank" today is the trigram-Jaccard plus cosine multi-signal gating in `src/verify/verify.c`. The hook for a real reranker (BGE-reranker-v2-m3) is in place; wiring it is on the roadmap.
-- Tests cover the storage, retrieval, insert and config paths, but coverage is uneven.
-- No prebuilt binaries yet — build from source with `scripts/install.sh`.
-- API contract: the CLI JSON schema is the public surface. Internal C APIs may change without notice.
-
-## Roadmap
+### Roadmap (the next-impact list)
 
 - Cross-encoder neural reranker (BGE-reranker-v2-m3) wired through `verification.cross_encoder_enabled`.
 - NLI for contradiction detection → `MG_EDGE_CONTRADICTS` edges.
 - Adaptive threshold calibration driven by `stats`.
-- Real `consolidate` (dedup, supersede, stale-mark).
-- Importable thematic memory packs (postmortems, decision frameworks, etc.) as opt-in seed libraries.
+- Real content `consolidate` (dedup similar nodes, supersede stale ones, mark unused).
+- Importable thematic memory packs (postmortems, decision frameworks, ...) as opt-in seed libraries.
+- Prebuilt platform binaries on GitHub Releases.
+
+---
 
 ## Contributing
 
-See [CONTRIBUTING.md](./CONTRIBUTING.md). Short version: branch from `master`, run `bash scripts/install.sh` once (it activates the commit-msg policy hook), keep PRs focused. Bug reports and feature ideas: [GitHub Issues](https://github.com/AEndrix03/graft/issues).
+```bash
+# 1. clone, install, smoke-test
+git clone https://github.com/AEndrix03/graft.git && cd graft
+bash scripts/install.sh
+graft stats
+
+# 2. find something to do
+#    every docs page ends with "What's missing and how to improve it"
+
+# 3. branch from master, keep PRs focused
+```
+
+Builds are **fast** (under 3 minutes from clean). Tests run with `cmake --build build --target test`. Pre-commit hook for Conventional Commits is installed automatically by `scripts/install.sh`.
+
+Bug reports and feature ideas: [GitHub Issues](https://github.com/AEndrix03/graft/issues). Read [CONTRIBUTING.md](./CONTRIBUTING.md) for the short version.
+
+---
 
 ## License
 
 [Apache License 2.0](./LICENSE). You can use, modify, distribute, and embed graft in proprietary projects, including commercially, provided you keep the copyright and licence notices and document any changes you make to the source files.
+
+<div align="center">
+
+<br/>
+<sub>Built in C11. Local-first. No SaaS. No API key.<br/>
+<a href="./docs/">docs</a> · <a href="./docs/install/">install</a> · <a href="./docs/microservices/">microservices pattern</a> · <a href="https://github.com/AEndrix03/graft/issues">issues</a></sub>
+<br/><br/>
+
+</div>
