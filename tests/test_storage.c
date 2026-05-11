@@ -98,6 +98,63 @@ int main(void) {
     return 1;
   }
 
+  mg_node_t title_hit;
+  mg_node_t body_hit;
+  memset(&title_hit, 0, sizeof(title_hit));
+  memset(&body_hit, 0, sizeof(body_hit));
+
+  mg_uuidv7(title_hit.id);
+  mg_blake3((const uint8_t *)"alpha-title/beta-body", strlen("alpha-title/beta-body"), title_hit.content_hash);
+  title_hit.title = (char *)"alpha title only";
+  title_hit.body = (char *)"beta body only";
+  title_hit.created_at = 2;
+  title_hit.expires_at = 0;
+  title_hit.last_access = 2;
+  title_hit.state = MG_NODE_ACTIVE;
+
+  mg_uuidv7(body_hit.id);
+  mg_blake3((const uint8_t *)"beta-title/alpha-body", strlen("beta-title/alpha-body"), body_hit.content_hash);
+  body_hit.title = (char *)"beta title only";
+  body_hit.body = (char *)"alpha body only";
+  body_hit.created_at = 3;
+  body_hit.expires_at = 0;
+  body_hit.last_access = 3;
+  body_hit.state = MG_NODE_ACTIVE;
+
+  err = mg_storage_insert_node_with_edges(s, &title_hit, emb, NULL, 0, NULL, 0, NULL);
+  if (err != MG_OK) {
+    fprintf(stderr, "insert title_hit: %s\n", mg_strerror(err));
+    mg_storage_close(s);
+    return 1;
+  }
+  err = mg_storage_insert_node_with_edges(s, &body_hit, emb, NULL, 0, NULL, 0, NULL);
+  if (err != MG_OK) {
+    fprintf(stderr, "insert body_hit: %s\n", mg_strerror(err));
+    mg_storage_close(s);
+    return 1;
+  }
+
+  err = mg_storage_fts_search(s, "alpha", 4, true, false, scores, &count);
+  if (err != MG_OK || count != 1 || !same_id(scores[0].id, title_hit.id)) {
+    fprintf(stderr, "title-only fts failed count=%d err=%s\n", count, mg_strerror(err));
+    mg_storage_close(s);
+    return 1;
+  }
+
+  err = mg_storage_fts_search(s, "alpha", 4, false, true, scores, &count);
+  if (err != MG_OK || count != 1 || !same_id(scores[0].id, body_hit.id)) {
+    fprintf(stderr, "body-only fts failed count=%d err=%s\n", count, mg_strerror(err));
+    mg_storage_close(s);
+    return 1;
+  }
+
+  err = mg_storage_fts_search(s, "alpha", 4, true, true, scores, &count);
+  if (err != MG_OK || count != 2) {
+    fprintf(stderr, "combined fts failed count=%d err=%s\n", count, mg_strerror(err));
+    mg_storage_close(s);
+    return 1;
+  }
+
   mg_storage_close(s);
   remove(path);
   remove("./test_storage.db-wal");

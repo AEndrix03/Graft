@@ -503,6 +503,10 @@ mg_err_t mg_storage_vector_topk_by_keyword(mg_storage_t *s, const mg_embedding_t
 
 mg_err_t mg_storage_fts_search(mg_storage_t *s, const char *query_text, int k, bool match_title, bool match_body, mg_node_score_t *out, int *out_count) {
   sqlite3_stmt *stmt = NULL;
+  char *match_query = NULL;
+  const char *match_expr = query_text;
+  const char *rank_expr = "bm25(node_fts)";
+  size_t query_len;
   int rc;
   if (!s || !query_text || k < 0 || !out || !out_count || (!match_title && !match_body)) {
     return MG_ERR_INVALID_ARG;
@@ -511,12 +515,39 @@ mg_err_t mg_storage_fts_search(mg_storage_t *s, const char *query_text, int k, b
   if (k == 0) {
     return MG_OK;
   }
-  (void)match_title;
-  (void)match_body;
-  if (prepare(s->db, "SELECT nodes.id, -bm25(node_fts) FROM node_fts JOIN nodes ON nodes.rowid=node_fts.rowid WHERE node_fts MATCH ? AND nodes.state != 2 ORDER BY bm25(node_fts) LIMIT ?;", &stmt) != MG_OK) {
+
+  if (match_title && !match_body) {
+    query_len = strlen(query_text);
+    match_query = (char *)malloc(query_len + strlen("title : ()") + 1);
+    if (!match_query) {
+      return MG_ERR_OOM;
+    }
+    snprintf(match_query, query_len + strlen("title : ()") + 1, "title : (%s)", query_text);
+    match_expr = match_query;
+    rank_expr = "bm25(node_fts, 1.0, 0.0)";
+  } else if (!match_title && match_body) {
+    query_len = strlen(query_text);
+    match_query = (char *)malloc(query_len + strlen("body : ()") + 1);
+    if (!match_query) {
+      return MG_ERR_OOM;
+    }
+    snprintf(match_query, query_len + strlen("body : ()") + 1, "body : (%s)", query_text);
+    match_expr = match_query;
+    rank_expr = "bm25(node_fts, 0.0, 1.0)";
+  }
+
+  char sql[256];
+  snprintf(sql, sizeof(sql),
+           "SELECT nodes.id, -%s FROM node_fts "
+           "JOIN nodes ON nodes.rowid=node_fts.rowid "
+           "WHERE node_fts MATCH ? AND nodes.state != 2 "
+           "ORDER BY %s LIMIT ?;",
+           rank_expr, rank_expr);
+  if (prepare(s->db, sql, &stmt) != MG_OK) {
+    free(match_query);
     return MG_ERR_STORAGE;
   }
-  sqlite3_bind_text(stmt, 1, query_text, -1, SQLITE_STATIC);
+  sqlite3_bind_text(stmt, 1, match_expr, -1, SQLITE_TRANSIENT);
   sqlite3_bind_int(stmt, 2, k);
   while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
     memcpy(out[*out_count].id, sqlite3_column_blob(stmt, 0), MG_NODE_ID_BYTES);
@@ -524,6 +555,7 @@ mg_err_t mg_storage_fts_search(mg_storage_t *s, const char *query_text, int k, b
     ++(*out_count);
   }
   sqlite3_finalize(stmt);
+  free(match_query);
   return rc == SQLITE_DONE ? MG_OK : MG_ERR_STORAGE;
 }
 
