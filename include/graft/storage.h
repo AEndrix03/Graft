@@ -39,6 +39,7 @@ mg_err_t mg_storage_get_node(mg_storage_t *s, const mg_node_id_t id, mg_node_t *
  *   - node_vec (manuale, virtual table senza FK)
  * Returns MG_ERR_NOT_FOUND se l'id non esiste. */
 mg_err_t mg_storage_delete_node(mg_storage_t *s, const mg_node_id_t id);
+mg_err_t mg_storage_prune_expired(mg_storage_t *s, int64_t *out_deleted);
 
 /* Lookup idempotenza */
 mg_err_t mg_storage_node_id_by_hash(mg_storage_t *s, const mg_hash_t h, mg_node_id_t out);
@@ -85,7 +86,10 @@ mg_err_t mg_storage_fts_search(
 );
 
 /* === Grafo === */
-/* Vicini di un nodo per kind specifico (o tutti se kind=-1). */
+/* Vicini di un nodo per kind specifico (o tutti se kind=-1).
+ * KEYWORD e SEMANTIC sono relazioni non direzionali a traversal-time:
+ * gli archi incoming vengono restituiti normalizzati come src=node, dst=vicino.
+ * Gli altri kind mantengono la direzione salvata. */
 mg_err_t mg_storage_neighbors(
   mg_storage_t *s,
   const mg_node_id_t src,

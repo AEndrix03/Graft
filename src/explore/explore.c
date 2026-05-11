@@ -6,15 +6,17 @@
  *     (orphan keywords are acceptable for MVP).
  *  3. Seed: vector_topk(q, 2*beam_width). If a keyword filter is provided,
  *     drop seeds whose KEYWORD-edges share no keyword with it.
- *  4. Initialize beams from accepted seeds (path = [seed], score = cosine).
+ *  4. Initialize beams from accepted seeds (path = [seed],
+ *     score = log(normalized cosine)).
  *  5. For step in 1..depth:
  *       - For each beam, expand via mg_storage_neighbors(.., kw_filter):
  *           skip dst already in path
- *           sem_score = cosine(q, dst_emb)
- *           base   = beam.score + log(w + eps) + alpha*log(sem + eps)
- *           decay  = base * gamma^step
+ *           sem_score = clamp((cosine(q, dst_emb) + 1) * 0.5, eps, 1)
+ *           edge_score = clamp(edge.weight, eps, 1)
+ *           base = beam.score + log(edge_score) + alpha*log(sem_score)
+ *                  - depth_penalty * step
  *           mmr    = max cosine(dst_emb, m_emb) for m in beam.path
- *           score' = decay - mmr_lambda * mmr
+ *           score' = base - mmr_lambda * redundancy
  *       - Greedy MMR beam selection across all candidates until beam_width.
  *  6. Output:
  *       nodes = visited nodes (best score per id), top target_count by score
@@ -102,6 +104,31 @@ static int read_optional_int(mpack_node_t map, const char *key, int dflt) {
     mpack_node_t n = mpack_node_map_cstr_optional(map, key);
     if (mpack_node_is_missing(n) || mpack_node_is_nil(n)) return dflt;
     return (int)mpack_node_int(n);
+}
+
+static float clamp_float(float x, float lo, float hi) {
+    if (!isfinite(x)) return lo;
+    if (x < lo) return lo;
+    if (x > hi) return hi;
+    return x;
+}
+
+static float explore_semantic_score(float cosine) {
+    return clamp_float((cosine + 1.0f) * 0.5f,
+                       (float)MG_EXPLORE_LOG_EPS, 1.0f);
+}
+
+static float explore_edge_score(float weight) {
+    return clamp_float(weight, (float)MG_EXPLORE_LOG_EPS, 1.0f);
+}
+
+static float explore_redundancy_score(float cosine) {
+    return clamp_float(cosine, 0.0f, 1.0f);
+}
+
+static float explore_depth_penalty(float decay_gamma) {
+    float gamma = clamp_float(decay_gamma, (float)MG_EXPLORE_LOG_EPS, 1.0f);
+    return (float)-log((double)gamma);
 }
 
 /* ---------------- embedding cache (linear, O(n)) ---------------- */
@@ -275,6 +302,7 @@ mg_err_t mg_op_explore(mg_ctx_t *ctx, mpack_node_t args, mpack_writer_t *result)
     mg_emb_cache_t cache = { .e = cache_buf,
                              .n = 0,
                              .cap = MG_EXPLORE_EMBED_CACHE };
+    const float depth_penalty = explore_depth_penalty(cfg->explore_decay_gamma);
 
     int n_visited = 0;
     int n_trav    = 0;
@@ -298,10 +326,10 @@ mg_err_t mg_op_explore(mg_ctx_t *ctx, mpack_node_t args, mpack_writer_t *result)
             continue;
         memcpy(beams[n_beams].path[0], seeds[i].id, MG_NODE_ID_BYTES);
         beams[n_beams].path_len = 1;
-        beams[n_beams].score    = seeds[i].score;
+        beams[n_beams].score    = (float)log((double)explore_semantic_score(seeds[i].score));
         beams[n_beams].depth    = 0;
         visited_upsert(visited, &n_visited, MG_EXPLORE_MAX_VISITED,
-                       seeds[i].id, seeds[i].score, 0);
+                       seeds[i].id, beams[n_beams].score, 0);
         const float *unused = NULL;
         (void)cache_lookup(&cache, s, seeds[i].id, &unused);
         n_beams++;
@@ -346,15 +374,14 @@ mg_err_t mg_op_explore(mg_ctx_t *ctx, mpack_node_t args, mpack_writer_t *result)
                 if (cache_lookup(&cache, s, edge->dst, &dst_emb) != MG_OK)
                     continue;
 
-                float sem_score = mg_cosine(q, dst_emb);
+                float sem_score = explore_semantic_score(mg_cosine(q, dst_emb));
+                float edge_score = explore_edge_score(edge->weight);
 
                 double base =
                     (double)beam->score
-                  + log((double)edge->weight + MG_EXPLORE_LOG_EPS)
-                  + (double)cfg->explore_alpha *
-                        log((double)sem_score + MG_EXPLORE_LOG_EPS);
-                double decayed =
-                    base * pow((double)cfg->explore_decay_gamma, (double)step);
+                  + log((double)edge_score)
+                  + (double)cfg->explore_alpha * log((double)sem_score)
+                  - (double)depth_penalty * (double)step;
 
                 /* MMR penalty against current beam path tips. */
                 float mmr_pen = 0.0f;
@@ -362,11 +389,11 @@ mg_err_t mg_op_explore(mg_ctx_t *ctx, mpack_node_t args, mpack_writer_t *result)
                     const float *pe = NULL;
                     if (cache_lookup(&cache, s, beam->path[p], &pe) != MG_OK)
                         continue;
-                    float c = mg_cosine(dst_emb, pe);
+                    float c = explore_redundancy_score(mg_cosine(dst_emb, pe));
                     if (c > mmr_pen) mmr_pen = c;
                 }
 
-                double final_score = decayed -
+                double final_score = base -
                     (double)cfg->mmr_lambda * (double)mmr_pen;
 
                 /* push candidate */
@@ -415,7 +442,7 @@ mg_err_t mg_op_explore(mg_ctx_t *ctx, mpack_node_t args, mpack_writer_t *result)
                                       new_beams[j].path[new_beams[j].path_len - 1],
                                       &je) != MG_OK)
                         continue;
-                    float c = mg_cosine(ie, je);
+                    float c = explore_redundancy_score(mg_cosine(ie, je));
                     if (c > pen) pen = c;
                 }
                 float adj = cands[i].score - cfg->mmr_lambda * pen;

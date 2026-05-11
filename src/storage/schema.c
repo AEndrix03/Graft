@@ -21,6 +21,7 @@ const char *mg_storage_schema_sql(void) {
     ");"
     "CREATE INDEX IF NOT EXISTS idx_nodes_hash ON nodes(content_hash);"
     "CREATE INDEX IF NOT EXISTS idx_nodes_state ON nodes(state);"
+    "CREATE INDEX IF NOT EXISTS idx_nodes_expires_at ON nodes(expires_at);"
     "CREATE INDEX IF NOT EXISTS idx_nodes_origin ON nodes(origin);"
     "CREATE VIRTUAL TABLE IF NOT EXISTS node_fts USING fts5("
     "  title, body,"

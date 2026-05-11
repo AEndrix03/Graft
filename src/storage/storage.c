@@ -211,7 +211,71 @@ mg_err_t mg_storage_apply_schema(mg_storage_t *s) {
   if (err != MG_OK) {
     return err;
   }
-  return create_vec_table(s->db);
+  err = create_vec_table(s->db);
+  if (err != MG_OK) {
+    return err;
+  }
+  return mg_storage_prune_expired(s, NULL);
+}
+
+mg_err_t mg_storage_prune_expired(mg_storage_t *s, int64_t *out_deleted) {
+  sqlite3_stmt *stmt = NULL;
+  mg_err_t err;
+  int rc;
+  int changes;
+
+  if (!s || !s->db) {
+    return MG_ERR_INVALID_ARG;
+  }
+  if (out_deleted) {
+    *out_deleted = 0;
+  }
+
+  err = exec_sql(s->db, "BEGIN IMMEDIATE;");
+  if (err != MG_OK) {
+    return err;
+  }
+
+  err = prepare(s->db,
+    "DELETE FROM node_vec WHERE id IN ("
+    "  SELECT id FROM nodes "
+    "  WHERE expires_at IS NOT NULL "
+    "    AND expires_at != 0 "
+    "    AND expires_at <= (CAST(strftime('%s','now') AS INTEGER) * 1000)"
+    ");",
+    &stmt);
+  if (err != MG_OK) goto rollback;
+  err = step_done(stmt);
+  sqlite3_finalize(stmt);
+  stmt = NULL;
+  if (err != MG_OK && err != MG_ERR_DUPLICATE) goto rollback;
+
+  err = prepare(s->db,
+    "DELETE FROM nodes "
+    "WHERE expires_at IS NOT NULL "
+    "  AND expires_at != 0 "
+    "  AND expires_at <= (CAST(strftime('%s','now') AS INTEGER) * 1000);",
+    &stmt);
+  if (err != MG_OK) goto rollback;
+  rc = sqlite3_step(stmt);
+  changes = sqlite3_changes(s->db);
+  sqlite3_finalize(stmt);
+  stmt = NULL;
+  if (rc != SQLITE_DONE) {
+    err = MG_ERR_STORAGE;
+    goto rollback;
+  }
+
+  err = exec_sql(s->db, "COMMIT;");
+  if (err == MG_OK && out_deleted) {
+    *out_deleted = changes;
+  }
+  return err;
+
+rollback:
+  if (stmt) sqlite3_finalize(stmt);
+  (void)exec_sql(s->db, "ROLLBACK;");
+  return err;
 }
 
 mg_err_t mg_storage_insert_node_with_edges(
@@ -229,6 +293,9 @@ mg_err_t mg_storage_insert_node_with_edges(
       !node->title || !node->body) {
     return MG_ERR_INVALID_ARG;
   }
+
+  (void)mg_storage_prune_expired(s, NULL);
+
   err = exec_sql(s->db, "BEGIN IMMEDIATE;");
   if (err != MG_OK) {
     return err;
@@ -455,15 +522,19 @@ mg_err_t mg_storage_get_keyword_text(mg_storage_t *s, mg_keyword_id_t id, char *
 
 static mg_err_t topk_scan(mg_storage_t *s, const mg_embedding_t query, int k, mg_keyword_id_t kw_id, int use_kw, mg_node_score_t *out, int *out_count) {
   sqlite3_stmt *stmt = NULL;
-  /* Exclude superseded nodes (state=2) from semantic search — when a node has
-   * been replaced via the supersession flow it is still addressable via GET
-   * but should not surface as a candidate for query/retrieve/explore seeds. */
+  /* Exclude superseded and expired nodes from semantic search. Expiration is
+   * stored as Unix milliseconds; strftime('%s') is seconds, so scale it. */
   const char *sql_all = "SELECT v.id,v.embedding FROM node_vec v "
-                        "JOIN nodes n ON n.id=v.id WHERE n.state != 2;";
+                        "JOIN nodes n ON n.id=v.id "
+                        "WHERE n.state != 2 "
+                        "AND (n.expires_at IS NULL OR n.expires_at = 0 "
+                        "OR n.expires_at > (CAST(strftime('%s','now') AS INTEGER) * 1000));";
   const char *sql_kw  = "SELECT v.id,v.embedding FROM node_vec v "
                         "JOIN node_keywords nk ON nk.node_id=v.id "
                         "JOIN nodes n ON n.id=v.id "
-                        "WHERE nk.keyword_id=? AND n.state != 2;";
+                        "WHERE nk.keyword_id=? AND n.state != 2 "
+                        "AND (n.expires_at IS NULL OR n.expires_at = 0 "
+                        "OR n.expires_at > (CAST(strftime('%s','now') AS INTEGER) * 1000));";
   int rc;
   if (!s || !query || k < 0 || !out || !out_count) {
     return MG_ERR_INVALID_ARG;
@@ -472,6 +543,7 @@ static mg_err_t topk_scan(mg_storage_t *s, const mg_embedding_t query, int k, mg
   if (k == 0) {
     return MG_OK;
   }
+  (void)mg_storage_prune_expired(s, NULL);
   if (prepare(s->db, use_kw ? sql_kw : sql_all, &stmt) != MG_OK) {
     return MG_ERR_STORAGE;
   }
@@ -536,11 +608,15 @@ mg_err_t mg_storage_fts_search(mg_storage_t *s, const char *query_text, int k, b
     rank_expr = "bm25(node_fts, 0.0, 1.0)";
   }
 
-  char sql[256];
+  (void)mg_storage_prune_expired(s, NULL);
+
+  char sql[384];
   snprintf(sql, sizeof(sql),
            "SELECT nodes.id, -%s FROM node_fts "
            "JOIN nodes ON nodes.rowid=node_fts.rowid "
            "WHERE node_fts MATCH ? AND nodes.state != 2 "
+           "AND (nodes.expires_at IS NULL OR nodes.expires_at = 0 "
+           "OR nodes.expires_at > (CAST(strftime('%%s','now') AS INTEGER) * 1000)) "
            "ORDER BY %s LIMIT ?;",
            rank_expr, rank_expr);
   if (prepare(s->db, sql, &stmt) != MG_OK) {
@@ -566,12 +642,32 @@ mg_err_t mg_storage_neighbors(mg_storage_t *s, const mg_node_id_t src, int kind_
     return MG_ERR_INVALID_ARG;
   }
   *out_count = 0;
-  if (prepare(s->db, "SELECT src,dst,kind,COALESCE(keyword_id,0),weight FROM edges WHERE src=? AND (?=-1 OR kind=?) ORDER BY weight DESC;", &stmt) != MG_OK) {
+  (void)mg_storage_prune_expired(s, NULL);
+  if (prepare(s->db,
+      "SELECT src,dst,kind,COALESCE(keyword_id,0),weight FROM ("
+      "  SELECT e.src,e.dst,e.kind,e.keyword_id,e.weight FROM edges e "
+      "  JOIN nodes dst ON dst.id=e.dst "
+      "  WHERE e.src=? AND (?=-1 OR e.kind=?) "
+      "    AND dst.state != 2 "
+      "    AND (dst.expires_at IS NULL OR dst.expires_at = 0 "
+      "         OR dst.expires_at > (CAST(strftime('%s','now') AS INTEGER) * 1000)) "
+      "  UNION ALL "
+      "  SELECT e.dst AS src,e.src AS dst,e.kind,e.keyword_id,e.weight FROM edges e "
+      "  JOIN nodes dst ON dst.id=e.src "
+      "  WHERE e.dst=? AND e.kind IN (0,1) AND (?=-1 OR e.kind=?)"
+      "    AND dst.state != 2 "
+      "    AND (dst.expires_at IS NULL OR dst.expires_at = 0 "
+      "         OR dst.expires_at > (CAST(strftime('%s','now') AS INTEGER) * 1000)) "
+      ") ORDER BY weight DESC;",
+      &stmt) != MG_OK) {
     return MG_ERR_STORAGE;
   }
   sqlite3_bind_blob(stmt, 1, src, MG_NODE_ID_BYTES, SQLITE_STATIC);
   sqlite3_bind_int(stmt, 2, kind_filter);
   sqlite3_bind_int(stmt, 3, kind_filter);
+  sqlite3_bind_blob(stmt, 4, src, MG_NODE_ID_BYTES, SQLITE_STATIC);
+  sqlite3_bind_int(stmt, 5, kind_filter);
+  sqlite3_bind_int(stmt, 6, kind_filter);
   while ((rc = sqlite3_step(stmt)) == SQLITE_ROW && *out_count < max_out) {
     mg_keyword_id_t kw = sqlite3_column_int64(stmt, 3);
     int keep = n_kw == 0;
@@ -582,9 +678,23 @@ mg_err_t mg_storage_neighbors(mg_storage_t *s, const mg_node_id_t src, int kind_
       }
     }
     if (keep) {
+      const void *dst = sqlite3_column_blob(stmt, 1);
+      mg_edge_kind_t kind = (mg_edge_kind_t)sqlite3_column_int(stmt, 2);
+      int seen = 0;
+      for (int j = 0; j < *out_count; ++j) {
+        if (out[j].kind == kind &&
+            out[j].keyword_id == kw &&
+            memcmp(out[j].dst, dst, MG_NODE_ID_BYTES) == 0) {
+          seen = 1;
+          break;
+        }
+      }
+      if (seen) {
+        continue;
+      }
       memcpy(out[*out_count].src, sqlite3_column_blob(stmt, 0), MG_NODE_ID_BYTES);
-      memcpy(out[*out_count].dst, sqlite3_column_blob(stmt, 1), MG_NODE_ID_BYTES);
-      out[*out_count].kind = (mg_edge_kind_t)sqlite3_column_int(stmt, 2);
+      memcpy(out[*out_count].dst, dst, MG_NODE_ID_BYTES);
+      out[*out_count].kind = kind;
       out[*out_count].keyword_id = kw;
       out[*out_count].weight = (float)sqlite3_column_double(stmt, 4);
       ++(*out_count);

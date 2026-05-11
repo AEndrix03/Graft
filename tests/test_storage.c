@@ -127,7 +127,29 @@ int main(void) {
     mg_storage_close(s);
     return 1;
   }
-  err = mg_storage_insert_node_with_edges(s, &body_hit, emb, NULL, 0, NULL, 0, NULL);
+
+  mg_keyword_id_t graph_kw = 0;
+  err = mg_storage_upsert_keyword(s, "graph", NULL, &graph_kw);
+  if (err != MG_OK || graph_kw <= 0) {
+    fprintf(stderr, "upsert graph keyword: %s\n", mg_strerror(err));
+    mg_storage_close(s);
+    return 1;
+  }
+
+  mg_edge_t one_way_edges[2];
+  memset(one_way_edges, 0, sizeof(one_way_edges));
+  memcpy(one_way_edges[0].src, body_hit.id, MG_NODE_ID_BYTES);
+  memcpy(one_way_edges[0].dst, title_hit.id, MG_NODE_ID_BYTES);
+  one_way_edges[0].kind = MG_EDGE_SEMANTIC;
+  one_way_edges[0].keyword_id = 0;
+  one_way_edges[0].weight = 0.75f;
+  memcpy(one_way_edges[1].src, body_hit.id, MG_NODE_ID_BYTES);
+  memcpy(one_way_edges[1].dst, title_hit.id, MG_NODE_ID_BYTES);
+  one_way_edges[1].kind = MG_EDGE_KEYWORD;
+  one_way_edges[1].keyword_id = graph_kw;
+  one_way_edges[1].weight = 0.8f;
+
+  err = mg_storage_insert_node_with_edges(s, &body_hit, emb, NULL, 0, one_way_edges, 2, NULL);
   if (err != MG_OK) {
     fprintf(stderr, "insert body_hit: %s\n", mg_strerror(err));
     mg_storage_close(s);
@@ -151,6 +173,150 @@ int main(void) {
   err = mg_storage_fts_search(s, "alpha", 4, true, true, scores, &count);
   if (err != MG_OK || count != 2) {
     fprintf(stderr, "combined fts failed count=%d err=%s\n", count, mg_strerror(err));
+    mg_storage_close(s);
+    return 1;
+  }
+
+  mg_edge_t neighbors[4];
+  int n_neighbors = 0;
+  err = mg_storage_neighbors(s, title_hit.id, MG_EDGE_SEMANTIC, NULL, 0, neighbors, 4, &n_neighbors);
+  if (err != MG_OK || n_neighbors != 1 || !same_id(neighbors[0].src, title_hit.id) || !same_id(neighbors[0].dst, body_hit.id)) {
+    fprintf(stderr, "incoming semantic neighbor failed count=%d err=%s\n", n_neighbors, mg_strerror(err));
+    mg_storage_close(s);
+    return 1;
+  }
+
+  err = mg_storage_neighbors(s, title_hit.id, MG_EDGE_KEYWORD, &graph_kw, 1, neighbors, 4, &n_neighbors);
+  if (err != MG_OK || n_neighbors != 1 || neighbors[0].keyword_id != graph_kw ||
+      !same_id(neighbors[0].src, title_hit.id) || !same_id(neighbors[0].dst, body_hit.id)) {
+    fprintf(stderr, "incoming keyword neighbor failed count=%d err=%s\n", n_neighbors, mg_strerror(err));
+    mg_storage_close(s);
+    return 1;
+  }
+
+  err = mg_storage_neighbors(s, body_hit.id, MG_EDGE_SEMANTIC, NULL, 0, neighbors, 4, &n_neighbors);
+  if (err != MG_OK || n_neighbors != 1 || !same_id(neighbors[0].src, body_hit.id) || !same_id(neighbors[0].dst, title_hit.id)) {
+    fprintf(stderr, "outgoing semantic neighbor failed count=%d err=%s\n", n_neighbors, mg_strerror(err));
+    mg_storage_close(s);
+    return 1;
+  }
+
+  mg_node_t expired_neighbor;
+  mg_edge_t expired_neighbor_edge;
+  memset(&expired_neighbor, 0, sizeof(expired_neighbor));
+  memset(&expired_neighbor_edge, 0, sizeof(expired_neighbor_edge));
+  mg_uuidv7(expired_neighbor.id);
+  mg_blake3((const uint8_t *)"expired-neighbor", strlen("expired-neighbor"), expired_neighbor.content_hash);
+  expired_neighbor.title = (char *)"expired neighbor";
+  expired_neighbor.body = (char *)"expired neighbor body";
+  expired_neighbor.created_at = 4;
+  expired_neighbor.expires_at = 1;
+  expired_neighbor.last_access = 4;
+  expired_neighbor.state = MG_NODE_ACTIVE;
+  memcpy(expired_neighbor_edge.src, title_hit.id, MG_NODE_ID_BYTES);
+  memcpy(expired_neighbor_edge.dst, expired_neighbor.id, MG_NODE_ID_BYTES);
+  expired_neighbor_edge.kind = MG_EDGE_SEMANTIC;
+  expired_neighbor_edge.weight = 1.0f;
+
+  err = mg_storage_insert_node_with_edges(s, &expired_neighbor, emb, NULL, 0, &expired_neighbor_edge, 1, NULL);
+  if (err != MG_OK) {
+    fprintf(stderr, "insert expired_neighbor: %s\n", mg_strerror(err));
+    mg_storage_close(s);
+    return 1;
+  }
+  err = mg_storage_neighbors(s, title_hit.id, MG_EDGE_SEMANTIC, NULL, 0, neighbors, 4, &n_neighbors);
+  if (err != MG_OK || n_neighbors != 1 || !same_id(neighbors[0].dst, body_hit.id)) {
+    fprintf(stderr, "expired neighbor leaked count=%d err=%s\n", n_neighbors, mg_strerror(err));
+    mg_storage_close(s);
+    return 1;
+  }
+
+  mg_node_t expired_vec;
+  memset(&expired_vec, 0, sizeof(expired_vec));
+  mg_uuidv7(expired_vec.id);
+  mg_blake3((const uint8_t *)"expired-vector", strlen("expired-vector"), expired_vec.content_hash);
+  expired_vec.title = (char *)"expired vector";
+  expired_vec.body = (char *)"expired vector body";
+  expired_vec.created_at = 4;
+  expired_vec.expires_at = 1;
+  expired_vec.last_access = 4;
+  expired_vec.state = MG_NODE_ACTIVE;
+
+  err = mg_storage_insert_node_with_edges(s, &expired_vec, emb, NULL, 0, NULL, 0, NULL);
+  if (err != MG_OK) {
+    fprintf(stderr, "insert expired_vec: %s\n", mg_strerror(err));
+    mg_storage_close(s);
+    return 1;
+  }
+
+  err = mg_storage_vector_topk(s, emb, 8, scores, &count);
+  if (err != MG_OK) {
+    fprintf(stderr, "expired vector topk failed: %s\n", mg_strerror(err));
+    mg_storage_close(s);
+    return 1;
+  }
+  for (int i = 0; i < count; ++i) {
+    if (same_id(scores[i].id, expired_vec.id)) {
+      fprintf(stderr, "expired vector result leaked\n");
+      mg_storage_close(s);
+      return 1;
+    }
+  }
+  err = mg_storage_get_node(s, expired_vec.id, &got);
+  if (err != MG_ERR_NOT_FOUND) {
+    if (err == MG_OK) mg_node_free(&got);
+    fprintf(stderr, "expired vector node was not pruned: %s\n", mg_strerror(err));
+    mg_storage_close(s);
+    return 1;
+  }
+
+  mg_node_t expired_fts;
+  memset(&expired_fts, 0, sizeof(expired_fts));
+  mg_uuidv7(expired_fts.id);
+  mg_blake3((const uint8_t *)"expired-fts", strlen("expired-fts"), expired_fts.content_hash);
+  expired_fts.title = (char *)"gamma expired only";
+  expired_fts.body = (char *)"gamma expired body";
+  expired_fts.created_at = 5;
+  expired_fts.expires_at = 1;
+  expired_fts.last_access = 5;
+  expired_fts.state = MG_NODE_ACTIVE;
+
+  err = mg_storage_insert_node_with_edges(s, &expired_fts, emb, NULL, 0, NULL, 0, NULL);
+  if (err != MG_OK) {
+    fprintf(stderr, "insert expired_fts: %s\n", mg_strerror(err));
+    mg_storage_close(s);
+    return 1;
+  }
+
+  err = mg_storage_fts_search(s, "gamma", 4, true, true, scores, &count);
+  if (err != MG_OK || count != 0) {
+    fprintf(stderr, "expired fts leaked count=%d err=%s\n", count, mg_strerror(err));
+    mg_storage_close(s);
+    return 1;
+  }
+
+  mg_node_t expired_cleanup;
+  int64_t deleted = 0;
+  memset(&expired_cleanup, 0, sizeof(expired_cleanup));
+  mg_uuidv7(expired_cleanup.id);
+  mg_blake3((const uint8_t *)"expired-cleanup", strlen("expired-cleanup"), expired_cleanup.content_hash);
+  expired_cleanup.title = (char *)"expired cleanup";
+  expired_cleanup.body = (char *)"expired cleanup body";
+  expired_cleanup.created_at = 6;
+  expired_cleanup.expires_at = 1;
+  expired_cleanup.last_access = 6;
+  expired_cleanup.state = MG_NODE_ACTIVE;
+
+  err = mg_storage_insert_node_with_edges(s, &expired_cleanup, emb, NULL, 0, NULL, 0, NULL);
+  if (err != MG_OK) {
+    fprintf(stderr, "insert expired_cleanup: %s\n", mg_strerror(err));
+    mg_storage_close(s);
+    return 1;
+  }
+  err = mg_storage_prune_expired(s, &deleted);
+  if (err != MG_OK || deleted != 1) {
+    fprintf(stderr, "prune expired failed deleted=%lld err=%s\n",
+            (long long)deleted, mg_strerror(err));
     mg_storage_close(s);
     return 1;
   }
