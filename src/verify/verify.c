@@ -201,6 +201,9 @@ mg_err_t mg_verify_score(mg_verify_ctx_t *ctx,
                          float pre_computed_s_lex,
                          mg_verify_signals_t *out) {
   bool has_ce;
+  bool ce_ok;
+  bool lexical_strong;
+  bool semantic_strong;
   bool strong;
   bool weak;
 
@@ -221,12 +224,17 @@ mg_err_t mg_verify_score(mg_verify_ctx_t *ctx,
   }
 
   has_ce = out->s_ce >= 0.0f;
-  /* If CE is disabled or failed gracefully, strong hits fall back to lexical
-   * plus vector sanity. With CE available, the configured CE threshold is an
-   * additional gate; weak hits never use CE and remain vector/lexical only. */
-  strong = (has_ce ? out->s_ce >= ctx->cfg.strong_hit_min_ce : true) &&
-           out->s_lex >= ctx->cfg.strong_hit_min_lex &&
-           out->s_vec >= 0.7f;
+  ce_ok = has_ce ? out->s_ce >= ctx->cfg.strong_hit_min_ce : true;
+  /* If CE is disabled or failed gracefully, strong hits fall back to local
+   * signals. The lexical path is strict and preserves the old behavior. The
+   * semantic path catches cross-language cache hits where BGE-M3 aligns the
+   * query but trigram overlap is naturally low; it still requires the minimum
+   * lexical overlap so unrelated high-vector neighbors do not become hits. */
+  lexical_strong = out->s_lex >= ctx->cfg.strong_hit_min_lex &&
+                   out->s_vec >= 0.7f;
+  semantic_strong = out->s_vec >= 0.75f &&
+                    out->s_lex >= ctx->cfg.min_lex_overlap + 0.015f;
+  strong = ce_ok && (lexical_strong || semantic_strong);
   weak = !strong &&
          out->s_vec >= ctx->cfg.weak_hit_min_vec &&
          out->s_lex >= ctx->cfg.min_lex_overlap;

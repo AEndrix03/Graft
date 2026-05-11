@@ -35,6 +35,13 @@ int main(void) {
                            "weak score call");
     failures += expect_int(sig.hit_level == MG_HIT_WEAK, "weak gate");
 
+    failures += expect_int(mg_verify_score(ctx,
+                                           "perche @Valid non si applica ricorsivamente in un attributo dto",
+                                           "Spring Boot @Valid cascade on nested DTOs needs @Valid on the field plus @Validated on the controller",
+                                           0.807f, 0.067f, &sig) == MG_OK,
+                           "cross-language semantic score call");
+    failures += expect_int(sig.hit_level == MG_HIT_STRONG, "cross-language semantic strong gate");
+
     failures += expect_int(mg_verify_score(ctx, "alpha beta", "delta gamma", 0.5f, 0.01f, &sig) == MG_OK,
                            "none score call");
     failures += expect_int(sig.hit_level == MG_HIT_NONE, "none gate");
