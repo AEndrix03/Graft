@@ -93,7 +93,26 @@ static void write_miss(mg_ctx_t *ctx,
     mpack_complete_map(result);
 }
 
+static float query_verification_rank(const mg_verify_signals_t *sig) {
+    float ce = sig->s_ce >= 0.0f ? sig->s_ce : 0.0f;
+    float level = 0.0f;
+
+    if (sig->hit_level == MG_HIT_STRONG) {
+        level = 2.0f;
+    } else if (sig->hit_level == MG_HIT_WEAK) {
+        level = 1.0f;
+    }
+
+    return level +
+           (0.45f * ce) +
+           (0.25f * sig->s_lex) +
+           (0.20f * sig->s_jaccard) +
+           (0.10f * sig->s_vec);
+}
+
 mg_err_t mg_op_query(mg_ctx_t *ctx, mpack_node_t args, mpack_writer_t *result) {
+    enum { QUERY_VERIFY_TOP_K = 10 };
+
     if (!ctx || !ctx->storage || !ctx->embed || !ctx->config || !result)
         return MG_ERR_INVALID_ARG;
 
@@ -114,13 +133,14 @@ mg_err_t mg_op_query(mg_ctx_t *ctx, mpack_node_t args, mpack_writer_t *result) {
     mg_err_t e = mg_embed_text(ctx->embed, text, q);
     if (e != MG_OK) { free(text); return e; }
 
-    mg_node_score_t top1;
-    int n_top1 = 0;
-    e = mg_storage_vector_topk(ctx->storage, q, 1, &top1, &n_top1);
+    mg_node_score_t candidates[QUERY_VERIFY_TOP_K];
+    int n_candidates = 0;
+    e = mg_storage_vector_topk(ctx->storage, q, QUERY_VERIFY_TOP_K,
+                               candidates, &n_candidates);
     if (e != MG_OK) { free(text); return e; }
 
     /* No candidate at all: pure MISS, no signals available. */
-    if (n_top1 == 0) {
+    if (n_candidates == 0) {
         mg_verify_signals_t empty = {0};
         empty.s_ce = -1.0f;
         empty.hit_level = MG_HIT_NONE;
@@ -129,15 +149,17 @@ mg_err_t mg_op_query(mg_ctx_t *ctx, mpack_node_t args, mpack_writer_t *result) {
         return MG_OK;
     }
 
-    /* Sanity floor before paying for verify: definite MISS. */
-    if (top1.score < MG_QUERY_VEC_SANITY_FLOOR) {
-        if (!signals_only) {
-            (void)mg_storage_record_sample(ctx->storage,
-                                           MG_QUERY_SAMPLE_KIND,
-                                           top1.score);
-        }
+    if (!signals_only) {
+        (void)mg_storage_record_sample(ctx->storage,
+                                       MG_QUERY_SAMPLE_KIND,
+                                       candidates[0].score);
+    }
+
+    /* Sanity floor before paying for verify: definite MISS. Vector results are
+     * sorted descending, so if top-1 is below floor every later candidate is too. */
+    if (candidates[0].score < MG_QUERY_VEC_SANITY_FLOOR) {
         mg_verify_signals_t sig = {0};
-        sig.s_vec = top1.score;
+        sig.s_vec = candidates[0].score;
         sig.s_ce = -1.0f;
         sig.hit_level = MG_HIT_NONE;
         write_miss(ctx, text, q, &sig, result);
@@ -145,72 +167,108 @@ mg_err_t mg_op_query(mg_ctx_t *ctx, mpack_node_t args, mpack_writer_t *result) {
         return MG_OK;
     }
 
-    mg_node_t cand = {0};
-    e = mg_storage_get_node(ctx->storage, top1.id, &cand);
-    if (e != MG_OK) { free(text); return e; }
+    mg_node_t best_node = {0};
+    mg_node_id_t best_id = {0};
+    mg_verify_signals_t best_sig = {0};
+    best_sig.s_ce = -1.0f;
+    best_sig.hit_level = MG_HIT_NONE;
+    float best_rank = -1.0f;
+    bool have_best_hit = false;
 
-    /* MVP s_lex proxy: trigram Jaccard between query text and candidate
-     * title (BM25 scores aren't directly comparable across queries
-     * without per-query normalization, and Jaccard is bounded in [0,1]). */
-    float s_lex = mg_text_trigram_jaccard(text,
-                                          cand.title ? cand.title : "");
+    mg_verify_signals_t best_miss_sig = {0};
+    best_miss_sig.s_ce = -1.0f;
+    best_miss_sig.hit_level = MG_HIT_NONE;
+    float best_miss_rank = -1.0f;
 
-    mg_verify_signals_t sig = {0};
-    sig.s_ce = -1.0f;
-    e = mg_verify_score((mg_verify_ctx_t *)ctx->verify,
-                         text, cand.title ? cand.title : "",
-                         top1.score, s_lex, &sig);
-    if (e != MG_OK) {
+    for (int i = 0; i < n_candidates; ++i) {
+        if (candidates[i].score < MG_QUERY_VEC_SANITY_FLOOR) {
+            continue;
+        }
+
+        mg_node_t cand = {0};
+        e = mg_storage_get_node(ctx->storage, candidates[i].id, &cand);
+        if (e != MG_OK) {
+            mg_node_free(&best_node);
+            free(text);
+            return e;
+        }
+
+        /* MVP s_lex proxy: trigram Jaccard between query text and candidate
+         * title (BM25 scores aren't directly comparable across queries
+         * without per-query normalization, and Jaccard is bounded in [0,1]). */
+        float s_lex = mg_text_trigram_jaccard(text,
+                                              cand.title ? cand.title : "");
+
+        mg_verify_signals_t sig = {0};
+        sig.s_ce = -1.0f;
+        e = mg_verify_score((mg_verify_ctx_t *)ctx->verify,
+                            text, cand.title ? cand.title : "",
+                            candidates[i].score, s_lex, &sig);
+        if (e != MG_OK) {
+            mg_node_free(&cand);
+            mg_node_free(&best_node);
+            free(text);
+            return e;
+        }
+
+        float rank = query_verification_rank(&sig);
+        if (sig.hit_level == MG_HIT_STRONG || sig.hit_level == MG_HIT_WEAK) {
+            if (!have_best_hit || rank > best_rank) {
+                mg_node_free(&best_node);
+                best_node = cand;
+                cand = (mg_node_t){0};
+                memcpy(best_id, candidates[i].id, MG_NODE_ID_BYTES);
+                best_sig = sig;
+                best_rank = rank;
+                have_best_hit = true;
+            }
+        } else if (rank > best_miss_rank) {
+            best_miss_sig = sig;
+            best_miss_rank = rank;
+        }
+
         mg_node_free(&cand);
-        free(text);
-        return e;
     }
 
-    if (!signals_only) {
-        (void)mg_storage_record_sample(ctx->storage,
-                                       MG_QUERY_SAMPLE_KIND,
-                                       top1.score);
-    }
-
-    if (sig.hit_level == MG_HIT_STRONG || sig.hit_level == MG_HIT_WEAK) {
-        if (!signals_only && sig.hit_level == MG_HIT_STRONG) {
-            (void)mg_storage_touch_access(ctx->storage, top1.id);
+    if (have_best_hit) {
+        if (!signals_only && best_sig.hit_level == MG_HIT_STRONG) {
+            (void)mg_storage_touch_access(ctx->storage, best_id);
         }
 
         char id_hex[2 * MG_NODE_ID_BYTES + 1];
-        mg_retrieve_hex_encode(top1.id, MG_NODE_ID_BYTES, id_hex);
+        mg_retrieve_hex_encode(best_id, MG_NODE_ID_BYTES, id_hex);
 
         mpack_build_map(result);
 
         mpack_write_cstr(result, "hit");
-        mpack_write_cstr(result, hit_label(sig.hit_level));
+        mpack_write_cstr(result, hit_label(best_sig.hit_level));
 
         mpack_write_cstr(result, "id_hex");
         mpack_write_cstr(result, id_hex);
 
         mpack_write_cstr(result, "title");
-        mpack_write_cstr(result, cand.title ? cand.title : "");
+        mpack_write_cstr(result, best_node.title ? best_node.title : "");
 
         mpack_write_cstr(result, "body");
-        if (sig.hit_level == MG_HIT_STRONG) {
-            mpack_write_cstr(result, cand.body ? cand.body : "");
+        if (best_sig.hit_level == MG_HIT_STRONG) {
+            mpack_write_cstr(result, best_node.body ? best_node.body : "");
         } else {
             mpack_write_nil(result);
         }
 
         mpack_write_cstr(result, "signals");
-        write_signals_map(result, &sig);
+        write_signals_map(result, &best_sig);
 
         mpack_complete_map(result);
 
-        mg_node_free(&cand);
+        mg_node_free(&best_node);
         free(text);
         return MG_OK;
     }
 
-    /* MG_HIT_NONE: MISS with fallback. */
-    mg_node_free(&cand);
-    write_miss(ctx, text, q, &sig, result);
+    /* MG_HIT_NONE: MISS with fallback, carrying the strongest verified miss. */
+    mg_node_free(&best_node);
+    write_miss(ctx, text, q, &best_miss_sig, result);
     free(text);
     return MG_OK;
 }
