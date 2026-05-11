@@ -64,12 +64,8 @@ static int resolve_viewer_dir(const char *argv0, char *out, size_t outsz) {
         /* base = <root>/bin/graft[.exe] → strip filename, then "bin" */
         strip_last(base);
         strip_last(base);
-        char candidate[1100];
-        snprintf(candidate, sizeof(candidate), "%s%cviewer", base, PATH_SEP);
-        if (path_exists(candidate)) {
-            snprintf(out, outsz, "%s", candidate);
-            return 0;
-        }
+        snprintf(out, outsz, "%s%cviewer", base, PATH_SEP);
+        if (path_exists(out)) return 0;
     }
 
     /* Dev / source-tree fallback */

@@ -407,16 +407,21 @@ if [ -s "$MODEL_PATH" ]; then
   cp -f "$MODEL_PATH" "$INSTALL_MODELS/bge-m3.gguf"
 fi
 
-# generate per-install config with absolute model path
+# generate per-install config with absolute model_path and viewer_path
+# (graftd resolves these relative to its cwd, which isn't $INSTALL_DIR)
 INSTALL_CONFIG="$INSTALL_DIR/config.yaml"
 MODEL_ABS="$INSTALL_MODELS/bge-m3.gguf"
+VIEWER_ABS="$INSTALL_DIR/viewer/dist"
 if [ "$OS" = "msys2" ] && command -v cygpath >/dev/null 2>&1; then
   MODEL_ABS=$(cygpath -m "$MODEL_ABS")
+  VIEWER_ABS=$(cygpath -m "$VIEWER_ABS")
 fi
-awk -v model="$MODEL_ABS" '
-  /^embedding:/ { in_embed=1; print; next }
+awk -v model="$MODEL_ABS" -v viewer="$VIEWER_ABS" '
+  /^embedding:/ { in_embed=1; in_http=0; print; next }
   in_embed && /^[[:space:]]+model_path:/ { print "  model_path: \"" model "\""; next }
-  /^[a-z]/ && !/^embedding:/ { in_embed=0 }
+  /^http:/ { in_http=1; in_embed=0; print; next }
+  in_http && /^[[:space:]]+viewer_path:/ { print "  viewer_path: \"" viewer "\""; next }
+  /^[a-z]/ && !/^embedding:/ && !/^http:/ { in_embed=0; in_http=0 }
   { print }
 ' config.yaml > "$INSTALL_CONFIG"
 ok "installed binaries, model and config under $INSTALL_DIR"
