@@ -82,11 +82,11 @@ int main(void) {
   cfg.rerank_w_nli = 0.0f;
   failures += expect_int(mg_verify_init(&cfg, &ctx) == MG_OK, "verify init fused-gate");
   if (ctx) {
-    /* fused = (0.30*0.95 + 0.25*0.40) / (0.30+0.25) = 0.6909... */
-    failures += expect_int(mg_verify_score(ctx, "q", "c", 0.95f, 0.40f, &sig) == MG_OK,
+    /* fused = (0.30*0.80 + 0.25*0.40) / (0.30+0.25) = 0.34/0.55 = 0.6181... */
+    failures += expect_int(mg_verify_score(ctx, "q", "c", 0.80f, 0.40f, &sig) == MG_OK,
                            "fused-gate score call (above weak floor)");
     failures += expect_int(sig.hit_level == MG_HIT_WEAK,
-                           "fused-gate yields WEAK at ~0.69 between 0.50 and 0.70");
+                           "fused-gate yields WEAK at ~0.62 between 0.50 and 0.70");
 
     /* fused = (0.30*0.95 + 0.25*0.85) / 0.55 = (0.285+0.2125)/0.55 = 0.9045... */
     failures += expect_int(mg_verify_score(ctx, "q", "c", 0.95f, 0.85f, &sig) == MG_OK,
