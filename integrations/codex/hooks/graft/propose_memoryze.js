@@ -10,7 +10,7 @@
  * Output silently; the proposal is consumed by query_inject.js on the next turn.
  */
 
-const { readFileSync, existsSync, writeFileSync, unlinkSync, mkdirSync } = require('fs');
+const { readFileSync, existsSync, writeFileSync, unlinkSync, mkdirSync, readdirSync } = require('fs');
 const path = require('path');
 const os = require('os');
 
@@ -38,19 +38,33 @@ function readStdinSync() { try { return readFileSync(0, 'utf8'); } catch (_) { r
   const sessionId = p && p.session_id;
   if (!sessionId) return;
 
-  const candidatesFile = path.join(STATE_DIR, `${sessionId}.candidates`);
-  if (!existsSync(candidatesFile)) return;
-
-  let entries = [];
+  // mark_candidate.js writes per-PID files: ${sessionId}.${pid}.candidates.
+  // Merge every file matching this session before processing, then delete
+  // each one after consumption.
+  const prefix = `${sessionId}.`;
+  const suffix = '.candidates';
+  let candidateFiles = [];
   try {
-    entries = readFileSync(candidatesFile, 'utf8')
-      .split('\n').filter(Boolean)
-      .map(l => { try { return JSON.parse(l); } catch (_) { return null; } })
-      .filter(Boolean);
+    candidateFiles = readdirSync(STATE_DIR)
+      .filter(name => name.startsWith(prefix) && name.endsWith(suffix))
+      .map(name => path.join(STATE_DIR, name));
   } catch (_) { return; }
 
+  if (!candidateFiles.length) return;
+
+  let entries = [];
+  for (const f of candidateFiles) {
+    try {
+      const lines = readFileSync(f, 'utf8').split('\n').filter(Boolean);
+      for (const l of lines) {
+        try { entries.push(JSON.parse(l)); } catch (_) {}
+      }
+    } catch (_) {}
+  }
+  entries = entries.filter(Boolean);
+
   if (!entries.length) {
-    try { unlinkSync(candidatesFile); } catch (_) {}
+    for (const f of candidateFiles) { try { unlinkSync(f); } catch (_) {} }
     return;
   }
 
@@ -65,6 +79,6 @@ function readStdinSync() { try { return readFileSync(0, 'utf8'); } catch (_) { r
   const proposalFile = path.join(STATE_DIR, `${sessionId}.proposal`);
   try {
     writeFileSync(proposalFile, proposal);
-    unlinkSync(candidatesFile);
   } catch (_) {}
+  for (const f of candidateFiles) { try { unlinkSync(f); } catch (_) {} }
 })();

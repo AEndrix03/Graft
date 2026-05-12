@@ -76,7 +76,11 @@ function readStdinSync() { try { return readFileSync(0, 'utf8'); } catch (_) { r
     files = [...seen];
   }
 
-  const stateFile = path.join(STATE_DIR, `${sessionId}.candidates`);
+  // Per-process file: parallel PostToolUse hooks must not race on the same
+  // candidates file. Windows appendFileSync is not atomic for multi-line
+  // writes; on Linux only writes <= PIPE_BUF are atomic. The Stop hook
+  // (propose_memoryze.js) merges every ${sessionId}.*.candidates file.
+  const stateFile = path.join(STATE_DIR, `${sessionId}.${process.pid}.candidates`);
   try {
     if (!files.length) {
       appendFileSync(stateFile, JSON.stringify({ ts, tool, file: '' }) + '\n');
