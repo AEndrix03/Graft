@@ -13,7 +13,7 @@
  */
 
 const { execFileSync } = require('child_process');
-const { readFileSync, existsSync, unlinkSync, mkdirSync } = require('fs');
+const { readFileSync, unlinkSync, mkdirSync, renameSync } = require('fs');
 const path = require('path');
 const os = require('os');
 
@@ -100,18 +100,27 @@ function exploreWeak(title, keywords) {
   const sessionId = safeSessionId(rawSessionId);
 
   // (1) Surface any pending /memoryze proposal from prior turn's Stop hook.
+  // Atomic consume: rename-then-read so that if two UserPromptSubmit hooks
+  // race (or the user double-submits), only the winner sees the proposal —
+  // the loser hits ENOENT and exits silently, avoiding double injection.
   if (sessionId) {
     const proposalFile = path.join(STATE_DIR, `${sessionId}.proposal`);
-    if (existsSync(proposalFile)) {
+    const claimed = `${proposalFile}.consumed.${process.pid}`;
+    let renamed = false;
+    try {
+      renameSync(proposalFile, claimed);
+      renamed = true;
+    } catch (_) { /* ENOENT — another instance won, or no proposal */ }
+    if (renamed) {
       try {
-        const proposal = readFileSync(proposalFile, 'utf8').trim();
+        const proposal = readFileSync(claimed, 'utf8').trim();
         if (proposal) {
           process.stdout.write('<graft-proposal>\n');
           process.stdout.write(proposal + '\n');
           process.stdout.write('</graft-proposal>\n\n');
         }
-        unlinkSync(proposalFile);
       } catch (_) {}
+      try { unlinkSync(claimed); } catch (_) {}
     }
   }
 
