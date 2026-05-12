@@ -48,9 +48,12 @@ static char *read_whole_file(const char *path, size_t *out_len) {
   size = ftell(fp);
   if (size < 0) { fclose(fp); return NULL; }
   rewind(fp);
-  buf = (char *)malloc((size_t)size);
+  /* malloc(0) is implementation-defined (some libcs return NULL, which would
+   * incorrectly signal a read error). Always allocate at least one byte so
+   * callers receive a valid non-NULL pointer for empty files. */
+  buf = (char *)malloc(size > 0 ? (size_t)size : 1);
   if (!buf) { fclose(fp); return NULL; }
-  if (fread(buf, 1, (size_t)size, fp) != (size_t)size) {
+  if (size > 0 && fread(buf, 1, (size_t)size, fp) != (size_t)size) {
     free(buf); fclose(fp); return NULL;
   }
   fclose(fp);
