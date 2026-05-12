@@ -137,14 +137,17 @@ mg_err_t mg_op_classify(mg_ctx_t *ctx, mpack_node_t args, mpack_writer_t *result
     for (int j = 0; j < n_neighbors; ++j) {
       mg_keyword_id_t kw_id = neighbors[j].keyword_id;
       if (kw_id == 0) {
-        memcpy(&kw_id, neighbors[j].dst, sizeof(kw_id) < MG_NODE_ID_BYTES ? sizeof(kw_id) : MG_NODE_ID_BYTES);
+        /* Neighbor has no real keyword id — skip it. The previous code
+         * memcpy'd the first sizeof(kw_id) bytes of the destination UUID
+         * into kw_id, which is garbage that fails later lookup and aborts
+         * classify. Counting only makes sense for edges with a real
+         * keyword id. */
+        continue;
       }
-      if (kw_id != 0) {
-        err = add_keyword_count(&items, &count, &cap, kw_id);
-        if (err != MG_OK) {
-          free(items);
-          return err;
-        }
+      err = add_keyword_count(&items, &count, &cap, kw_id);
+      if (err != MG_OK) {
+        free(items);
+        return err;
       }
     }
   }
