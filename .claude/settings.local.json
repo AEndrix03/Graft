@@ -1,9 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Bash(graft query *)",
-      "Bash(graft get *)",
-      "Bash(graft retrieve *)"
-    ]
-  }
-}

@@ -3,6 +3,15 @@ plans/
 # Local agent/tool state
 .cache/
 .serena/
+.claude/
+.codex/
+.opencode/
+%USERPROFILE%/
+
+# Python test/cache outputs
+.pytest_cache/
+__pycache__/
+*.py[cod]
 
 # Build outputs
 build/
