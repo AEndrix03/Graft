@@ -11,6 +11,7 @@
 #include "internal.h"
 
 #include "graft/rerank.h"
+#include "graft/score.h"
 #include "graft/verify.h"
 #include "graft/verify_internal.h"
 
@@ -18,20 +19,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-/* Weighted fusion. Inputs are assumed already clamped/bounded [0,1] for
- * non-NaN values (PR0 guarantees this for s_vec and s_lex; CE and NLI are
- * sigmoid/softmax outputs, also in [0,1]).
- * Returns NaN when no signal contributes (all NaN or all weights zero). */
-static float mg_rerank_fuse(float s_vec, float s_lex, float s_ce, float s_nli,
-                            float w_vec, float w_lex, float w_ce, float w_nli) {
-    float fused = 0.0f, w_sum = 0.0f;
-    if (!isnan(s_vec) && w_vec > 0.0f) { fused += w_vec * s_vec; w_sum += w_vec; }
-    if (!isnan(s_lex) && w_lex > 0.0f) { fused += w_lex * s_lex; w_sum += w_lex; }
-    if (!isnan(s_ce)  && w_ce  > 0.0f) { fused += w_ce  * s_ce ; w_sum += w_ce ; }
-    if (!isnan(s_nli) && w_nli > 0.0f) { fused += w_nli * s_nli; w_sum += w_nli; }
-    return w_sum > 0.0f ? fused / w_sum : NAN;
-}
 
 mg_err_t mg_rerank_init(const mg_config_t *cfg,
                         struct mg_verify_ctx *verify_ctx_for_ce,
@@ -125,14 +112,14 @@ mg_err_t mg_rerank_batch(mg_rerank_ctx_t *r,
                 }
             }
         }
-        out[i].fused = mg_rerank_fuse(cands[i].s_vec,
-                                      cands[i].s_lex,
-                                      out[i].s_ce,
-                                      out[i].s_nli,
-                                      r->cfg.rerank_w_vec,
-                                      r->cfg.rerank_w_lex,
-                                      r->cfg.rerank_w_ce,
-                                      r->cfg.rerank_w_nli);
+        out[i].fused = mg_score_fuse(cands[i].s_vec,
+                                     cands[i].s_lex,
+                                     out[i].s_ce,
+                                     out[i].s_nli,
+                                     r->cfg.rerank_w_vec,
+                                     r->cfg.rerank_w_lex,
+                                     r->cfg.rerank_w_ce,
+                                     r->cfg.rerank_w_nli);
     }
     return MG_OK;
 }

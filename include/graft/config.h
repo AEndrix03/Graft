@@ -29,6 +29,9 @@ typedef struct {
   float verify_lex_strong_min_vec;     /* min s_vec for lexical_strong path */
   float verify_sem_strong_min_vec;     /* min s_vec for semantic_strong path */
   float verify_sem_strong_lex_margin;  /* margin above min_lex_overlap for semantic_strong */
+  bool  verify_use_fused_gate;         /* if true, gate STRONG/WEAK on fused score instead of boolean rules */
+  float verify_strong_min_fused;       /* fused-score floor for STRONG when use_fused_gate */
+  float verify_weak_min_fused;         /* fused-score floor for WEAK when use_fused_gate */
 
   /* retrieval */
   int   retrieve_top_k;

@@ -1,4 +1,5 @@
 #include "graft/verify_internal.h"
+#include "graft/score.h"
 
 #include <ctype.h>
 #include <math.h>
@@ -233,6 +234,24 @@ mg_err_t mg_verify_score(mg_verify_ctx_t *ctx,
         out->s_nli = nli;
       }
     }
+  }
+
+  if (ctx->cfg.verify_use_fused_gate) {
+    /* Alternative gate: decide STRONG/WEAK/NONE from the fused score using
+     * the same weights as the rerank module. NaN fused (no signal at all)
+     * collapses to MG_HIT_NONE. The legacy boolean rules below are skipped. */
+    float fused = mg_score_fuse(out->s_vec, out->s_lex,
+                                out->s_ce,  out->s_nli,
+                                ctx->cfg.rerank_w_vec, ctx->cfg.rerank_w_lex,
+                                ctx->cfg.rerank_w_ce,  ctx->cfg.rerank_w_nli);
+    if (!isnan(fused) && fused >= ctx->cfg.verify_strong_min_fused) {
+      out->hit_level = MG_HIT_STRONG;
+    } else if (!isnan(fused) && fused >= ctx->cfg.verify_weak_min_fused) {
+      out->hit_level = MG_HIT_WEAK;
+    } else {
+      out->hit_level = MG_HIT_NONE;
+    }
+    return MG_OK;
   }
 
   has_ce = !isnan(out->s_ce);

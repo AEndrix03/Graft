@@ -107,6 +107,24 @@ verification:
   # overlap as a sanity check without blocking truly cross-language hits.
   sem_strong_lex_margin: 0.015
 
+  # [quality] Alternative gate that decides STRONG/WEAK/NONE from the fused
+  # rerank score instead of the boolean lex/sem rules above. When true, the
+  # rerank weights (rerank.w_vec/w_lex/w_ce/w_nli) are reused to compute a
+  # weighted score and the thresholds below determine the hit level. Lets you
+  # express hit-level decisions with a single continuous knob per band. Legacy
+  # boolean rules remain the safe default.
+  use_fused_gate: false
+
+  # [quality] Fused-score floor for STRONG hits when use_fused_gate is true.
+  # [range] 0..1. Higher = stricter precision, fewer cache hits.
+  strong_min_fused: 0.70
+
+  # [quality] Fused-score floor for WEAK hits when use_fused_gate is true.
+  # [range] 0..1. Must be < strong_min_fused. Sets the floor below which a
+  # match is dropped to MG_HIT_NONE.
+  weak_min_fused: 0.50
+
+
 
 # -----------------------------------------------------------------------------
 # cache — thresholds for STRONG vs WEAK vs NONE classification
