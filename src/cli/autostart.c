@@ -254,7 +254,9 @@ static int mg_spawn_daemon(const char *daemon_path,
         char log_path[1024];
         snprintf(log_path, sizeof(log_path), "%s/graftd.log", cli_dir);
         int devnull = open("/dev/null", O_RDONLY);
-        int log_fd  = open(log_path, O_CREAT | O_WRONLY | O_APPEND, 0644);
+        /* Daemon log may contain query text, error messages with paths,
+         * and other content we don't want other local users to read. */
+        int log_fd  = open(log_path, O_CREAT | O_WRONLY | O_APPEND, 0600);
         if (devnull >= 0) { dup2(devnull, 0); close(devnull); }
         if (log_fd  >= 0) {
             dup2(log_fd, 1);
