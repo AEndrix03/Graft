@@ -21,6 +21,7 @@
 #include "graft/storage.h"
 #include "graft/embed.h"
 #include "graft/verify.h"
+#include "graft/rerank.h"
 #include "graft/config.h"
 #include "graft/error.h"
 #include "graft/http.h"
@@ -165,6 +166,7 @@ int main(int argc, char **argv) {
     mg_storage_t    *storage = NULL;
     mg_embed_ctx_t  *embed   = NULL;
     mg_verify_ctx_t *verify  = NULL;
+    mg_rerank_ctx_t *rerank  = NULL;
     int rc = 1;
 
     err = mg_storage_open(cfg.db_path, &storage);
@@ -188,11 +190,17 @@ int main(int argc, char **argv) {
         fprintf(stderr, "verify init failed: %s\n", mg_strerror(err));
         goto cleanup;
     }
+    err = mg_rerank_init(&cfg, verify, &rerank);
+    if (err != MG_OK) {
+        fprintf(stderr, "rerank init failed: %s\n", mg_strerror(err));
+        goto cleanup;
+    }
 
     mg_ctx_t ctx;
     ctx.storage = storage;
     ctx.embed   = embed;
     ctx.verify  = verify;
+    ctx.rerank  = rerank;
     ctx.config  = &cfg;
 
     signal(SIGINT,  on_signal);
@@ -246,6 +254,7 @@ int main(int argc, char **argv) {
     rc = 0;
 
 cleanup:
+    if (rerank)  mg_rerank_shutdown(rerank);
     if (verify)  mg_verify_shutdown(verify);
     if (embed)   mg_embed_shutdown(embed);
     if (storage) mg_storage_close(storage);

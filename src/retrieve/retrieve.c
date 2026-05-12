@@ -20,7 +20,10 @@
 #include "graft/config.h"
 #include "graft/types.h"
 #include "graft/error.h"
+#include "graft/rerank.h"
+#include "graft/verify.h"
 
+#include <math.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
@@ -165,6 +168,79 @@ mg_err_t mg_retrieve_run_rrf(mg_ctx_t *ctx,
     qsort(cands, (size_t)n_cands, sizeof(cands[0]), cmp_cand_rrf_desc);
 
     int n_keep = n_cands < top_k ? n_cands : top_k;
+
+    /* Optional second-stage rerank over the first min(n_keep, rerank_top_k)
+     * candidates. When rerank is disabled, this block is a no-op and the
+     * pipeline output is bit-for-bit identical to the pre-rerank behavior. */
+    if (ctx->rerank && mg_rerank_enabled((mg_rerank_ctx_t *)ctx->rerank)) {
+        int n_rer = n_keep < ctx->config->rerank_top_k
+                    ? n_keep : ctx->config->rerank_top_k;
+        if (n_rer < 0) n_rer = 0;
+        if (n_rer > MG_RETRIEVE_MAX_TOP_K) n_rer = MG_RETRIEVE_MAX_TOP_K;
+
+        char *rerank_titles[MG_RETRIEVE_MAX_TOP_K];
+        int   n_rerank_titles = 0;
+        mg_rerank_input_t rer_in[MG_RETRIEVE_MAX_TOP_K];
+        mg_rerank_output_t rer_out[MG_RETRIEVE_MAX_TOP_K];
+
+        for (int i = 0; i < n_rer; i++) {
+            /* Look up cosine score from the vector candidate list (if the
+             * candidate came from FTS only, leave s_vec as NaN). */
+            float s_vec = NAN;
+            for (int j = 0; j < n_vec; j++) {
+                if (memcmp(r_vec[j].id, cands[i].id, MG_NODE_ID_BYTES) == 0) {
+                    s_vec = r_vec[j].score;
+                    break;
+                }
+            }
+
+            /* Fetch title for trigram Jaccard + CE prompt. */
+            mg_node_t node = {0};
+            const char *title = "";
+            if (mg_storage_get_node(ctx->storage, cands[i].id, &node) == MG_OK) {
+                title = node.title ? node.title : "";
+            }
+            float s_lex = mg_text_trigram_jaccard(text, title);
+
+            /* Stash a heap-owned copy of the title so it survives past the
+             * node free below — rerank may need it for CE. */
+            char *title_copy = NULL;
+            if (title[0]) {
+                size_t tlen = strlen(title);
+                title_copy = (char *)malloc(tlen + 1u);
+                if (title_copy) memcpy(title_copy, title, tlen + 1u);
+            }
+            rerank_titles[i] = title_copy;
+            n_rerank_titles = i + 1;
+
+            rer_in[i].id = &cands[i].id;
+            rer_in[i].candidate_text = title_copy ? title_copy : "";
+            rer_in[i].s_vec = s_vec;
+            rer_in[i].s_lex = s_lex;
+
+            mg_node_free(&node);
+        }
+
+        if (mg_rerank_batch((mg_rerank_ctx_t *)ctx->rerank,
+                             text, rer_in, n_rer, rer_out) == MG_OK) {
+            /* Replace the rrf score with the fused score for these
+             * candidates. NaN (no signal at all) falls back to the original
+             * RRF rank by leaving the score untouched. */
+            for (int i = 0; i < n_rer; i++) {
+                if (!isnan(rer_out[i].fused)) {
+                    cands[i].rrf = rer_out[i].fused;
+                }
+            }
+            /* Re-sort only the rerank window; everything past n_rer keeps
+             * its RRF rank. The window is at the head of the array so a
+             * partial qsort is correct here. */
+            qsort(cands, (size_t)n_rer, sizeof(cands[0]), cmp_cand_rrf_desc);
+        }
+
+        for (int i = 0; i < n_rerank_titles; i++) {
+            free(rerank_titles[i]);
+        }
+    }
 
     /* Distinct keywords accumulator (keyword_id -> text). */
     mg_keyword_id_t distinct_ids[MG_RETRIEVE_MAX_DISTINCT_KW];

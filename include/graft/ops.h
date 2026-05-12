@@ -11,6 +11,7 @@ typedef struct {
   mg_storage_t   *storage;
   mg_embed_ctx_t *embed;
   void           *verify;    /* mg_verify_ctx_t* opaque */
+  void           *rerank;    /* mg_rerank_ctx_t* opaque, NULL when disabled */
   mg_config_t    *config;
 } mg_ctx_t;
 
