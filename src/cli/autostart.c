@@ -41,6 +41,7 @@
 #  include <sys/types.h>
 #  include <sys/stat.h>
 #  include <sys/wait.h>
+#  include <sys/file.h>
 #  include <fcntl.h>
 #  include <time.h>
 #  include <errno.h>
@@ -283,6 +284,87 @@ static void mg_sleep_ms(int ms) {
 
 #endif
 
+/* ----- spawn lock -----
+ *
+ * Without this guard two CLI invocations racing on a cold profile would
+ * each pass the "socket not connectable" check and each spawn a daemon.
+ * The second daemon's bind() then fails and the user sees a confusing
+ * error even though the first daemon is healthy.
+ *
+ * The lock file lives next to the socket: <socket_path>.lock. We take an
+ * exclusive non-blocking lock; if someone else holds it, that means another
+ * spawn is in progress and we just wait on the socket. The OS releases the
+ * lock when our fd/handle is closed, so we hold it for the duration of the
+ * spawn-and-poll dance.
+ */
+#ifdef _WIN32
+typedef HANDLE mg_lock_t;
+#define MG_LOCK_INVALID INVALID_HANDLE_VALUE
+#else
+typedef int mg_lock_t;
+#define MG_LOCK_INVALID (-1)
+#endif
+
+static int mg_lock_path(const char *socket_path, char *out, size_t cap) {
+    int n = snprintf(out, cap, "%s.lock", socket_path);
+    return (n > 0 && (size_t)n < cap) ? 0 : -1;
+}
+
+/* Try to take an exclusive lock. Returns:
+ *   1  — lock acquired (caller must release via mg_unlock)
+ *   0  — lock held by another process (try-fail)
+ *  -1  — error opening/creating the lock file
+ */
+static int mg_try_lock(const char *lock_path, mg_lock_t *out) {
+#ifdef _WIN32
+    HANDLE h = CreateFileA(lock_path,
+                           GENERIC_READ | GENERIC_WRITE,
+                           FILE_SHARE_READ | FILE_SHARE_WRITE,
+                           NULL,
+                           OPEN_ALWAYS,
+                           FILE_ATTRIBUTE_NORMAL,
+                           NULL);
+    if (h == INVALID_HANDLE_VALUE) return -1;
+    OVERLAPPED ov = { 0 };
+    if (!LockFileEx(h,
+                    LOCKFILE_EXCLUSIVE_LOCK | LOCKFILE_FAIL_IMMEDIATELY,
+                    0, MAXDWORD, MAXDWORD, &ov)) {
+        DWORD e = GetLastError();
+        CloseHandle(h);
+        if (e == ERROR_LOCK_VIOLATION || e == ERROR_IO_PENDING) return 0;
+        return -1;
+    }
+    *out = h;
+    return 1;
+#else
+    int fd = open(lock_path, O_CREAT | O_RDWR | O_CLOEXEC, 0600);
+    if (fd < 0) return -1;
+    if (flock(fd, LOCK_EX | LOCK_NB) != 0) {
+        int saved = errno;
+        close(fd);
+        if (saved == EWOULDBLOCK || saved == EAGAIN) return 0;
+        return -1;
+    }
+    *out = fd;
+    return 1;
+#endif
+}
+
+static void mg_unlock(mg_lock_t lock) {
+#ifdef _WIN32
+    if (lock != MG_LOCK_INVALID) {
+        OVERLAPPED ov = { 0 };
+        UnlockFileEx(lock, 0, MAXDWORD, MAXDWORD, &ov);
+        CloseHandle(lock);
+    }
+#else
+    if (lock >= 0) {
+        flock(lock, LOCK_UN);
+        close(lock);
+    }
+#endif
+}
+
 mg_err_t mg_autostart_daemon(const char *socket_path, char *err, size_t err_cap) {
     if (!socket_path) return MG_ERR_INVALID_ARG;
     if (err && err_cap > 0) err[0] = '\0';
@@ -314,9 +396,53 @@ mg_err_t mg_autostart_daemon(const char *socket_path, char *err, size_t err_cap)
         return MG_ERR_IO;
     }
 
+    /* Serialize concurrent spawn attempts via an exclusive pidfile lock. */
+    char lock_path[1100];
+    mg_lock_t lock = MG_LOCK_INVALID;
+    int locked = 0;
+    if (mg_lock_path(socket_path, lock_path, sizeof(lock_path)) == 0) {
+        int lr = mg_try_lock(lock_path, &lock);
+        if (lr == 1) {
+            locked = 1;
+        } else if (lr == 0) {
+            /* Another CLI is mid-spawn. Wait briefly for its daemon to come
+             * up; if it does, we're done — no second daemon needed. */
+            int waited = 0;
+            while (waited < MG_AUTOSTART_TIMEOUT_MS) {
+                mg_sleep_ms(MG_AUTOSTART_POLL_MS);
+                waited += MG_AUTOSTART_POLL_MS;
+                int fd = -1;
+                if (mg_daemon_socket_connect(socket_path, &fd) == MG_OK) {
+                    mg_daemon_socket_close(fd);
+                    return MG_OK;
+                }
+            }
+            if (err) snprintf(err, err_cap,
+                              "another daemon spawn is in progress but socket %s "
+                              "did not become ready in %d ms",
+                              socket_path, MG_AUTOSTART_TIMEOUT_MS);
+            return MG_ERR_IO;
+        }
+        /* lr == -1: couldn't open lock file (e.g., dir doesn't exist yet).
+         * Fall through without locking — best-effort. */
+    }
+
+    /* Re-check the socket while holding the lock: another CLI may have
+     * spawned a daemon between our initial connect attempt and acquiring
+     * the lock. */
+    if (locked) {
+        int fd = -1;
+        if (mg_daemon_socket_connect(socket_path, &fd) == MG_OK) {
+            mg_daemon_socket_close(fd);
+            mg_unlock(lock);
+            return MG_OK;
+        }
+    }
+
     char spawn_err[256] = { 0 };
     if (mg_spawn_daemon(daemon_path, cli_dir, config_path,
                         spawn_err, sizeof(spawn_err)) != 0) {
+        if (locked) mg_unlock(lock);
         if (err) snprintf(err, err_cap, "spawn failed: %s", spawn_err);
         return MG_ERR_IO;
     }
@@ -329,9 +455,11 @@ mg_err_t mg_autostart_daemon(const char *socket_path, char *err, size_t err_cap)
         int fd = -1;
         if (mg_daemon_socket_connect(socket_path, &fd) == MG_OK) {
             mg_daemon_socket_close(fd);
+            if (locked) mg_unlock(lock);
             return MG_OK;
         }
     }
+    if (locked) mg_unlock(lock);
     if (err) snprintf(err, err_cap,
                       "daemon spawned but socket %s did not become ready in %d ms",
                       socket_path, MG_AUTOSTART_TIMEOUT_MS);
