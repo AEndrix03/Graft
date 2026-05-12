@@ -680,6 +680,12 @@ static int write_remote_meta(const char *name, const char *url, const char *toke
     if (remote_meta_path(name, path, sizeof(path), 1) != 0) return -1;
     FILE *fp = fopen(path, "wb");
     if (!fp) return -1;
+#ifndef _WIN32
+    /* This file may hold a remote auth token. Tighten permissions to the
+     * owning user before writing any bytes; on Windows the default ACL
+     * inherits from %USERPROFILE% which is already per-user. */
+    (void)fchmod(fileno(fp), 0600);
+#endif
     fprintf(fp, "url=%s\n", url ? url : "");
     if (token && *token) fprintf(fp, "token=%s\n", token);
     return fclose(fp) == 0 ? 0 : -1;
