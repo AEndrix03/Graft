@@ -71,6 +71,54 @@ static mg_http_handler_fn route(const char *method, const char *path) {
   return NULL;
 }
 
+/* DNS-rebinding defense: only accept Host: headers naming the loopback
+ * interface (or the explicitly allow-listed external bind). Block attacker
+ * pages that point a public DNS name at our local server.
+ *
+ * Accepts: "127.0.0.1", "127.0.0.1:9977", "[::1]", "[::1]:9977", "localhost",
+ * "localhost:9977". When http_allow_remote is true, defers to whatever
+ * value http_bind names (caller-trusted). */
+static int mg_host_header_ok(const mg_ctx_t *ctx, const char *host) {
+  if (!host || !*host) return 0;
+
+  /* Strip an optional :port suffix for the comparison, but only outside of
+   * the bracketed-v6 form to keep "[::1]:9977" intact. */
+  char hbuf[256];
+  size_t n = strlen(host);
+  if (n >= sizeof(hbuf)) return 0;
+  memcpy(hbuf, host, n + 1);
+
+  char *trim = hbuf;
+  while (*trim == ' ' || *trim == '\t') trim++;
+  size_t tn = strlen(trim);
+  while (tn > 0 && (trim[tn - 1] == ' ' || trim[tn - 1] == '\t')) trim[--tn] = '\0';
+
+  /* For non-bracketed forms, drop ":port". For bracketed ([::1]:port),
+   * keep everything up to and including the closing bracket. */
+  if (trim[0] == '[') {
+    char *rb = strchr(trim, ']');
+    if (rb) *(rb + 1) = '\0';
+  } else {
+    char *colon = strrchr(trim, ':');
+    if (colon) *colon = '\0';
+  }
+
+  if (strcmp(trim, "127.0.0.1") == 0) return 1;
+  if (strcmp(trim, "localhost") == 0) return 1;
+  if (strcmp(trim, "[::1]") == 0) return 1;
+  if (strcmp(trim, "::1") == 0) return 1;
+
+  /* If the operator opted into remote bind, also accept the configured
+   * bind address as a valid Host. */
+  if (ctx && ctx->config && ctx->config->http_allow_remote
+      && ctx->config->http_bind && *ctx->config->http_bind
+      && strcmp(trim, ctx->config->http_bind) == 0) {
+    return 1;
+  }
+
+  return 0;
+}
+
 static void *handle_client(void *arg) {
   client_arg_t *ca = (client_arg_t *)arg;
   mg_ctx_t *ctx = ca->srv->ctx;
@@ -85,6 +133,15 @@ static void *handle_client(void *arg) {
   if (mg_http_parse_request(fd, &req) != MG_OK) {
     mg_http_error(&resp, 400, "bad request");
     goto send;
+  }
+
+  /* DNS rebinding guard — must precede any routing (static or API). */
+  {
+    const char *host = mg_http_header_get(&req, "Host");
+    if (!mg_host_header_ok(ctx, host)) {
+      mg_http_error(&resp, 403, "forbidden host header");
+      goto send;
+    }
   }
 
   /* Static SPA bundle is served by the local-first daemon. Public production
