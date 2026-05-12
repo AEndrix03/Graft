@@ -218,6 +218,7 @@ mg_err_t mg_verify_score(mg_verify_ctx_t *ctx,
   out->s_lex = pre_computed_s_lex;
   out->s_jaccard = out->s_lex;
   out->s_ce = NAN;
+  out->s_nli = NAN;
 
   if (ctx->ce_runtime_enabled) {
     float ce = NAN;

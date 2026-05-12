@@ -18,6 +18,7 @@ typedef struct {
   float    s_lex;       /* alias of s_jaccard for now (trigram Jaccard) */
   float    s_jaccard;   /* trigram overlap [0,1] */
   float    s_ce;        /* cross-encoder, NaN se disabilitato */
+  float    s_nli;       /* entailment via CE with nli template, NaN se disabilitato */
   mg_hit_t hit_level;
 } mg_verify_signals_t;
 
