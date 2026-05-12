@@ -76,6 +76,27 @@ verification:
   # stub — leave false until the NLI module ships.
   nli_enabled: false
 
+  # [quality] Minimum s_vec required for the *lexical_strong* path in
+  # src/verify/verify.c. The lexical_strong gate fires when trigram overlap is
+  # high (>= strong_hit_min_lex) AND the embedding still agrees above this
+  # floor. [range] 0..1. Lower = more lenient (accept lexically-matched results
+  # even when the embedding is lukewarm); raising past ~0.8 effectively
+  # disables the lexical path.
+  lex_strong_min_vec: 0.7
+
+  # [quality] Minimum s_vec required for the *semantic_strong* path. The
+  # semantic_strong gate catches cross-language / paraphrased hits where the
+  # embedding aligns strongly but trigram overlap is naturally low. [range]
+  # 0..1. Raise to suppress vector-only false positives; lower to catch more
+  # cross-language matches.
+  sem_strong_min_vec: 0.75
+
+  # [quality] Extra lexical margin (added to min_lex_overlap below) required
+  # by the semantic_strong path. Protects against high-vector matches that
+  # share zero tokens with the query. [range] 0..0.2. 0.015 keeps a token of
+  # overlap as a sanity check without blocking truly cross-language hits.
+  sem_strong_lex_margin: 0.015
+
 
 # -----------------------------------------------------------------------------
 # cache — thresholds for STRONG vs WEAK vs NONE classification

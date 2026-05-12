@@ -25,6 +25,9 @@ typedef struct {
   float weak_hit_min_vec;
   float min_lex_overlap;
   float strong_hit_min_lex;
+  float verify_lex_strong_min_vec;     /* min s_vec for lexical_strong path */
+  float verify_sem_strong_min_vec;     /* min s_vec for semantic_strong path */
+  float verify_sem_strong_lex_margin;  /* margin above min_lex_overlap for semantic_strong */
 
   /* retrieval */
   int   retrieve_top_k;

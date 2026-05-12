@@ -234,9 +234,9 @@ mg_err_t mg_verify_score(mg_verify_ctx_t *ctx,
    * query but trigram overlap is naturally low; it still requires the minimum
    * lexical overlap so unrelated high-vector neighbors do not become hits. */
   lexical_strong = out->s_lex >= ctx->cfg.strong_hit_min_lex &&
-                   out->s_vec >= 0.7f;
-  semantic_strong = out->s_vec >= 0.75f &&
-                    out->s_lex >= ctx->cfg.min_lex_overlap + 0.015f;
+                   out->s_vec >= ctx->cfg.verify_lex_strong_min_vec;
+  semantic_strong = out->s_vec >= ctx->cfg.verify_sem_strong_min_vec &&
+                    out->s_lex >= ctx->cfg.min_lex_overlap + ctx->cfg.verify_sem_strong_lex_margin;
   strong = ce_ok && (lexical_strong || semantic_strong);
   weak = !strong &&
          out->s_vec >= ctx->cfg.weak_hit_min_vec &&

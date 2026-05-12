@@ -53,6 +53,9 @@ void mg_config_defaults(mg_config_t *cfg) {
   cfg->strong_hit_min_lex = 0.15f;
   cfg->weak_hit_min_vec = 0.85f;
   cfg->min_lex_overlap = 0.05f;
+  cfg->verify_lex_strong_min_vec = 0.7f;
+  cfg->verify_sem_strong_min_vec = 0.75f;
+  cfg->verify_sem_strong_lex_margin = 0.015f;
   cfg->retrieve_top_k = 25;
   cfg->rrf_k_const = 60;
   cfg->query_fallback_top_k = 5;
@@ -183,6 +186,9 @@ static mg_err_t mg_config_apply(mg_config_t *cfg,
       cfg->nli_enabled = b;
       return MG_OK;
     }
+    if (strcmp(key, "lex_strong_min_vec") == 0 && mg_parse_float(value, &cfg->verify_lex_strong_min_vec)) return MG_OK;
+    if (strcmp(key, "sem_strong_min_vec") == 0 && mg_parse_float(value, &cfg->verify_sem_strong_min_vec)) return MG_OK;
+    if (strcmp(key, "sem_strong_lex_margin") == 0 && mg_parse_float(value, &cfg->verify_sem_strong_lex_margin)) return MG_OK;
   } else if (strcmp(section, "cache") == 0) {
     if (strcmp(key, "strong_hit_min_ce") == 0 && mg_parse_float(value, &cfg->strong_hit_min_ce)) return MG_OK;
     if (strcmp(key, "strong_hit_min_lex") == 0 && mg_parse_float(value, &cfg->strong_hit_min_lex)) return MG_OK;
