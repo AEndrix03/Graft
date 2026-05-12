@@ -1,6 +1,7 @@
 #include "graft/config.h"
 #include "graft/verify.h"
 
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -29,7 +30,7 @@ int main(void) {
     failures += expect_int(mg_verify_score(ctx, "alpha beta", "alpha beta", 0.75f, 0.2f, &sig) == MG_OK,
                            "strong score call");
     failures += expect_int(sig.hit_level == MG_HIT_STRONG, "strong gate");
-    failures += expect_int(sig.s_ce < 0.0f, "ce disabled");
+    failures += expect_int(isnan(sig.s_ce), "ce disabled");
 
     failures += expect_int(mg_verify_score(ctx, "alpha beta", "alpha gamma", 0.9f, 0.06f, &sig) == MG_OK,
                            "weak score call");
@@ -59,7 +60,7 @@ int main(void) {
     failures += expect_int(mg_verify_score(ctx, "alpha beta", "alpha beta", 0.75f, 0.2f, &sig) == MG_OK,
                            "score call with unavailable ce");
     failures += expect_int(sig.hit_level == MG_HIT_STRONG, "fallback gate with unavailable ce");
-    failures += expect_int(sig.s_ce < 0.0f, "unavailable ce leaves signal disabled");
+    failures += expect_int(isnan(sig.s_ce), "unavailable ce leaves signal disabled");
   }
 
   mg_verify_shutdown(ctx);

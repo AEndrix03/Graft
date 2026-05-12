@@ -311,7 +311,7 @@ int mg_ce_score_pair(mg_verify_ctx_t *ctx, const char *query, const char *candid
   if (!ctx || !ctx->ce.ctx || !ctx->ce.model || !query || !candidate || !out) {
     return -1;
   }
-  *out = -1.0f;
+  *out = NAN;
 
   prompt = mg_ce_build_prompt(ctx, query, candidate);
   if (!prompt) {
@@ -365,7 +365,7 @@ int mg_ce_score_pair(mg_verify_ctx_t *ctx, const char *query, const char *candid
 
   if (mg_ce_mutex_unlock(&ctx->ce.lock) != 0) {
     rc = -1;
-    *out = -1.0f;
+    *out = NAN;
   }
 
 done:

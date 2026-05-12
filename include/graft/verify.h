@@ -17,14 +17,14 @@ typedef struct {
   float    s_vec;       /* cosine similarity */
   float    s_lex;       /* BM25/Jaccard normalized [0,1] */
   float    s_jaccard;   /* trigram overlap [0,1] */
-  float    s_ce;        /* cross-encoder, -1 se disabilitato */
+  float    s_ce;        /* cross-encoder, NaN se disabilitato */
   mg_hit_t hit_level;
 } mg_verify_signals_t;
 
 mg_err_t mg_verify_init(const mg_config_t *cfg, mg_verify_ctx_t **out);
 void     mg_verify_shutdown(mg_verify_ctx_t *ctx);
 
-/* Calcola tutti i segnali. Se cross-encoder e' disabilitato in config, s_ce=-1.
+/* Calcola tutti i segnali. Se cross-encoder e' disabilitato in config, s_ce=NaN.
  * Riempie hit_level secondo la logica di gating. */
 mg_err_t mg_verify_score(
   mg_verify_ctx_t *ctx,

@@ -36,6 +36,7 @@
 #include "graft/types.h"
 #include "graft/error.h"
 
+#include <math.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -57,7 +58,7 @@ static void write_signals_map(mpack_writer_t *w,
     mpack_write_cstr(w, "s_lex");     mpack_write_float(w, sig->s_lex);
     mpack_write_cstr(w, "s_jaccard"); mpack_write_float(w, sig->s_jaccard);
     mpack_write_cstr(w, "s_ce");
-    if (sig->s_ce >= 0.0f) mpack_write_float(w, sig->s_ce);
+    if (!isnan(sig->s_ce)) mpack_write_float(w, sig->s_ce);
     else                   mpack_write_nil(w);
     mpack_complete_map(w);
 }
@@ -94,7 +95,7 @@ static void write_miss(mg_ctx_t *ctx,
 }
 
 static float query_verification_rank(const mg_verify_signals_t *sig) {
-    float ce = sig->s_ce >= 0.0f ? sig->s_ce : 0.0f;
+    float ce = !isnan(sig->s_ce) ? sig->s_ce : 0.0f;
     float level = 0.0f;
 
     if (sig->hit_level == MG_HIT_STRONG) {
@@ -142,7 +143,7 @@ mg_err_t mg_op_query(mg_ctx_t *ctx, mpack_node_t args, mpack_writer_t *result) {
     /* No candidate at all: pure MISS, no signals available. */
     if (n_candidates == 0) {
         mg_verify_signals_t empty = {0};
-        empty.s_ce = -1.0f;
+        empty.s_ce = NAN;
         empty.hit_level = MG_HIT_NONE;
         write_miss(ctx, text, q, &empty, result);
         free(text);
@@ -160,7 +161,7 @@ mg_err_t mg_op_query(mg_ctx_t *ctx, mpack_node_t args, mpack_writer_t *result) {
     if (candidates[0].score < MG_QUERY_VEC_SANITY_FLOOR) {
         mg_verify_signals_t sig = {0};
         sig.s_vec = candidates[0].score;
-        sig.s_ce = -1.0f;
+        sig.s_ce = NAN;
         sig.hit_level = MG_HIT_NONE;
         write_miss(ctx, text, q, &sig, result);
         free(text);
@@ -170,13 +171,13 @@ mg_err_t mg_op_query(mg_ctx_t *ctx, mpack_node_t args, mpack_writer_t *result) {
     mg_node_t best_node = {0};
     mg_node_id_t best_id = {0};
     mg_verify_signals_t best_sig = {0};
-    best_sig.s_ce = -1.0f;
+    best_sig.s_ce = NAN;
     best_sig.hit_level = MG_HIT_NONE;
     float best_rank = -1.0f;
     bool have_best_hit = false;
 
     mg_verify_signals_t best_miss_sig = {0};
-    best_miss_sig.s_ce = -1.0f;
+    best_miss_sig.s_ce = NAN;
     best_miss_sig.hit_level = MG_HIT_NONE;
     float best_miss_rank = -1.0f;
 
@@ -200,7 +201,7 @@ mg_err_t mg_op_query(mg_ctx_t *ctx, mpack_node_t args, mpack_writer_t *result) {
                                               cand.title ? cand.title : "");
 
         mg_verify_signals_t sig = {0};
-        sig.s_ce = -1.0f;
+        sig.s_ce = NAN;
         e = mg_verify_score((mg_verify_ctx_t *)ctx->verify,
                             text, cand.title ? cand.title : "",
                             candidates[i].score, s_lex, &sig);
