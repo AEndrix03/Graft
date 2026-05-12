@@ -445,11 +445,38 @@ static int enable_codex_hooks_flag(const char *codex_home) {
             return 0;
         }
 
-        char *out = (char *)calloc((size_t)len + 128, 1);
+        /* Length-tracked builder: an attacker-controlled config.toml with many
+         * repeated `[features]` sections or other expansion-triggering lines
+         * could overflow a fixed-size buffer. Track capacity strictly and
+         * abort cleanly if a write would not fit. */
+        size_t cap = (size_t)len * 2u + 256u;
+        char *out = (char *)calloc(cap, 1);
         if (!out) {
             free(buf);
             return -1;
         }
+        size_t pos = 0;
+
+        #define MG_APPEND_LIT(s) do {                                  \
+            size_t _slen = strlen(s);                                  \
+            if (_slen + 1 > cap - pos) {                               \
+                free(out); free(buf); return -1;                       \
+            }                                                          \
+            memcpy(out + pos, (s), _slen);                             \
+            pos += _slen;                                              \
+            out[pos] = '\0';                                           \
+        } while (0)
+
+        #define MG_APPEND_BYTES(p, n) do {                             \
+            size_t _n = (n);                                           \
+            if (_n + 1 > cap - pos) {                                  \
+                free(out); free(buf); return -1;                       \
+            }                                                          \
+            memcpy(out + pos, (p), _n);                                \
+            pos += _n;                                                 \
+            out[pos] = '\0';                                           \
+        } while (0)
+
         int saw_features = 0, inserted = 0, replaced = 0;
         char *p = buf;
         while (*p) {
@@ -468,29 +495,33 @@ static int enable_codex_hooks_flag(const char *codex_home) {
 
             if (!strncmp(trim, "codex_hooks", 11)) continue;
             if (saw_features && !strncmp(trim, "hooks", 5)) {
-                if (!inserted && !replaced) strcat(out, "hooks = true\n");
+                if (!inserted && !replaced) MG_APPEND_LIT("hooks = true\n");
                 replaced = 1;
                 continue;
             }
-            strncat(out, line, line_len);
-            strcat(out, "\n");
+            MG_APPEND_BYTES(line, line_len);
+            MG_APPEND_LIT("\n");
             if (!strcmp(trim, "[features]")) {
                 saw_features = 1;
                 if (!replaced) {
-                    strcat(out, "hooks = true\n");
+                    MG_APPEND_LIT("hooks = true\n");
                     inserted = 1;
                 }
             } else if (trim[0] == '[') {
                 saw_features = 0;
             }
         }
-        if (!inserted && !replaced) strcat(out, "\n[features]\nhooks = true\n");
+        if (!inserted && !replaced) MG_APPEND_LIT("\n[features]\nhooks = true\n");
+
+        #undef MG_APPEND_LIT
+        #undef MG_APPEND_BYTES
 
         f = fopen(path, "wb");
         free(buf);
-        if (!f) return -1;
-        fputs(out, f);
+        if (!f) { free(out); return -1; }
+        size_t wrote = fwrite(out, 1, pos, f);
         free(out);
+        if (wrote != pos) { fclose(f); return -1; }
         return fclose(f) == 0 ? 0 : -1;
     }
     return write_text_file(path, "[features]\nhooks = true\n");
