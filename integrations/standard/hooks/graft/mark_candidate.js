@@ -33,7 +33,10 @@ const TOOLS_OF_INTEREST = new Set([
   'apply_patch',
 ]);
 
-function safeMkdir(d) { try { mkdirSync(d, { recursive: true }); } catch (_) {} }
+// Restrict the hook state dir to the current user (no-op on Windows, but
+// harmless). State files containing session ids and per-turn file paths
+// should not be readable by other local accounts.
+function safeMkdir(d) { try { mkdirSync(d, { recursive: true, mode: 0o700 }); } catch (_) {} }
 function readStdinSync() { try { return readFileSync(0, 'utf8'); } catch (_) { return ''; } }
 
 (function main() {
@@ -83,10 +86,10 @@ function readStdinSync() { try { return readFileSync(0, 'utf8'); } catch (_) { r
   const stateFile = path.join(STATE_DIR, `${sessionId}.${process.pid}.candidates`);
   try {
     if (!files.length) {
-      appendFileSync(stateFile, JSON.stringify({ ts, tool, file: '' }) + '\n');
+      appendFileSync(stateFile, JSON.stringify({ ts, tool, file: '' }) + '\n', { mode: 0o600 });
     } else {
       for (const f of files) {
-        appendFileSync(stateFile, JSON.stringify({ ts, tool, file: f }) + '\n');
+        appendFileSync(stateFile, JSON.stringify({ ts, tool, file: f }) + '\n', { mode: 0o600 });
       }
     }
   } catch (_) {}

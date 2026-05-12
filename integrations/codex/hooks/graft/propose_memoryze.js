@@ -23,7 +23,10 @@ function inferStateDir() {
 
 const STATE_DIR = inferStateDir();
 
-function safeMkdir(d) { try { mkdirSync(d, { recursive: true }); } catch (_) {} }
+// Restrict the hook state dir to the current user (no-op on Windows, but
+// harmless). State files containing session ids and per-turn file paths
+// should not be readable by other local accounts.
+function safeMkdir(d) { try { mkdirSync(d, { recursive: true, mode: 0o700 }); } catch (_) {} }
 function readStdinSync() { try { return readFileSync(0, 'utf8'); } catch (_) { return ''; } }
 
 (function main() {
@@ -78,7 +81,7 @@ function readStdinSync() { try { return readFileSync(0, 'utf8'); } catch (_) { r
 
   const proposalFile = path.join(STATE_DIR, `${sessionId}.proposal`);
   try {
-    writeFileSync(proposalFile, proposal);
+    writeFileSync(proposalFile, proposal, { mode: 0o600 });
   } catch (_) {}
   for (const f of candidateFiles) { try { unlinkSync(f); } catch (_) {} }
 })();

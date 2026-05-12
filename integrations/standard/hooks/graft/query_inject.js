@@ -33,7 +33,10 @@ const MAX_QUERY_PROMPT_CHARS = 4000;
 const WEAK_EXPLORE_DEPTH = positiveInt(process.env.GRAFT_HOOK_WEAK_EXPLORE_DEPTH, 3);
 const WEAK_EXPLORE_BEAM = positiveInt(process.env.GRAFT_HOOK_WEAK_EXPLORE_BEAM, 4);
 
-function safeMkdir(d) { try { mkdirSync(d, { recursive: true }); } catch (_) {} }
+// Restrict the hook state dir to the current user (no-op on Windows, but
+// harmless). State files containing session ids and per-turn file paths
+// should not be readable by other local accounts.
+function safeMkdir(d) { try { mkdirSync(d, { recursive: true, mode: 0o700 }); } catch (_) {} }
 function readStdinSync() { try { return readFileSync(0, 'utf8'); } catch (_) { return ''; } }
 function positiveInt(raw, fallback) {
   const n = Number.parseInt(raw, 10);
