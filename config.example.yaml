@@ -157,6 +157,47 @@ retrieval:
 
 
 # -----------------------------------------------------------------------------
+# rerank — second-stage reranker on top of RRF retrieval
+# -----------------------------------------------------------------------------
+# When enabled, the top-K RRF candidates are re-scored using a weighted fusion
+# of cosine (s_vec), trigram Jaccard (s_lex), and an optional cross-encoder
+# probability (s_ce). The fusion is:
+#   fused = (w_vec*s_vec + w_lex*s_lex + w_ce*s_ce) / sum(w_i for present signals)
+# Signals that are NaN (e.g. CE disabled) are dropped from numerator AND
+# denominator. Candidates outside the rerank window keep their RRF rank.
+# When `enabled: false` the retrieval pipeline is bit-for-bit unchanged.
+# -----------------------------------------------------------------------------
+rerank:
+  # [quality] Master switch. When false, retrieve.c output stays RRF-ordered
+  # as before. When true and verification.cross_encoder_enabled is also true,
+  # adds a CE forward pass per candidate (sequential — see notes in
+  # src/rerank/rerank.c). Leave off until you have a CE model loaded.
+  enabled: false
+
+  # [perf][quality] How many of the top RRF candidates to actually rerank.
+  # [range] 5..top_k. Reranking is O(top_k) CE forward passes, so this is the
+  # single biggest knob on rerank latency. Candidates outside this window keep
+  # their RRF order unchanged.
+  top_k: 25
+
+  # [quality] Weight on vector cosine (already [0,1]). [range] 0..1. Raising
+  # makes the reranker trust the embedder more; lowering shifts trust to
+  # lexical/CE signals.
+  w_vec: 0.30
+
+  # [quality] Weight on lexical trigram Jaccard. [range] 0..1. Jaccard's
+  # practical range is ~[0,0.5] so this weight is implicitly boosted relative
+  # to a uniform-distribution signal — a value of 0.25 here is roughly
+  # comparable to 0.5 on a [0,1]-spread signal.
+  w_lex: 0.25
+
+  # [quality] Weight on the cross-encoder probability. [range] 0..1. The most
+  # informative signal when CE is enabled; ignored entirely when CE is off
+  # (signal is NaN and excluded from the weighted average).
+  w_ce:  0.45
+
+
+# -----------------------------------------------------------------------------
 # edges — graph wiring done at insert time
 # -----------------------------------------------------------------------------
 # Every new node is linked to existing nodes via two edge kinds:

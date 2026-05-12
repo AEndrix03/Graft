@@ -34,6 +34,13 @@ typedef struct {
   int   rrf_k_const;
   int   query_fallback_top_k;   /* cap on results returned in query MISS fallback_retrieve */
 
+  /* rerank — second-stage reranker over RRF output */
+  bool  rerank_enabled;         /* default false; when false retrieve output is RRF-ordered */
+  int   rerank_top_k;           /* number of top RRF candidates to actually rerank */
+  float rerank_w_vec;           /* weight on s_vec in fusion */
+  float rerank_w_lex;           /* weight on s_lex in fusion */
+  float rerank_w_ce;            /* weight on s_ce in fusion */
+
   /* edges */
   float edge_keyword_min;
   float edge_semantic_min;

@@ -91,6 +91,7 @@ file(GLOB GRAFT_SRC CONFIGURE_DEPENDS
   src/retrieve/*.c
   src/explore/*.c
   src/verify/*.c
+  src/rerank/*.c
   src/stats/*.c
   src/config/*.c
   src/http/*.c
