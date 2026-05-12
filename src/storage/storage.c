@@ -2,6 +2,7 @@
 
 #include <sqlite3.h>
 
+#include <ctype.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -573,12 +574,76 @@ mg_err_t mg_storage_vector_topk_by_keyword(mg_storage_t *s, const mg_embedding_t
   return topk_scan(s, query, k, kw_id, 1, out, out_count);
 }
 
+/* Build an FTS5 MATCH expression that constrains every token in `query_text`
+ * to a single column (e.g. "title" or "body"). Returns a malloc'd string,
+ * or NULL on OOM or if the input contains no usable tokens.
+ *
+ * Without this scoping, passing user input straight into the MATCH expression
+ * lets a query like `a) OR body:secret OR title:(b` break out of a `title:(…)`
+ * scope and search columns the caller did not authorize. We tokenize on
+ * ASCII whitespace and wrap each token as `<col>:"<token>"`, doubling any
+ * internal `"` per FTS5 quoting rules. Quoted phrases lose all special
+ * meaning to FTS5, so `(`, `)`, `:`, and column-name keywords pass through
+ * harmlessly as literal text to match. */
+static char *build_scoped_fts_query(const char *col, const char *query_text) {
+  size_t in_len = strlen(query_text);
+  /* Worst-case output size: every char becomes a doubled quote inside a
+   * quoted phrase, plus `<col>:"` prefix and `"` suffix and a trailing
+   * space per token. Bound loosely as (in_len + col_len + 4) * 2. */
+  size_t col_len = strlen(col);
+  size_t cap = (in_len + col_len + 4) * 2 + 1;
+  char *out = (char *)malloc(cap);
+  if (!out) {
+    return NULL;
+  }
+  size_t op = 0;
+  size_t i = 0;
+  int wrote_any = 0;
+  while (i < in_len) {
+    /* skip whitespace */
+    while (i < in_len && isspace((unsigned char)query_text[i])) i++;
+    if (i >= in_len) break;
+    /* find token end */
+    size_t tok_start = i;
+    while (i < in_len && !isspace((unsigned char)query_text[i])) i++;
+    size_t tok_len = i - tok_start;
+    if (tok_len == 0) continue;
+    if (wrote_any) {
+      if (op + 1 < cap) out[op++] = ' ';
+    }
+    /* <col>:"<token with " doubled>" */
+    if (op + col_len + 2 >= cap) break;
+    memcpy(out + op, col, col_len); op += col_len;
+    out[op++] = ':';
+    out[op++] = '"';
+    for (size_t j = 0; j < tok_len; j++) {
+      char c = query_text[tok_start + j];
+      if (c == '"') {
+        if (op + 2 >= cap) { op = cap - 1; break; }
+        out[op++] = '"';
+        out[op++] = '"';
+      } else {
+        if (op + 1 >= cap) { op = cap - 1; break; }
+        out[op++] = c;
+      }
+    }
+    if (op + 1 >= cap) { op = cap - 1; }
+    out[op++] = '"';
+    wrote_any = 1;
+  }
+  out[op] = '\0';
+  if (!wrote_any) {
+    free(out);
+    return NULL;
+  }
+  return out;
+}
+
 mg_err_t mg_storage_fts_search(mg_storage_t *s, const char *query_text, int k, bool match_title, bool match_body, mg_node_score_t *out, int *out_count) {
   sqlite3_stmt *stmt = NULL;
   char *match_query = NULL;
   const char *match_expr = query_text;
   const char *rank_expr = "bm25(node_fts)";
-  size_t query_len;
   int rc;
   if (!s || !query_text || k < 0 || !out || !out_count || (!match_title && !match_body)) {
     return MG_ERR_INVALID_ARG;
@@ -589,21 +654,18 @@ mg_err_t mg_storage_fts_search(mg_storage_t *s, const char *query_text, int k, b
   }
 
   if (match_title && !match_body) {
-    query_len = strlen(query_text);
-    match_query = (char *)malloc(query_len + strlen("title : ()") + 1);
+    match_query = build_scoped_fts_query("title", query_text);
     if (!match_query) {
-      return MG_ERR_OOM;
+      /* No usable tokens (whitespace-only input) -> no results, not an error. */
+      return MG_OK;
     }
-    snprintf(match_query, query_len + strlen("title : ()") + 1, "title : (%s)", query_text);
     match_expr = match_query;
     rank_expr = "bm25(node_fts, 1.0, 0.0)";
   } else if (!match_title && match_body) {
-    query_len = strlen(query_text);
-    match_query = (char *)malloc(query_len + strlen("body : ()") + 1);
+    match_query = build_scoped_fts_query("body", query_text);
     if (!match_query) {
-      return MG_ERR_OOM;
+      return MG_OK;
     }
-    snprintf(match_query, query_len + strlen("body : ()") + 1, "body : (%s)", query_text);
     match_expr = match_query;
     rank_expr = "bm25(node_fts, 0.0, 1.0)";
   }
