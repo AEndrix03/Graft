@@ -15,7 +15,7 @@ typedef enum {
 
 typedef struct {
   float    s_vec;       /* cosine similarity */
-  float    s_lex;       /* BM25/Jaccard normalized [0,1] */
+  float    s_lex;       /* alias of s_jaccard for now (trigram Jaccard) */
   float    s_jaccard;   /* trigram overlap [0,1] */
   float    s_ce;        /* cross-encoder, NaN se disabilitato */
   mg_hit_t hit_level;

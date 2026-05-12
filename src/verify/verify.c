@@ -214,7 +214,7 @@ mg_err_t mg_verify_score(mg_verify_ctx_t *ctx,
 
   out->s_vec = pre_computed_s_vec;
   out->s_lex = pre_computed_s_lex;
-  out->s_jaccard = mg_text_trigram_jaccard(query_text, candidate_title);
+  out->s_jaccard = out->s_lex;
   out->s_ce = NAN;
 
   if (ctx->ce_runtime_enabled) {
