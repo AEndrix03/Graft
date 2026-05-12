@@ -4,7 +4,7 @@ Three event hooks that move graft from "the agent should remember to use it" to 
 
 | Event              | Script                  | What it does                                                                                              |
 | ------------------ | ----------------------- | --------------------------------------------------------------------------------------------------------- |
-| `UserPromptSubmit` | `query_inject.js`       | Runs `graft query <prompt>`. STRONG/WEAK hits inject title (and body on STRONG). MISS injects only `<graft-cache hit="MISS"/>` — no fallback neighbors (see "MISS policy" below). Also surfaces any `<graft-proposal>` queued by the previous turn's Stop hook. |
+| `UserPromptSubmit` | `query_inject.js`       | Runs `graft query <prompt>`. STRONG/WEAK hits inject `id_hex`, title, and body on STRONG. MISS injects only `<graft-cache hit="MISS" queried="true"/>` - no fallback neighbors (see "MISS policy" below). Also surfaces any `<graft-proposal>` queued by the previous turn's Stop hook. |
 | `PostToolUse` (matcher `Edit\|Write\|MultiEdit\|NotebookEdit`) | `mark_candidate.js`     | Records the tool call + file path in `~/.claude/hooks/graft/state/<session>.candidates`. Silent. |
 | `Stop`             | `propose_memoryze.js`   | If the session accumulated candidates, writes a compact `/memoryze` proposal to `<session>.proposal`. The next `UserPromptSubmit` surfaces it. Proposes, never auto-saves. |
 
@@ -27,7 +27,7 @@ cp integrations/claude-code/hooks/graft/*.js ~/.claude/hooks/graft/
     "UserPromptSubmit": [
       {
         "hooks": [
-          { "type": "command", "command": "node \"$HOME/.claude/hooks/graft/query_inject.js\"", "timeout": 10 }
+          { "type": "command", "command": "node", "args": ["$HOME/.claude/hooks/graft/query_inject.js"], "timeout": 10 }
         ]
       }
     ],
@@ -35,14 +35,14 @@ cp integrations/claude-code/hooks/graft/*.js ~/.claude/hooks/graft/
       {
         "matcher": "Edit|Write|MultiEdit|NotebookEdit",
         "hooks": [
-          { "type": "command", "command": "node \"$HOME/.claude/hooks/graft/mark_candidate.js\"", "timeout": 5 }
+          { "type": "command", "command": "node", "args": ["$HOME/.claude/hooks/graft/mark_candidate.js"], "timeout": 5 }
         ]
       }
     ],
     "Stop": [
       {
         "hooks": [
-          { "type": "command", "command": "node \"$HOME/.claude/hooks/graft/propose_memoryze.js\"", "timeout": 5 }
+          { "type": "command", "command": "node", "args": ["$HOME/.claude/hooks/graft/propose_memoryze.js"], "timeout": 5 }
         ]
       }
     ]
@@ -55,6 +55,19 @@ On Windows, replace `$HOME` with the absolute path: `C:/Users/<you>/.claude/hook
 ## MISS policy
 
 On a cache MISS, the hook **does not inject the `fallback_retrieve` neighbors**. The verify pipeline already declared the top-1 sub-threshold; surfacing those nodes would contradict the system's own gating and feed retrieval-augmented hallucination. Empirically: on a query whose answer was actually saved in the graph, the top-5 fallback contained 1 tangentially relevant + 4 unrelated nodes (80% noise). The agent calls `/recall` explicitly when it wants browsing.
+
+The injected MISS block is `<graft-cache hit="MISS" queried="true"/>`, which
+also means the query already ran for the current user prompt. The agent should
+not immediately repeat `graft query`; it should only escalate with
+`graft retrieve` or `graft explore` when broader context is worth the extra
+call.
+
+## Save policy
+
+The Stop hook does not call `graft insert` by design. It records edit candidates
+and writes a proposal that is surfaced on the next user prompt, because deciding
+what is worth long-term memory needs task context. This avoids saving purely
+mechanical edits or accidental secrets.
 
 ## Skip rules
 

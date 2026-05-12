@@ -84,6 +84,7 @@ function runGraft(args) {
 
   if (r.hit === 'STRONG' || r.hit === 'WEAK') {
     process.stdout.write(`<graft-cache hit="${r.hit}">\n`);
+    if (r.id_hex) process.stdout.write(`id_hex: ${r.id_hex}\n`);
     if (r.title) process.stdout.write(`title: ${r.title}\n`);
     if (r.hit === 'STRONG' && r.body) process.stdout.write(`body: ${r.body}\n`);
     process.stdout.write('</graft-cache>\n');
@@ -98,6 +99,6 @@ function runGraft(args) {
     // in the graph, the top-5 fallback contained 1 tangentially relevant +
     // 4 unrelated nodes — 80% noise. The agent can call /recall explicitly
     // when it wants browsing.
-    process.stdout.write('<graft-cache hit="MISS"/>\n');
+    process.stdout.write('<graft-cache hit="MISS" queried="true"/>\n');
   }
 })();

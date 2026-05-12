@@ -60,9 +60,17 @@ function readStdinSync() { try { return readFileSync(0, 'utf8'); } catch (_) { r
   else if (ti.notebook_path) files = [ti.notebook_path];
   else if (typeof ti.input === 'string') {
     const seen = new Set();
-    const re = /^\+\+\+\s+(?:b\/)?([^\s]+)/gm;
     let m;
-    while ((m = re.exec(ti.input)) !== null) {
+    const patchHeader = /^\*\*\*\s+(?:Add|Update|Delete) File:\s+(.+)$/gm;
+    while ((m = patchHeader.exec(ti.input)) !== null) {
+      seen.add(m[1].trim());
+    }
+    const moveHeader = /^\*\*\*\s+Move to:\s+(.+)$/gm;
+    while ((m = moveHeader.exec(ti.input)) !== null) {
+      seen.add(m[1].trim());
+    }
+    const unifiedHeader = /^\+\+\+\s+(?:b\/)?([^\s]+)/gm;
+    while ((m = unifiedHeader.exec(ti.input)) !== null) {
       if (m[1] !== '/dev/null') seen.add(m[1]);
     }
     files = [...seen];

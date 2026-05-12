@@ -450,6 +450,27 @@ static int enable_codex_hooks_flag(const char *codex_home) {
     return write_text_file(path, "[features]\nhooks = true\n");
 }
 
+static void write_hook_command(FILE *f, enum mg_setup_agent agent,
+                               const char *script, int timeout,
+                               const char *status_message) {
+    if (agent == MG_SETUP_CLAUDECODE) {
+        fputs("{ \"type\": \"command\", \"command\": \"node\", \"args\": [\"", f);
+        json_write_escaped(f, script);
+        fprintf(f, "\"], \"timeout\": %d }", timeout);
+        return;
+    }
+
+    fputs("{ \"type\": \"command\", \"command\": \"node \\\"", f);
+    json_write_escaped(f, script);
+    fprintf(f, "\\\"\", \"timeout\": %d", timeout);
+    if (status_message) {
+        fputs(", \"statusMessage\": \"", f);
+        json_write_escaped(f, status_message);
+        fputc('"', f);
+    }
+    fputs(" }", f);
+}
+
 static int write_hook_config(const char *path, const char *hook_dir,
                              enum mg_setup_agent agent) {
     FILE *f = fopen(path, "wb");
@@ -473,17 +494,16 @@ static int write_hook_config(const char *path, const char *hook_dir,
         return -1;
     }
 
-    fputs("{\n  \"hooks\": {\n    \"UserPromptSubmit\": [\n      {\n        \"hooks\": [\n          { \"type\": \"command\", \"command\": \"node \\\"", f);
-    json_write_escaped(f, query);
-    fputs("\\\"\", \"timeout\": 10", f);
-    if (agent == MG_SETUP_CODEX) fputs(", \"statusMessage\": \"graft cache lookup\"", f);
-    fputs(" }\n        ]\n      }\n    ],\n    \"PostToolUse\": [\n      {\n        \"matcher\": \"", f);
+    fputs("{\n  \"hooks\": {\n    \"UserPromptSubmit\": [\n      {\n        \"hooks\": [\n          ", f);
+    write_hook_command(f, agent, query, 10,
+                       agent == MG_SETUP_CODEX ? "graft cache lookup" : NULL);
+    fputs("\n        ]\n      }\n    ],\n    \"PostToolUse\": [\n      {\n        \"matcher\": \"", f);
     json_write_escaped(f, post_matcher);
-    fputs("\",\n        \"hooks\": [\n          { \"type\": \"command\", \"command\": \"node \\\"", f);
-    json_write_escaped(f, mark);
-    fputs("\\\"\", \"timeout\": 5 }\n        ]\n      }\n    ],\n    \"Stop\": [\n      {\n        \"hooks\": [\n          { \"type\": \"command\", \"command\": \"node \\\"", f);
-    json_write_escaped(f, propose);
-    fputs("\\\"\", \"timeout\": 5 }\n        ]\n      }\n    ]\n  }\n}\n", f);
+    fputs("\",\n        \"hooks\": [\n          ", f);
+    write_hook_command(f, agent, mark, 5, NULL);
+    fputs("\n        ]\n      }\n    ],\n    \"Stop\": [\n      {\n        \"hooks\": [\n          ", f);
+    write_hook_command(f, agent, propose, 5, NULL);
+    fputs("\n        ]\n      }\n    ]\n  }\n}\n", f);
     return fclose(f) == 0 ? 0 : -1;
 }
 
