@@ -177,10 +177,12 @@ static char *mg_ce_build_fallback_prompt(struct llama_model *model,
 
 static char *mg_ce_build_prompt(mg_verify_ctx_t *ctx,
                                 const char *query,
-                                const char *candidate) {
-  if (ctx->ce.rerank_template) {
-    char *templated = mg_ce_replace_pair_template(ctx->ce.rerank_template,
-                                                  query, candidate);
+                                const char *candidate,
+                                const char *template_override) {
+  const char *tmpl = template_override ? template_override
+                                       : ctx->ce.rerank_template;
+  if (tmpl && tmpl[0]) {
+    char *templated = mg_ce_replace_pair_template(tmpl, query, candidate);
     if (templated) return templated;
   }
   return mg_ce_build_fallback_prompt(ctx->ce.model, query, candidate);
@@ -298,7 +300,11 @@ int mg_ce_try_enable(mg_verify_ctx_t *ctx) {
   return 0;
 }
 
-int mg_ce_score_pair(mg_verify_ctx_t *ctx, const char *query, const char *candidate, float *out) {
+static int mg_ce_score_with_template(mg_verify_ctx_t *ctx,
+                                     const char *query,
+                                     const char *candidate,
+                                     const char *template_override,
+                                     float *out) {
   const struct llama_vocab *vocab;
   llama_token *tokens = NULL;
   char *prompt = NULL;
@@ -313,7 +319,7 @@ int mg_ce_score_pair(mg_verify_ctx_t *ctx, const char *query, const char *candid
   }
   *out = NAN;
 
-  prompt = mg_ce_build_prompt(ctx, query, candidate);
+  prompt = mg_ce_build_prompt(ctx, query, candidate, template_override);
   if (!prompt) {
     return -1;
   }
@@ -372,6 +378,22 @@ done:
   free(tokens);
   free(prompt);
   return rc;
+}
+
+int mg_ce_score_pair(mg_verify_ctx_t *ctx, const char *query, const char *candidate, float *out) {
+  return mg_ce_score_with_template(ctx, query, candidate, NULL, out);
+}
+
+int mg_ce_score_nli(mg_verify_ctx_t *ctx, const char *query, const char *candidate, float *out) {
+  if (!ctx) {
+    if (out) *out = NAN;
+    return -1;
+  }
+  /* When the template is missing/empty, fall back to the default rerank
+   * prompt — caller still gets a usable score, just without entailment
+   * framing. */
+  return mg_ce_score_with_template(ctx, query, candidate,
+                                   ctx->cfg.nli_prompt_template, out);
 }
 
 void mg_ce_shutdown(mg_verify_ctx_t *ctx) {

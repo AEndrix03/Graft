@@ -33,6 +33,7 @@ static mg_err_t mg_verify_copy_config(const mg_config_t *src, mg_config_t *dst) 
   dst->db_path = mg_verify_strdup(src->db_path);
   dst->embed_model_path = mg_verify_strdup(src->embed_model_path);
   dst->cross_encoder_model_path = mg_verify_strdup(src->cross_encoder_model_path);
+  dst->nli_prompt_template = mg_verify_strdup(src->nli_prompt_template);
   dst->http_bind = mg_verify_strdup(src->http_bind);
   dst->http_viewer_path = mg_verify_strdup(src->http_viewer_path);
 
@@ -40,6 +41,7 @@ static mg_err_t mg_verify_copy_config(const mg_config_t *src, mg_config_t *dst) 
       (src->db_path && !dst->db_path) ||
       (src->embed_model_path && !dst->embed_model_path) ||
       (src->cross_encoder_model_path && !dst->cross_encoder_model_path) ||
+      (src->nli_prompt_template && !dst->nli_prompt_template) ||
       (src->http_bind && !dst->http_bind) ||
       (src->http_viewer_path && !dst->http_viewer_path)) {
     mg_config_free(dst);
@@ -224,6 +226,12 @@ mg_err_t mg_verify_score(mg_verify_ctx_t *ctx,
     float ce = NAN;
     if (mg_ce_score_pair(ctx, query_text, candidate_title, &ce) == 0) {
       out->s_ce = ce;
+    }
+    if (ctx->cfg.nli_enabled) {
+      float nli = NAN;
+      if (mg_ce_score_nli(ctx, query_text, candidate_title, &nli) == 0) {
+        out->s_nli = nli;
+      }
     }
   }
 

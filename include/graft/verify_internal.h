@@ -37,6 +37,10 @@ struct mg_verify_ctx {
 
 int  mg_ce_try_enable(mg_verify_ctx_t *ctx);
 int  mg_ce_score_pair(mg_verify_ctx_t *ctx, const char *query, const char *candidate, float *out);
+/* Score the same pair through the CE but using an entailment-flavored prompt
+ * template (cfg.nli_prompt_template). The model is identical — the score is
+ * "relevance under a different framing". Returns 0 on success, -1 otherwise. */
+int  mg_ce_score_nli(mg_verify_ctx_t *ctx, const char *query, const char *candidate, float *out);
 void mg_ce_shutdown(mg_verify_ctx_t *ctx);
 
 #endif

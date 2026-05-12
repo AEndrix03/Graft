@@ -49,6 +49,7 @@ void mg_config_defaults(mg_config_t *cfg) {
   cfg->cross_encoder_enabled = false;
   cfg->cross_encoder_model_path = NULL;
   cfg->nli_enabled = false;
+  cfg->nli_prompt_template = mg_config_strdup("Premise: {document}\nHypothesis: {query}");
   cfg->strong_hit_min_ce = 0.6f;
   cfg->strong_hit_min_lex = 0.15f;
   cfg->weak_hit_min_vec = 0.85f;
@@ -96,6 +97,7 @@ void mg_config_free(mg_config_t *cfg) {
   free(cfg->db_path);
   free(cfg->embed_model_path);
   free(cfg->cross_encoder_model_path);
+  free(cfg->nli_prompt_template);
   free(cfg->http_bind);
   free(cfg->http_viewer_path);
   memset(cfg, 0, sizeof(*cfg));
@@ -190,6 +192,9 @@ static mg_err_t mg_config_apply(mg_config_t *cfg,
     if (strcmp(key, "nli_enabled") == 0 && mg_parse_bool(value, &b)) {
       cfg->nli_enabled = b;
       return MG_OK;
+    }
+    if (strcmp(key, "nli_prompt_template") == 0) {
+      return mg_config_set_string(&cfg->nli_prompt_template, value);
     }
     if (strcmp(key, "lex_strong_min_vec") == 0 && mg_parse_float(value, &cfg->verify_lex_strong_min_vec)) return MG_OK;
     if (strcmp(key, "sem_strong_min_vec") == 0 && mg_parse_float(value, &cfg->verify_sem_strong_min_vec)) return MG_OK;

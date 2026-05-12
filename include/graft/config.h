@@ -19,6 +19,7 @@ typedef struct {
   bool  cross_encoder_enabled;
   char *cross_encoder_model_path;
   bool  nli_enabled;
+  char *nli_prompt_template;     /* CE template repurposed for entailment when nli_enabled */
 
   /* gating thresholds */
   float strong_hit_min_ce;
