@@ -1,56 +1,243 @@
+# =============================================================================
+# graft configuration — fully annotated example
+# =============================================================================
+# Every key below maps 1:1 to a field parsed by src/config/config.c. Defaults
+# shown match mg_config_defaults(); commenting a key out restores its default.
+# Tags used in comments:
+#   [security]   — affects who can read/write your memory graph
+#   [perf]       — affects latency / RAM / GPU usage
+#   [quality]    — affects retrieval/classification result quality
+#   [range]      — sensible bounds; values outside are accepted but degrade
+# =============================================================================
+
+
+# -----------------------------------------------------------------------------
+# daemon — IPC + persistent store
+# -----------------------------------------------------------------------------
 daemon:
+  # [security] AF_UNIX socket used by `graft` CLI and integration hooks to talk
+  # to the daemon. The daemon now creates this with mode 0600 (POSIX), but the
+  # *parent directory* must also be writable only by you. /tmp on a shared host
+  # is fine because of the mode bits, but prefer $XDG_RUNTIME_DIR ($HOME/.run)
+  # on multi-user systems. On Windows this string is currently unused — the
+  # daemon talks over a named pipe derived from the user profile.
   socket_path: "/tmp/graft.sock"
+
+  # [security] SQLite database file. Contains EVERYTHING you have stored: node
+  # titles, bodies, embeddings, edges, FTS5 indexes, usage history. Treat as
+  # secret. The file is created with default umask — chmod it to 0600 and put
+  # it under a per-user directory. Relative paths are resolved against the
+  # daemon's CWD, which is unpredictable; use an absolute path in production.
   db_path: "./graft.db"
 
-embedding:
-  model_path: "./models/bge-m3.gguf"
-  threads: 4
-  ctx_size: 8192
-  hardware_accel: false  # offload all layers to GPU. Requires llama.cpp built with -DGGML_CUDA=ON (NVIDIA) or -DGGML_HIP=ON (ROCm 6/7).
 
+# -----------------------------------------------------------------------------
+# embedding — local llama.cpp model used to vectorize text on every insert/query
+# -----------------------------------------------------------------------------
+embedding:
+  # Path to the GGUF embedding model. bge-m3 (1024-dim, multilingual, 8192-tok)
+  # is the reference choice. Swapping models REQUIRES wiping the db: existing
+  # embeddings cannot be compared against vectors from a different model.
+  model_path: "./models/bge-m3.gguf"
+
+  # [perf] CPU threads for the llama backend. [range] 1..physical-cores.
+  # Higher = lower embed latency until you saturate memory bandwidth (typical
+  # sweet spot: physical cores, NOT logical/SMT). Ignored when hardware_accel
+  # is true and the GPU offload covers all layers.
+  threads: 4
+
+  # [perf][quality] Max tokens passed to the embedder per call. [range]
+  # 512..8192 for bge-m3. Lower = less RAM/VRAM and faster; longer inputs get
+  # truncated, hurting recall for long documents. 8192 matches the model's
+  # native context. Reducing below ~1024 will mangle multi-paragraph notes.
+  ctx_size: 8192
+
+  # [perf] Offload all layers to the GPU. Requires llama.cpp built with
+  # -DGGML_CUDA=ON (NVIDIA) or -DGGML_HIP=ON (ROCm 6/7). 5-30x speedup on
+  # embed-heavy workloads; falls back to CPU if no compatible GPU is found.
+  hardware_accel: false
+
+
+# -----------------------------------------------------------------------------
+# verification — gating of cache hits during retrieval
+# -----------------------------------------------------------------------------
+# Determines whether a candidate becomes a STRONG hit, a WEAK hit, or NONE.
+# See src/verify/verify.c for the exact gating logic. Tuning these is the
+# single biggest lever on precision/recall tradeoff.
+# -----------------------------------------------------------------------------
 verification:
-  cross_encoder_enabled: false # Optional: true enables the GGUF reranker below.
+  # [perf][quality] Enable the GGUF cross-encoder reranker below. Adds ~20-200
+  # ms per query depending on hardware but materially improves precision on
+  # ambiguous matches. Off by default to keep first-run latency low.
+  cross_encoder_enabled: false
   cross_encoder_model_path: "./models/bge-reranker-v2-m3.gguf"
+
+  # [quality] Natural-language inference gate (entailment check). Currently a
+  # stub — leave false until the NLI module ships.
   nli_enabled: false
 
+
+# -----------------------------------------------------------------------------
+# cache — thresholds for STRONG vs WEAK vs NONE classification
+# -----------------------------------------------------------------------------
+# A candidate becomes:
+#   STRONG  if  (CE-enabled => s_ce >= strong_hit_min_ce)
+#               AND (
+#                 lexical_strong: s_lex >= strong_hit_min_lex AND s_vec >= 0.70
+#                 OR
+#                 semantic_strong: s_vec >= 0.75 AND s_lex >= min_lex_overlap+0.015
+#               )
+#   WEAK    if  NOT STRONG AND s_vec >= weak_hit_min_vec AND s_lex >= min_lex_overlap
+#   NONE    otherwise
+# Higher thresholds => fewer false positives, more cache misses.
+# Lower thresholds  => more cache hits, more wrong answers.
+# -----------------------------------------------------------------------------
 cache:
+  # [quality] Cross-encoder score floor for STRONG hits. [range] 0.0..1.0.
+  # Only consulted when verification.cross_encoder_enabled is true. 0.6 is
+  # bge-reranker-v2-m3's typical "clearly relevant" boundary.
   strong_hit_min_ce: 0.6
+
+  # [quality] Lexical (trigram Jaccard) floor for the lexical_strong path.
+  # [range] 0.05..0.4. 0.15 corresponds to substantial token overlap; raising
+  # to 0.25+ cuts cross-language hits entirely.
   strong_hit_min_lex: 0.15
+
+  # [quality] Cosine-similarity floor for WEAK hits. [range] 0.70..0.95.
+  # 0.85 is conservative for bge-m3; 0.80 will surface more loose matches at
+  # the cost of off-topic results.
   weak_hit_min_vec: 0.85
+
+  # [quality] Hard lexical floor applied to BOTH paths. [range] 0.0..0.2.
+  # Set higher (0.1-0.15) to suppress vector-only false positives in
+  # multilingual contexts where embedding alignment can be deceptive.
   min_lex_overlap: 0.05
 
-retrieval:
-  top_k: 25
-  rrf_k_const: 60
-  query_fallback_top_k: 5  # cap sui risultati restituiti nel fallback_retrieve di un cache MISS
 
+# -----------------------------------------------------------------------------
+# retrieval — candidate counts during search
+# -----------------------------------------------------------------------------
+retrieval:
+  # [perf][quality] Default number of candidates returned by /v1/search and
+  # `graft query`. [range] 5..100. Higher = better recall but more verify
+  # work (each candidate runs through cache gating + optional CE).
+  top_k: 25
+
+  # [quality] Reciprocal-Rank-Fusion constant in src/retrieve/retrieve.c.
+  # [range] 30..100. 60 is the canonical value from Cormack et al. (2009);
+  # lower flattens the rank-weight curve, higher gives top-ranked sources more
+  # influence. Almost never worth tuning.
+  rrf_k_const: 60
+
+  # [perf] Cap on the secondary "fallback_retrieve" pass that fires when a
+  # cache-MISS query needs to surface SOMETHING. [range] 1..top_k. Kept low to
+  # avoid drowning the user in marginal matches during exploration.
+  query_fallback_top_k: 5
+
+
+# -----------------------------------------------------------------------------
+# edges — graph wiring done at insert time
+# -----------------------------------------------------------------------------
+# Every new node is linked to existing nodes via two edge kinds:
+#   KEYWORD edges — shared classifier tags / extracted keywords
+#   SEMANTIC edges — high cosine similarity in embedding space
+# Thresholds below decide which neighbors are linked; the topk caps the
+# fan-out so the graph stays sparse.
+# -----------------------------------------------------------------------------
 edges:
+  # [quality] Minimum keyword-edge score to keep a candidate. [range] 0.3..0.8.
+  # Lower = denser graph, better recall on tag-driven queries. Higher = sparser
+  # graph, faster /v1/explore.
   edge_keyword_min: 0.5
+
+  # [quality] Minimum semantic-edge score (cosine-derived) to keep a candidate.
+  # [range] 0.5..0.85. Below 0.5 you start linking near-unrelated nodes.
   edge_semantic_min: 0.6
+
+  # [perf][quality] Max keyword edges emitted per inserted node. [range] 2..20.
+  # Higher = richer graph + bigger storage + slower explore.
   edge_keyword_topk: 5
+
+  # [perf][quality] Max semantic edges per inserted node. [range] 5..50.
   edge_semantic_topk: 20
+
+  # [quality] MMR redundancy penalty when selecting which edges to keep.
+  # [range] 0.0..1.0. 0 = pure score (cluster-heavy edges); 1 = pure diversity.
+  # Also reused inside /v1/explore beam selection. 0.7 is a good neutral.
   mmr_lambda: 0.7
 
+
+# -----------------------------------------------------------------------------
+# explore — keyword-conditioned beam search over the graph (/v1/explore)
+# -----------------------------------------------------------------------------
+# Beam search expands `beam` paths per step for `depth` steps, scoring each
+# expansion as base + alpha*log(sem) - depth_penalty*step - lambda*redundancy.
+# See the header comment in src/explore/explore.c for the full formula.
+# -----------------------------------------------------------------------------
 explore:
+  # [perf] Beams kept per step. [range] 1..16. Doubling beam roughly doubles
+  # latency and memory; gains plateau quickly past 8 for most graphs.
   default_beam: 4
+
+  # [perf] Number of expansion hops from each seed. [range] 1..6. Above 5
+  # the search tends to drift even with the depth penalty.
   default_depth: 3
+
+  # [quality] Per-step depth penalty base. [range] (0, 1]. Stored clamped to
+  # (eps, 1]. The penalty is computed from log(decay_gamma); LOWER values
+  # mean a HEAVIER penalty (so deeper paths must be much stronger to compete
+  # with shallow ones). 0.85 ≈ moderate; 0.6 keeps the search shallow; 0.95
+  # lets the beam roam.
   decay_gamma: 0.85
+
+  # [quality] Weight on the semantic-score component vs the edge-weight
+  # component when scoring expansions. [range] 0.0..2.0. Set near 0 to follow
+  # graph topology and ignore embeddings; 1+ to prioritize semantic
+  # similarity over established graph links.
   alpha: 0.5
 
-# Optional HTTP/REST layer + 3D viewer. Off by default. When enabled, the
-# daemon spawns a TCP listener bound to `bind:port` and serves /v1/* JSON
-# endpoints plus the viewer SPA at /. See docs/HTTP-API.md for the full
-# endpoint reference. Keep this bound to 127.0.0.1 for production and put
-# integrations/mcp-server/oauth_gateway.py in front for OAuth/OIDC.
+
+# -----------------------------------------------------------------------------
+# http — optional REST + viewer SPA  [security-sensitive]
+# -----------------------------------------------------------------------------
+# Off by default. Once enabled, ANY process able to reach `bind:port` can call
+# /v1/* with NO authentication. Defense in depth:
+#   1. Keep `bind: 127.0.0.1` (or `::1`) — the daemon now refuses non-loopback
+#      addresses unless allow_remote is true.
+#   2. Disable write endpoints (insert/delete) you do not need.
+#   3. Put integrations/mcp-server/oauth_gateway.py in front for OAuth/OIDC if
+#      you need network exposure.
+#   4. The Host header is also validated server-side to block DNS-rebinding
+#      attacks against the loopback binding.
+# -----------------------------------------------------------------------------
 http:
+  # [security] Master switch. When false, no TCP listener is created.
   enabled: false
-  bind: "127.0.0.1"             # local-first; do not expose graftd directly
+
+  # [security] Listen address. Anything other than 127.0.0.0/8, ::1, or
+  # "localhost" is REFUSED at startup unless allow_remote: true (below).
+  bind: "127.0.0.1"
+
+  # TCP port. Pick something not in use; 9977 is the project default.
   port: 9977
-  endpoint_match:    true       # GET  /v1/match
-  endpoint_search:   true       # GET  /v1/search
-  endpoint_explore:  true       # GET  /v1/explore
-  endpoint_classify: true       # GET  /v1/classify
-  endpoint_insert:   true       # POST /v1/insert
-  endpoint_delete:   false      # DELETE /v1/nodes/{id} — sensitive, off by default
-  endpoint_view:     true       # GET  /v1/view (full graph dump for the viewer)
-  viewer_path: "viewer/dist"    # static bundle served at /
+
+  # [security] OPT-IN required to bind a non-loopback address. Leave false
+  # unless you know exactly what you are doing. Even with this on, you should
+  # still front the daemon with an authenticated reverse proxy — the daemon
+  # itself does NOT authenticate clients.
+  allow_remote: false
+
+  # Per-endpoint toggles. Disable anything you do not actively use.
+  endpoint_match:    true       # GET    /v1/match     — cache-hit probe (read)
+  endpoint_search:   true       # GET    /v1/search    — full search (read)
+  endpoint_explore:  true       # GET    /v1/explore   — beam search (read)
+  endpoint_classify: true       # GET    /v1/classify  — keyword classify (read)
+  endpoint_insert:   true       # POST   /v1/insert    — WRITE: adds nodes/edges
+  endpoint_delete:   false      # DELETE /v1/nodes/{id}— WRITE: removes nodes
+  endpoint_view:     true       # GET    /v1/view      — dumps the WHOLE graph
+
+  # Filesystem path of the viewer SPA bundle served at /. Relative paths
+  # resolve against the daemon's CWD; use an absolute path in production. The
+  # server enforces a path-traversal whitelist (/, /index.html, /favicon.ico,
+  # /assets/*) so files outside this directory are NOT exposed.
+  viewer_path: "viewer/dist"
