@@ -38,6 +38,12 @@ const WEAK_EXPLORE_BEAM = positiveInt(process.env.GRAFT_HOOK_WEAK_EXPLORE_BEAM, 
 // should not be readable by other local accounts.
 function safeMkdir(d) { try { mkdirSync(d, { recursive: true, mode: 0o700 }); } catch (_) {} }
 function readStdinSync() { try { return readFileSync(0, 'utf8'); } catch (_) { return ''; } }
+// Reject session ids that aren't safe to interpolate into a filename. We
+// only accept [A-Za-z0-9_-]{1,128}; anything else (path separators, dots,
+// non-ASCII, suspiciously long) silently disables the cache for this turn.
+function safeSessionId(s) {
+  return typeof s === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(s) ? s : null;
+}
 function positiveInt(raw, fallback) {
   const n = Number.parseInt(raw, 10);
   return Number.isFinite(n) && n > 0 ? n : fallback;
@@ -90,7 +96,8 @@ function exploreWeak(title, keywords) {
   try { payload = JSON.parse(raw); } catch (_) { return; }
 
   const prompt = (payload && typeof payload.prompt === 'string') ? payload.prompt.trim() : '';
-  const sessionId = (payload && typeof payload.session_id === 'string') ? payload.session_id : '';
+  const rawSessionId = (payload && typeof payload.session_id === 'string') ? payload.session_id : '';
+  const sessionId = safeSessionId(rawSessionId);
 
   // (1) Surface any pending /memoryze proposal from prior turn's Stop hook.
   if (sessionId) {

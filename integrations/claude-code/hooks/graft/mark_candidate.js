@@ -38,6 +38,12 @@ const TOOLS_OF_INTEREST = new Set([
 // should not be readable by other local accounts.
 function safeMkdir(d) { try { mkdirSync(d, { recursive: true, mode: 0o700 }); } catch (_) {} }
 function readStdinSync() { try { return readFileSync(0, 'utf8'); } catch (_) { return ''; } }
+// Reject session ids that aren't safe to interpolate into a filename. We
+// only accept [A-Za-z0-9_-]{1,128}; anything else (path separators, dots,
+// non-ASCII, suspiciously long) silently disables the cache for this turn.
+function safeSessionId(s) {
+  return typeof s === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(s) ? s : null;
+}
 
 (function main() {
   safeMkdir(STATE_DIR);
@@ -48,7 +54,7 @@ function readStdinSync() { try { return readFileSync(0, 'utf8'); } catch (_) { r
   let p;
   try { p = JSON.parse(raw); } catch (_) { return; }
 
-  const sessionId = p && p.session_id;
+  const sessionId = safeSessionId(p && p.session_id);
   const tool = p && p.tool_name;
   if (!sessionId || !TOOLS_OF_INTEREST.has(tool)) return;
 
