@@ -19,10 +19,13 @@
 
 #ifdef _WIN32
 #include <windows.h>
+#include <shellapi.h>
 #define PATH_SEP '\\'
 #define PATH_SEP_S "\\"
 #else
 #include <unistd.h>
+#include <sys/wait.h>
+#include <errno.h>
 #define PATH_SEP '/'
 #define PATH_SEP_S "/"
 #endif
@@ -76,20 +79,104 @@ static int resolve_viewer_dir(const char *argv0, char *out, size_t outsz) {
     return -1;
 }
 
-static int run_in_dir(const char *dir, const char *what, const char *label) {
-    char cmd[2048];
-#ifdef _WIN32
-    /* `cd /d` handles drive changes; outer quotes preserve spaces in `dir`. */
-    snprintf(cmd, sizeof(cmd), "cmd /c \"cd /d \"%s\" && %s\"", dir, what);
-#else
-    snprintf(cmd, sizeof(cmd), "cd '%s' && %s", dir, what);
-#endif
-    fprintf(stderr, "  %s...\n", label);
-    int rc = system(cmd);
-    if (rc != 0) {
-        fprintf(stderr, "  %s failed (exit %d).\n", label, rc);
+/* Split a whitespace-separated command into argv tokens (no quoting or
+ * escaping support). The viewer code only invokes literal commands like
+ * "npm install" or "npm run build" — this keeps the parser tiny and safe.
+ * Writes pointers into `buf` (which is modified in place) and returns the
+ * argc count, or -1 if the command would overflow `max_args` tokens. */
+static int split_args(char *buf, char **argv, int max_args) {
+    int argc = 0;
+    char *p = buf;
+    while (*p) {
+        while (*p == ' ' || *p == '\t') p++;
+        if (!*p) break;
+        if (argc >= max_args - 1) return -1;
+        argv[argc++] = p;
+        while (*p && *p != ' ' && *p != '\t') p++;
+        if (*p) { *p = '\0'; p++; }
     }
+    argv[argc] = NULL;
+    return argc;
+}
+
+/* Run `what` inside `dir` without invoking a shell. `dir` can contain
+ * arbitrary attacker-controlled characters (it ultimately comes from
+ * GRAFT_VIEWER_DIR or argv[0]); we pass it as the child's working directory,
+ * never as part of a command-line string. */
+static int run_in_dir(const char *dir, const char *what, const char *label) {
+    fprintf(stderr, "  %s...\n", label);
+
+    char cmd_buf[256];
+    if ((size_t)snprintf(cmd_buf, sizeof(cmd_buf), "%s", what) >= sizeof(cmd_buf)) {
+        fprintf(stderr, "  %s failed (command too long).\n", label);
+        return -1;
+    }
+    char *argv[16];
+    int argc = split_args(cmd_buf, argv, 16);
+    if (argc <= 0) {
+        fprintf(stderr, "  %s failed (empty command).\n", label);
+        return -1;
+    }
+
+#ifdef _WIN32
+    /* Rebuild a properly-quoted command line for CreateProcessA from the
+     * already-split argv (safe: contents are literal, no metachars). */
+    char cmdline[1024];
+    size_t off = 0;
+    for (int i = 0; i < argc; i++) {
+        int n = snprintf(cmdline + off, sizeof(cmdline) - off,
+                         "%s\"%s\"", i ? " " : "", argv[i]);
+        if (n < 0 || (size_t)n >= sizeof(cmdline) - off) {
+            fprintf(stderr, "  %s failed (command line too long).\n", label);
+            return -1;
+        }
+        off += (size_t)n;
+    }
+
+    STARTUPINFOA si;
+    PROCESS_INFORMATION pi;
+    memset(&si, 0, sizeof(si));
+    si.cb = sizeof(si);
+    memset(&pi, 0, sizeof(pi));
+
+    /* Use NULL application name + parsed cmdline so PATH resolution finds
+     * npm.cmd / npm.exe; the *dir* argument controls only the cwd. */
+    if (!CreateProcessA(NULL, cmdline, NULL, NULL, FALSE, 0, NULL, dir,
+                        &si, &pi)) {
+        fprintf(stderr, "  %s failed to launch (err %lu).\n", label,
+                (unsigned long)GetLastError());
+        return -1;
+    }
+    WaitForSingleObject(pi.hProcess, INFINITE);
+    DWORD code = 1;
+    GetExitCodeProcess(pi.hProcess, &code);
+    CloseHandle(pi.hProcess);
+    CloseHandle(pi.hThread);
+    int rc = (int)code;
+    if (rc != 0) fprintf(stderr, "  %s failed (exit %d).\n", label, rc);
     return rc;
+#else
+    pid_t pid = fork();
+    if (pid < 0) {
+        fprintf(stderr, "  %s fork failed: %s\n", label, strerror(errno));
+        return -1;
+    }
+    if (pid == 0) {
+        if (chdir(dir) != 0) _exit(127);
+        execvp(argv[0], argv);
+        _exit(127);
+    }
+    int status = 0;
+    while (waitpid(pid, &status, 0) < 0) {
+        if (errno != EINTR) {
+            fprintf(stderr, "  %s waitpid failed: %s\n", label, strerror(errno));
+            return -1;
+        }
+    }
+    int rc = WIFEXITED(status) ? WEXITSTATUS(status) : -1;
+    if (rc != 0) fprintf(stderr, "  %s failed (exit %d).\n", label, rc);
+    return rc;
+#endif
 }
 
 static int ensure_viewer_built(const char *viewer_dir) {
@@ -150,13 +237,31 @@ int mg_view_cmd(int argc, char **argv) {
     snprintf(url, sizeof(url), "http://127.0.0.1:%d/", port);
     fprintf(stderr, "Opening %s — requires `http.enabled: true` in config.yaml.\n", url);
 
-    char open_cmd[256];
+    /* `url` is built from a fixed scheme/host and an int port — no attacker
+     * surface — but we still avoid system() so the helper command can't be
+     * shell-interpolated should this format ever change. */
 #ifdef _WIN32
-    snprintf(open_cmd, sizeof(open_cmd), "start \"\" \"%s\"", url);
-#elif defined(__APPLE__)
-    snprintf(open_cmd, sizeof(open_cmd), "open '%s'", url);
+    /* ShellExecuteA handles the http:// scheme directly via the registered
+     * default browser; no shell parsing of `url`. */
+    HINSTANCE h = ShellExecuteA(NULL, "open", url, NULL, NULL, SW_SHOWNORMAL);
+    return ((INT_PTR)h > 32) ? 0 : -1;
 #else
-    snprintf(open_cmd, sizeof(open_cmd), "xdg-open '%s'", url);
+    pid_t pid = fork();
+    if (pid < 0) return -1;
+    if (pid == 0) {
+#  ifdef __APPLE__
+        char *open_argv[] = { "open", (char *)url, NULL };
+        execvp("open", open_argv);
+#  else
+        char *open_argv[] = { "xdg-open", (char *)url, NULL };
+        execvp("xdg-open", open_argv);
+#  endif
+        _exit(127);
+    }
+    int status = 0;
+    while (waitpid(pid, &status, 0) < 0) {
+        if (errno != EINTR) return -1;
+    }
+    return WIFEXITED(status) ? WEXITSTATUS(status) : -1;
 #endif
-    return system(open_cmd);
 }
