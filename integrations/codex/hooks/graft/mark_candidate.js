@@ -92,6 +92,6 @@ function readStdinSync() { try { return readFileSync(0, 'utf8'); } catch (_) { r
   for (const f of files.slice(0, 10)) process.stdout.write(`  - ${f}\n`);
   if (!files.length) process.stdout.write('  - <path unavailable>\n');
   if (files.length > 10) process.stdout.write(`  - ... and ${files.length - 10} more\n`);
-  process.stdout.write('\nBefore the final response, decide automatically whether this solved a non-obvious problem or encoded a reusable decision. If yes, save 1-3 focused memory nodes now using /memoryze when available, otherwise graft classify + graft insert. If the edits were mechanical or not yet resolved, skip saving.\n');
+  process.stdout.write('\nBefore the final response, decide automatically whether this solved a non-obvious problem or encoded a reusable decision. If yes, save 1-3 focused memory nodes now using /memoryze when available. Otherwise write a short searchable title, write the body in Markdown with context, fix/decision, why, and minimal snippets, run graft classify --title "<title>", then graft insert with 2-5 good keywords. If the edits were mechanical or not yet resolved, skip saving.\n');
   process.stdout.write('</graft-proposal>\n');
 })();

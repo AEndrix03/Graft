@@ -26,9 +26,15 @@ function inferStateDir() {
 
 const STATE_DIR = inferStateDir();
 const MIN_WORDS_FOR_QUERY = 4;
+const WEAK_EXPLORE_DEPTH = positiveInt(process.env.GRAFT_HOOK_WEAK_EXPLORE_DEPTH, 3);
+const WEAK_EXPLORE_BEAM = positiveInt(process.env.GRAFT_HOOK_WEAK_EXPLORE_BEAM, 4);
 
 function safeMkdir(d) { try { mkdirSync(d, { recursive: true }); } catch (_) {} }
 function readStdinSync() { try { return readFileSync(0, 'utf8'); } catch (_) { return ''; } }
+function positiveInt(raw, fallback) {
+  const n = Number.parseInt(raw, 10);
+  return Number.isFinite(n) && n > 0 ? n : fallback;
+}
 
 function runGraft(args) {
   try {
@@ -40,6 +46,31 @@ function runGraft(args) {
   } catch (_) {
     return null;
   }
+}
+
+function parseGraft(args) {
+  const out = runGraft(args);
+  if (!out) return null;
+  try { return JSON.parse(out); } catch (_) { return null; }
+}
+
+function classifyKeywords(title) {
+  if (!title) return [];
+  const resp = parseGraft(['classify', '--title', title]);
+  const kws = resp && resp.result && resp.result.suggested_keywords;
+  return Array.isArray(kws)
+    ? kws.filter(k => typeof k === 'string' && k.trim()).slice(0, 5)
+    : [];
+}
+
+function exploreWeak(title, keywords) {
+  if (!title || !keywords.length) return [];
+  const args = ['explore', title];
+  for (const kw of keywords) args.push('--keyword', kw);
+  args.push('--depth', String(WEAK_EXPLORE_DEPTH), '--beam', String(WEAK_EXPLORE_BEAM));
+  const resp = parseGraft(args);
+  const nodes = resp && resp.result && resp.result.nodes;
+  return Array.isArray(nodes) ? nodes.filter(n => n && n.title).slice(0, 8) : [];
 }
 
 (function main() {
@@ -74,19 +105,39 @@ function runGraft(args) {
   if (!prompt || prompt.split(/\s+/).filter(Boolean).length < MIN_WORDS_FOR_QUERY) return;
 
   // (3) Run graft query.
-  const out = runGraft(['query', prompt]);
-  if (!out) return;
-
-  let resp;
-  try { resp = JSON.parse(out); } catch (_) { return; }
+  const resp = parseGraft(['query', prompt]);
   const r = resp && resp.result;
   if (!r || !r.hit) return;
 
-  if (r.hit === 'STRONG' || r.hit === 'WEAK') {
-    process.stdout.write(`<graft-cache hit="${r.hit}">\n`);
+  if (r.hit === 'STRONG') {
+    process.stdout.write('<graft-cache hit="STRONG">\n');
     if (r.id_hex) process.stdout.write(`id_hex: ${r.id_hex}\n`);
     if (r.title) process.stdout.write(`title: ${r.title}\n`);
-    if (r.hit === 'STRONG' && r.body) process.stdout.write(`body: ${r.body}\n`);
+    if (r.body) process.stdout.write(`body: ${r.body}\n`);
+    process.stdout.write('</graft-cache>\n');
+    return;
+  }
+
+  if (r.hit === 'WEAK') {
+    const title = r.title || prompt;
+    const keywords = classifyKeywords(title);
+    const candidates = exploreWeak(title, keywords);
+
+    process.stdout.write('<graft-cache hit="WEAK">\n');
+    if (r.id_hex) process.stdout.write(`weak_id_hex: ${r.id_hex}\n`);
+    if (r.title) process.stdout.write(`weak_title: ${r.title}\n`);
+    if (keywords.length) process.stdout.write(`classified_keywords: ${keywords.join(', ')}\n`);
+    process.stdout.write(`explore_depth: ${WEAK_EXPLORE_DEPTH}\n`);
+    process.stdout.write(`explore_beam: ${WEAK_EXPLORE_BEAM}\n`);
+    if (candidates.length) {
+      process.stdout.write('explore_candidates:\n');
+      for (const n of candidates) {
+        const score = typeof n.score === 'number' ? ` score=${n.score.toFixed(3)}` : '';
+        const id = n.id_hex ? ` id_hex=${n.id_hex}` : '';
+        process.stdout.write(`- ${n.title}${id}${score}\n`);
+      }
+    }
+    process.stdout.write('If you use this WEAK match as the basis for a different solution, save a new node that strengthens the memory.\n');
     process.stdout.write('</graft-cache>\n');
     return;
   }

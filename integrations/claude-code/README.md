@@ -20,22 +20,26 @@ Sei skill collaborano:
 
 ## Installazione
 
+La sorgente autorevole e condivisa per skill, hook e istruzioni e'
+`integrations/standard`; questa cartella resta un adapter/documentazione per
+Claude Code.
+
 Installazione user-scoped automatica:
 
 ```bash
 graft setup claudecode
 ```
 
-Copia tutta la directory `skills/` (le 4 sotto-cartelle) nella skill folder di Claude Code:
+Copia tutta la directory standard `skills/` nella skill folder di Claude Code:
 
 ```bash
 # Project-scoped (solo questo repo)
 mkdir -p .claude/skills
-cp -r integrations/claude-code/skills/* .claude/skills/
+cp -r integrations/standard/skills/* .claude/skills/
 
 # User-scoped (tutti i progetti)
 mkdir -p ~/.claude/skills
-cp -r integrations/claude-code/skills/* ~/.claude/skills/
+cp -r integrations/standard/skills/* ~/.claude/skills/
 ```
 
 Su Windows PowerShell:
@@ -43,7 +47,7 @@ Su Windows PowerShell:
 ```powershell
 $dst = "$env:USERPROFILE\.claude\skills"
 New-Item -ItemType Directory -Path $dst -Force | Out-Null
-Copy-Item -Recurse integrations\claude-code\skills\* $dst
+Copy-Item -Recurse integrations\standard\skills\* $dst
 ```
 
 ## Verifica

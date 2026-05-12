@@ -4,7 +4,7 @@ Three event hooks that move graft from "the agent should remember to use it" to 
 
 | Event              | Script                  | What it does                                                                                              |
 | ------------------ | ----------------------- | --------------------------------------------------------------------------------------------------------- |
-| `UserPromptSubmit` | `query_inject.js`       | Runs `graft query <prompt>`. STRONG/WEAK hits inject `id_hex`, title, and body on STRONG. MISS injects only `<graft-cache hit="MISS" queried="true"/>` - no fallback neighbors (see "MISS policy" below). Also surfaces any `<graft-proposal>` queued by the previous turn's Stop hook. |
+| `UserPromptSubmit` | `query_inject.js`       | Runs `graft query <prompt>`. STRONG injects `id_hex`, title, and body. WEAK classifies the weak title, runs `explore --depth 3 --beam 4` by default, and injects candidate titles. MISS injects only `<graft-cache hit="MISS" queried="true"/>`. Also surfaces any `<graft-proposal>` queued by the previous turn's Stop hook. |
 | `PostToolUse` (matcher `apply_patch`) | `mark_candidate.js`     | Records the tool call + extracted file paths in `~/.codex/hooks/graft/state/<session>.candidates`, then emits a same-turn `<graft-proposal timing="post-tool">` so the agent can save before its final response. |
 | `Stop`             | `propose_memoryze.js`   | If the session accumulated candidates, writes a fallback `/memoryze` proposal to `<session>.proposal`. The next `UserPromptSubmit` surfaces it for clients that do not surface PostToolUse stdout. |
 
@@ -92,8 +92,9 @@ call.
 The hook layer does not call `graft insert` directly. It surfaces a same-turn
 proposal after edits, and the agent decides automatically before its final
 response whether the work is worth memory. If yes, it saves with `/memoryze`
-when available, otherwise `graft classify` + `graft insert`. The Stop hook keeps
-a next-turn fallback for clients that do not expose PostToolUse stdout.
+when available, otherwise a Markdown body plus `graft classify --title "<title>"`
+followed by `graft insert` with 2-5 good keywords. The Stop hook keeps a
+next-turn fallback for clients that do not expose PostToolUse stdout.
 
 ## Sharing scripts with Claude Code
 

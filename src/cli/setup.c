@@ -21,7 +21,8 @@
 
 enum mg_setup_agent {
     MG_SETUP_CLAUDECODE,
-    MG_SETUP_CODEX
+    MG_SETUP_CODEX,
+    MG_SETUP_OPENCODE
 };
 
 static int path_join(char *out, size_t cap, const char *a, const char *b) {
@@ -188,7 +189,7 @@ static int normalize_codex_skill_file(const char *path) {
 
     char line[8192];
     while (fgets(line, sizeof(line), in)) {
-        if (!strncmp(line, "description: ", 13)) {
+        if (!strncmp(line, "description: ", 13) && strncmp(line, "description: >-", 15)) {
             char *desc = line + 13;
             fputs("description: >-\n  ", out);
             fputs(desc, out);
@@ -293,33 +294,48 @@ static int cwd_path(char *out, size_t cap) {
 #endif
 }
 
-static const char *agent_dir_name(enum mg_setup_agent agent) {
-    return agent == MG_SETUP_CLAUDECODE ? "claude-code" : "codex";
+static const char *agent_display_name(enum mg_setup_agent agent) {
+    switch (agent) {
+        case MG_SETUP_CLAUDECODE: return "Claude Code";
+        case MG_SETUP_CODEX: return "Codex";
+        case MG_SETUP_OPENCODE: return "OpenCode";
+    }
+    return "agent";
 }
 
-static int candidate_integration_dir(char *out, size_t cap, const char *base,
-                                     enum mg_setup_agent agent) {
+static const char *agent_project_file(enum mg_setup_agent agent) {
+    return agent == MG_SETUP_CLAUDECODE ? "CLAUDE.md" : "AGENTS.md";
+}
+
+static int candidate_standard_dir(char *out, size_t cap, const char *base) {
     char tmp[1024];
     if (path_join(tmp, sizeof(tmp), base, "integrations") != 0) return -1;
-    return path_join(out, cap, tmp, agent_dir_name(agent));
+    return path_join(out, cap, tmp, "standard");
 }
 
-static int find_integration_dir(char *out, size_t cap, enum mg_setup_agent agent) {
+static int find_standard_dir(char *out, size_t cap) {
     const char *env = getenv("GRAFT_INTEGRATIONS_DIR");
     if (env && *env) {
-        if (path_join(out, cap, env, agent_dir_name(agent)) == 0 && dir_exists(out)) return 0;
+        if (path_join(out, cap, env, "standard") == 0 && dir_exists(out)) return 0;
+        if (dir_exists(env)) {
+            char entry[1024];
+            if (path_join(entry, sizeof(entry), env, "entrypoint.md") == 0 && file_exists(entry)) {
+                snprintf(out, cap, "%s", env);
+                return 0;
+            }
+        }
     }
 
     char base[1024], cand[1024];
     if (own_exe_dir(base, sizeof(base)) == 0) {
-        if (candidate_integration_dir(cand, sizeof(cand), base, agent) == 0 && dir_exists(cand)) {
+        if (candidate_standard_dir(cand, sizeof(cand), base) == 0 && dir_exists(cand)) {
             snprintf(out, cap, "%s", cand);
             return 0;
         }
         char parent[1024];
         if (snprintf(parent, sizeof(parent), "%s", base) < (int)sizeof(parent)
             && parent_dir(parent) == 0) {
-            if (candidate_integration_dir(cand, sizeof(cand), parent, agent) == 0 && dir_exists(cand)) {
+            if (candidate_standard_dir(cand, sizeof(cand), parent) == 0 && dir_exists(cand)) {
                 snprintf(out, cap, "%s", cand);
                 return 0;
             }
@@ -327,7 +343,7 @@ static int find_integration_dir(char *out, size_t cap, enum mg_setup_agent agent
             if (path_join(share, sizeof(share), parent, "share") == 0
                 && path_join(graft, sizeof(graft), share, "graft") == 0
                 && path_join(integrations, sizeof(integrations), graft, "integrations") == 0
-                && path_join(cand, sizeof(cand), integrations, agent_dir_name(agent)) == 0
+                && path_join(cand, sizeof(cand), integrations, "standard") == 0
                 && dir_exists(cand)) {
                 snprintf(out, cap, "%s", cand);
                 return 0;
@@ -336,7 +352,7 @@ static int find_integration_dir(char *out, size_t cap, enum mg_setup_agent agent
     }
 
     if (cwd_path(base, sizeof(base)) == 0
-        && candidate_integration_dir(cand, sizeof(cand), base, agent) == 0
+        && candidate_standard_dir(cand, sizeof(cand), base) == 0
         && dir_exists(cand)) {
         snprintf(out, cap, "%s", cand);
         return 0;
@@ -368,6 +384,36 @@ static int write_text_file(const char *path, const char *text) {
     if (!f) return -1;
     fputs(text, f);
     return fclose(f) == 0 ? 0 : -1;
+}
+
+static int print_file_contents(const char *path) {
+    FILE *f = fopen(path, "rb");
+    if (!f) return -1;
+    char buf[4096];
+    size_t n;
+    while ((n = fread(buf, 1, sizeof(buf), f)) > 0) {
+        if (fwrite(buf, 1, n, stdout) != n) {
+            fclose(f);
+            return -1;
+        }
+    }
+    int rc = ferror(f) ? -1 : 0;
+    fclose(f);
+    return rc;
+}
+
+static void print_project_snippet(const char *src, enum mg_setup_agent agent) {
+    char snippet[1024];
+    printf("\nProject instructions to paste into %s:\n\n", agent_project_file(agent));
+    printf("-----BEGIN GRAFT PROJECT INSTRUCTIONS-----\n");
+    if (path_join(snippet, sizeof(snippet), src, "project-snippet.md") == 0
+        && print_file_contents(snippet) == 0) {
+        /* ok */
+    } else {
+        printf("Use `graft query \"<problem restated>\"` before non-trivial technical work.\n");
+        printf("After solving a non-obvious reusable problem, run `graft classify --title \"<title>\"`, then `graft insert` with a Markdown body and 2-5 keywords.\n");
+    }
+    printf("\n-----END GRAFT PROJECT INSTRUCTIONS-----\n\n");
 }
 
 static int enable_codex_hooks_flag(const char *codex_home) {
@@ -522,24 +568,27 @@ static int setup_claudecode(const char *src, const char *home) {
     char src_hook_graft[1024];
     if (path_join(src_hook_graft, sizeof(src_hook_graft), src_hooks, "graft") != 0) return -1;
     if (copy_tree(src_skills, dst_skills) != 0) return -1;
+    if (normalize_codex_skill_tree(dst_skills) != 0) return -1;
     if (copy_tree(src_hook_graft, dst_hooks) != 0) return -1;
     if (write_hook_config(settings, dst_hooks, MG_SETUP_CLAUDECODE) != 0) return -1;
     printf("Installed Claude Code skills to %s\n", dst_skills);
     printf("Installed Claude Code hooks to %s\n", dst_hooks);
     printf("Updated %s\n", settings);
+    print_project_snippet(src, MG_SETUP_CLAUDECODE);
     return 0;
 }
 
 static int setup_codex(const char *src, const char *home) {
     char codex_home[1024], src_hooks[1024], dst_hooks_root[1024], dst_hooks[1024], hooks_json[1024];
-    char src_agents[1024], dst_agents[1024], src_claude[1024], src_skills_root[1024], dst_skills[1024];
+    char src_agents[1024], dst_agents[1024], src_skills_root[1024], dst_skills[1024];
     if (path_join(codex_home, sizeof(codex_home), home, ".codex") != 0
         || path_join(src_hooks, sizeof(src_hooks), src, "hooks") != 0
         || path_join(dst_hooks_root, sizeof(dst_hooks_root), codex_home, "hooks") != 0
         || path_join(dst_hooks, sizeof(dst_hooks), dst_hooks_root, "graft") != 0
         || path_join(hooks_json, sizeof(hooks_json), codex_home, "hooks.json") != 0
-        || path_join(src_agents, sizeof(src_agents), src, "AGENTS.md") != 0
+        || path_join(src_agents, sizeof(src_agents), src, "entrypoint.md") != 0
         || path_join(dst_agents, sizeof(dst_agents), codex_home, "AGENTS.md") != 0
+        || path_join(src_skills_root, sizeof(src_skills_root), src, "skills") != 0
         || path_join(dst_skills, sizeof(dst_skills), codex_home, "skills") != 0) {
         return -1;
     }
@@ -547,14 +596,6 @@ static int setup_codex(const char *src, const char *home) {
     if (path_join(src_hook_graft, sizeof(src_hook_graft), src_hooks, "graft") != 0) return -1;
     if (copy_tree(src_hook_graft, dst_hooks) != 0) return -1;
     if (copy_file(src_agents, dst_agents) != 0) return -1;
-
-    char src_parent[1024];
-    if (snprintf(src_parent, sizeof(src_parent), "%s", src) >= (int)sizeof(src_parent)
-        || parent_dir(src_parent) != 0
-        || path_join(src_claude, sizeof(src_claude), src_parent, "claude-code") != 0
-        || path_join(src_skills_root, sizeof(src_skills_root), src_claude, "skills") != 0) {
-        return -1;
-    }
     if (dir_exists(src_skills_root)) {
         if (copy_tree(src_skills_root, dst_skills) != 0) return -1;
         if (normalize_codex_skill_tree(dst_skills) != 0) return -1;
@@ -565,6 +606,29 @@ static int setup_codex(const char *src, const char *home) {
     printf("Installed Codex instructions to %s\n", dst_agents);
     if (dir_exists(src_skills_root)) printf("Installed Codex skills to %s\n", dst_skills);
     printf("Updated %s\n", hooks_json);
+    print_project_snippet(src, MG_SETUP_CODEX);
+    return 0;
+}
+
+static int setup_opencode(const char *src, const char *home) {
+    char config_home[1024], opencode_home[1024], src_skills[1024], dst_skills[1024];
+    char src_agents[1024], dst_agents[1024];
+    if (path_join(config_home, sizeof(config_home), home, ".config") != 0) return -1;
+
+    if (path_join(opencode_home, sizeof(opencode_home), config_home, "opencode") != 0
+        || path_join(src_skills, sizeof(src_skills), src, "skills") != 0
+        || path_join(dst_skills, sizeof(dst_skills), opencode_home, "skills") != 0
+        || path_join(src_agents, sizeof(src_agents), src, "entrypoint.md") != 0
+        || path_join(dst_agents, sizeof(dst_agents), opencode_home, "AGENTS.md") != 0) {
+        return -1;
+    }
+    if (copy_tree(src_skills, dst_skills) != 0) return -1;
+    if (normalize_codex_skill_tree(dst_skills) != 0) return -1;
+    if (copy_file(src_agents, dst_agents) != 0) return -1;
+    printf("Installed OpenCode skills to %s\n", dst_skills);
+    printf("Installed OpenCode instructions to %s\n", dst_agents);
+    printf("OpenCode hooks are not installed by graft setup yet.\n");
+    print_project_snippet(src, MG_SETUP_OPENCODE);
     return 0;
 }
 
@@ -577,18 +641,22 @@ static int parse_agent(const char *s, enum mg_setup_agent *agent) {
         *agent = MG_SETUP_CODEX;
         return 0;
     }
+    if (!strcmp(s, "opencode") || !strcmp(s, "open-code") || !strcmp(s, "open_code")) {
+        *agent = MG_SETUP_OPENCODE;
+        return 0;
+    }
     return -1;
 }
 
 int mg_setup_cmd(int argc, char **argv) {
     if (argc != 3) {
-        fprintf(stderr, "usage: graft setup <claudecode|codex>\n");
+        fprintf(stderr, "usage: graft setup <claudecode|codex|opencode>\n");
         return 2;
     }
     enum mg_setup_agent agent;
     if (parse_agent(argv[2], &agent) != 0) {
         fprintf(stderr, "unknown setup target: %s\n", argv[2]);
-        fprintf(stderr, "usage: graft setup <claudecode|codex>\n");
+        fprintf(stderr, "usage: graft setup <claudecode|codex|opencode>\n");
         return 2;
     }
 
@@ -597,21 +665,21 @@ int mg_setup_cmd(int argc, char **argv) {
         fprintf(stderr, "setup failed: could not resolve user profile directory\n");
         return 1;
     }
-    if (find_integration_dir(src, sizeof(src), agent) != 0) {
+    if (find_standard_dir(src, sizeof(src)) != 0) {
         fprintf(stderr,
-                "setup failed: could not find integrations/%s (set GRAFT_INTEGRATIONS_DIR)\n",
-                agent_dir_name(agent));
+                "setup failed: could not find integrations/standard (set GRAFT_INTEGRATIONS_DIR)\n");
         return 1;
     }
 
-    int rc = agent == MG_SETUP_CLAUDECODE
-        ? setup_claudecode(src, home)
-        : setup_codex(src, home);
+    int rc;
+    if (agent == MG_SETUP_CLAUDECODE) rc = setup_claudecode(src, home);
+    else if (agent == MG_SETUP_CODEX) rc = setup_codex(src, home);
+    else rc = setup_opencode(src, home);
     if (rc != 0) {
         fprintf(stderr, "setup failed: %s\n", strerror(errno ? errno : EINVAL));
         return 1;
     }
-    printf("Restart %s so it reloads the installed hooks.\n",
-           agent == MG_SETUP_CLAUDECODE ? "Claude Code" : "Codex");
+    printf("Restart %s so it reloads the installed integration.\n",
+           agent_display_name(agent));
     return 0;
 }

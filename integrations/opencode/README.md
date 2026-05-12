@@ -1,27 +1,26 @@
-# Open Code — graft integration
+# OpenCode - graft integration
 
-[Open Code](https://opencode.ai) is an open-source AI coding assistant that reads `AGENTS.md` for repo-level instructions.
+[OpenCode](https://opencode.ai) reads `AGENTS.md` for repo-level instructions
+and supports native skills in `~/.config/opencode/skills/<name>/SKILL.md`.
+The shared source for instructions and skills is `integrations/standard`.
 
 ## Install
 
 ```bash
-cp integrations/opencode/AGENTS.md ./AGENTS.md
-# or append to existing:
-cat integrations/opencode/AGENTS.md >> ./AGENTS.md
+graft setup opencode
 ```
 
-## Daemon
+For project-local instructions, paste the snippet printed by setup into
+`AGENTS.md`, or copy it manually:
 
 ```bash
-./build/graftd --config ./config.example.yaml &
-export GRAFT_SOCKET=/tmp/graft.sock
+cat integrations/standard/project-snippet.md >> ./AGENTS.md
 ```
 
 ## Permission
 
-Open Code asks for permission per command by default. To pre-approve `graft`:
-
-Edit `~/.config/opencode/opencode.json` (or project-local `.opencode/opencode.json`):
+OpenCode asks for permission per command by default. To pre-approve `graft`,
+edit `~/.config/opencode/opencode.json` or project-local `.opencode/opencode.json`:
 
 ```json
 {
