@@ -122,14 +122,25 @@ static int mkdir_p(const char *path) {
 static int rmdir_recursive(const char *path) {
 #ifdef _WIN32
     char pattern[1024];
-    snprintf(pattern, sizeof(pattern), "%s\\*", path);
+    int pn = snprintf(pattern, sizeof(pattern), "%s\\*", path);
+    if (pn < 0 || (size_t)pn >= sizeof(pattern)) {
+        fprintf(stderr, "warning: path too long, skipping: %s\n", path);
+        return -1;
+    }
     WIN32_FIND_DATAA fd;
     HANDLE h = FindFirstFileA(pattern, &fd);
     if (h != INVALID_HANDLE_VALUE) {
         do {
             if (!strcmp(fd.cFileName, ".") || !strcmp(fd.cFileName, "..")) continue;
             char child[1024];
-            snprintf(child, sizeof(child), "%s\\%s", path, fd.cFileName);
+            int cn = snprintf(child, sizeof(child), "%s\\%s", path, fd.cFileName);
+            if (cn < 0 || (size_t)cn >= sizeof(child)) {
+                /* Truncated path would target the wrong file — skip it
+                 * rather than risk deleting an unrelated entry. */
+                fprintf(stderr, "warning: path too long, skipping: %s\\%s\n",
+                        path, fd.cFileName);
+                continue;
+            }
             if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
                 rmdir_recursive(child);
             else
@@ -145,7 +156,12 @@ static int rmdir_recursive(const char *path) {
         while ((de = readdir(d))) {
             if (!strcmp(de->d_name, ".") || !strcmp(de->d_name, "..")) continue;
             char child[1024];
-            snprintf(child, sizeof(child), "%s/%s", path, de->d_name);
+            int cn = snprintf(child, sizeof(child), "%s/%s", path, de->d_name);
+            if (cn < 0 || (size_t)cn >= sizeof(child)) {
+                fprintf(stderr, "warning: path too long, skipping: %s/%s\n",
+                        path, de->d_name);
+                continue;
+            }
             struct stat st;
             if (stat(child, &st) == 0) {
                 if (S_ISDIR(st.st_mode)) rmdir_recursive(child);
@@ -293,7 +309,11 @@ static int cmd_list(void) {
     mg_profile_active(active, sizeof(active));
 
     char profiles_dir[1024];
-    snprintf(profiles_dir, sizeof(profiles_dir), "%s%cprofiles", home, MG_PATH_SEP);
+    int pdn = snprintf(profiles_dir, sizeof(profiles_dir), "%s%cprofiles", home, MG_PATH_SEP);
+    if (pdn < 0 || (size_t)pdn >= sizeof(profiles_dir)) {
+        fprintf(stderr, "GRAFT_HOME path too long to derive profiles dir\n");
+        return 1;
+    }
     if (!dir_exists(profiles_dir)) (void)mkdir_p(profiles_dir);
 
     fputs("{\n  \"home\": ", stdout); print_json_str(home);
@@ -303,7 +323,12 @@ static int cmd_list(void) {
 
 #ifdef _WIN32
     char pat[1024];
-    snprintf(pat, sizeof(pat), "%s\\*", profiles_dir);
+    int patn = snprintf(pat, sizeof(pat), "%s\\*", profiles_dir);
+    if (patn < 0 || (size_t)patn >= sizeof(pat)) {
+        fputs(first ? "]\n}\n" : "\n  ]\n}\n", stdout);
+        fprintf(stderr, "warning: profiles dir path too long: %s\n", profiles_dir);
+        return 1;
+    }
     WIN32_FIND_DATAA fd;
     HANDLE h = FindFirstFileA(pat, &fd);
     if (h != INVALID_HANDLE_VALUE) {
@@ -323,7 +348,12 @@ static int cmd_list(void) {
         while ((de = readdir(d))) {
             if (!strcmp(de->d_name, ".") || !strcmp(de->d_name, "..")) continue;
             char child[1024];
-            snprintf(child, sizeof(child), "%s/%s", profiles_dir, de->d_name);
+            int cn = snprintf(child, sizeof(child), "%s/%s", profiles_dir, de->d_name);
+            if (cn < 0 || (size_t)cn >= sizeof(child)) {
+                fprintf(stderr, "warning: path too long, skipping: %s/%s\n",
+                        profiles_dir, de->d_name);
+                continue;
+            }
             if (!dir_exists(child)) continue;
             fputs(first ? "\n    " : ",\n    ", stdout);
             print_json_str(de->d_name);
