@@ -26,6 +26,10 @@ function inferStateDir() {
 
 const STATE_DIR = inferStateDir();
 const MIN_WORDS_FOR_QUERY = 4;
+// Windows CreateProcess imposes a ~8KB cap on the full command line and the
+// active codepage (e.g. CP1252) mangles non-ASCII in argv. Cap the prompt to
+// 4000 chars before passing it to `graft query` as an argv element.
+const MAX_QUERY_PROMPT_CHARS = 4000;
 const WEAK_EXPLORE_DEPTH = positiveInt(process.env.GRAFT_HOOK_WEAK_EXPLORE_DEPTH, 3);
 const WEAK_EXPLORE_BEAM = positiveInt(process.env.GRAFT_HOOK_WEAK_EXPLORE_BEAM, 4);
 
@@ -105,7 +109,10 @@ function exploreWeak(title, keywords) {
   if (!prompt || prompt.split(/\s+/).filter(Boolean).length < MIN_WORDS_FOR_QUERY) return;
 
   // (3) Run graft query.
-  const resp = parseGraft(['query', prompt]);
+  const queryPrompt = prompt.length > MAX_QUERY_PROMPT_CHARS
+    ? prompt.slice(0, MAX_QUERY_PROMPT_CHARS)
+    : prompt;
+  const resp = parseGraft(['query', queryPrompt]);
   const r = resp && resp.result;
   if (!r || !r.hit) return;
 
