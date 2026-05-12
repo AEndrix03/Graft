@@ -92,8 +92,17 @@ mg_err_t mg_dispatch(mg_ctx_t *ctx, const void *req_payload, size_t req_len,
     }
     free(op_str);
 
-    /* args is optional; handlers receive a (possibly missing) node. */
+    /* args is optional; handlers receive a (possibly missing) node. When
+     * present, it MUST be a map — handlers all assume a {key:value} shape
+     * and feeding them an int/string/array could trip mpack assertions or
+     * cause OOB reads in op_* code. */
     mpack_node_t args = mpack_node_map_cstr_optional(root, "args");
+    if (!mpack_node_is_missing(args) && !mpack_node_is_nil(args)
+        && mpack_node_type(args) != mpack_type_map) {
+        mpack_tree_destroy(&tree);
+        return build_envelope(MG_ERR_INVALID_ARG, "args must be a map",
+                              NULL, 0, resp_payload, resp_len);
+    }
 
     /* ---- run handler into body buffer ---- */
     char  *body_buf  = NULL;
