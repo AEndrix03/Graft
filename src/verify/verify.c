@@ -213,6 +213,8 @@ mg_err_t mg_verify_score(mg_verify_ctx_t *ctx,
   }
 
   out->s_vec = pre_computed_s_vec;
+  if (out->s_vec < 0.0f) out->s_vec = 0.0f;
+  if (out->s_vec > 1.0f) out->s_vec = 1.0f;
   out->s_lex = pre_computed_s_lex;
   out->s_jaccard = out->s_lex;
   out->s_ce = NAN;
