@@ -41,6 +41,7 @@ typedef struct {
   float rerank_w_vec;           /* weight on s_vec in fusion */
   float rerank_w_lex;           /* weight on s_lex in fusion */
   float rerank_w_ce;            /* weight on s_ce in fusion */
+  float rerank_w_nli;           /* weight on s_nli in fusion (requires nli_enabled) */
 
   /* edges */
   float edge_keyword_min;

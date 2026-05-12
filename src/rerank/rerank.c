@@ -20,15 +20,16 @@
 #include <string.h>
 
 /* Weighted fusion. Inputs are assumed already clamped/bounded [0,1] for
- * non-NaN values (PR0 guarantees this for s_vec and s_lex; CE is a
- * sigmoid/softmax output, also in [0,1]).
+ * non-NaN values (PR0 guarantees this for s_vec and s_lex; CE and NLI are
+ * sigmoid/softmax outputs, also in [0,1]).
  * Returns NaN when no signal contributes (all NaN or all weights zero). */
-static float mg_rerank_fuse(float s_vec, float s_lex, float s_ce,
-                            float w_vec, float w_lex, float w_ce) {
+static float mg_rerank_fuse(float s_vec, float s_lex, float s_ce, float s_nli,
+                            float w_vec, float w_lex, float w_ce, float w_nli) {
     float fused = 0.0f, w_sum = 0.0f;
     if (!isnan(s_vec) && w_vec > 0.0f) { fused += w_vec * s_vec; w_sum += w_vec; }
     if (!isnan(s_lex) && w_lex > 0.0f) { fused += w_lex * s_lex; w_sum += w_lex; }
     if (!isnan(s_ce)  && w_ce  > 0.0f) { fused += w_ce  * s_ce ; w_sum += w_ce ; }
+    if (!isnan(s_nli) && w_nli > 0.0f) { fused += w_nli * s_nli; w_sum += w_nli; }
     return w_sum > 0.0f ? fused / w_sum : NAN;
 }
 
@@ -54,12 +55,14 @@ mg_err_t mg_rerank_init(const mg_config_t *cfg,
     if (r->cfg.rerank_w_vec < 0.0f) r->cfg.rerank_w_vec = 0.0f;
     if (r->cfg.rerank_w_lex < 0.0f) r->cfg.rerank_w_lex = 0.0f;
     if (r->cfg.rerank_w_ce  < 0.0f) r->cfg.rerank_w_ce  = 0.0f;
+    if (r->cfg.rerank_w_nli < 0.0f) r->cfg.rerank_w_nli = 0.0f;
 
     /* If all weights are 0, the fuse function would always return NaN —
      * treat as a config error and disable. */
     if (r->cfg.rerank_w_vec == 0.0f &&
         r->cfg.rerank_w_lex == 0.0f &&
-        r->cfg.rerank_w_ce  == 0.0f) {
+        r->cfg.rerank_w_ce  == 0.0f &&
+        r->cfg.rerank_w_nli == 0.0f) {
         fprintf(stderr,
                 "rerank: all fusion weights are zero; rerank disabled\n");
         free(r);
@@ -96,24 +99,40 @@ mg_err_t mg_rerank_batch(mg_rerank_ctx_t *r,
      * this loop IS the rerank hotspot when CE is on. */
     bool ce_available = r->verify_ctx_for_ce != NULL &&
                         r->verify_ctx_for_ce->ce_runtime_enabled;
+    bool nli_available = ce_available &&
+                         r->verify_ctx_for_ce->cfg.nli_enabled &&
+                         r->cfg.rerank_w_nli > 0.0f;
 
     for (int i = 0; i < n; i++) {
         out[i].s_ce = NAN;
+        out[i].s_nli = NAN;
         if (ce_available && cands[i].candidate_text) {
             float ce = NAN;
-            if (mg_ce_score_pair(r->verify_ctx_for_ce,
+            if (r->cfg.rerank_w_ce > 0.0f &&
+                mg_ce_score_pair(r->verify_ctx_for_ce,
                                  query_text,
                                  cands[i].candidate_text,
                                  &ce) == 0) {
                 out[i].s_ce = ce;
             }
+            if (nli_available) {
+                float nli = NAN;
+                if (mg_ce_score_nli(r->verify_ctx_for_ce,
+                                    query_text,
+                                    cands[i].candidate_text,
+                                    &nli) == 0) {
+                    out[i].s_nli = nli;
+                }
+            }
         }
         out[i].fused = mg_rerank_fuse(cands[i].s_vec,
                                       cands[i].s_lex,
                                       out[i].s_ce,
+                                      out[i].s_nli,
                                       r->cfg.rerank_w_vec,
                                       r->cfg.rerank_w_lex,
-                                      r->cfg.rerank_w_ce);
+                                      r->cfg.rerank_w_ce,
+                                      r->cfg.rerank_w_nli);
     }
     return MG_OK;
 }

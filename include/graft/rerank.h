@@ -22,6 +22,7 @@ typedef struct {
 
 typedef struct {
     float s_ce;     /* computed; NAN if CE unavailable */
+    float s_nli;    /* computed via CE+nli template; NAN if NLI disabled or unavailable */
     float fused;    /* final weighted score; NAN if no signal available */
 } mg_rerank_output_t;
 

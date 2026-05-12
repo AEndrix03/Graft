@@ -122,6 +122,36 @@ static void test_fuse_all_nan(void) {
     mg_config_free(&cfg);
 }
 
+static void test_fuse_with_nli_weight_no_ce(void) {
+    /* w_nli > 0 but CE infra absent: s_nli stays NaN, fusion excludes it. */
+    mg_config_t cfg;
+    mg_config_defaults(&cfg);
+    cfg.rerank_enabled = true;
+    cfg.rerank_w_vec = 0.40f;
+    cfg.rerank_w_lex = 0.20f;
+    cfg.rerank_w_ce  = 0.00f;
+    cfg.rerank_w_nli = 0.40f;
+
+    mg_rerank_ctx_t *r = NULL;
+    expect(mg_rerank_init(&cfg, NULL, &r) == MG_OK, "init with w_nli");
+
+    mg_rerank_input_t in;
+    mg_rerank_output_t out;
+    in.id = NULL;
+    in.candidate_text = "x";
+    in.s_vec = 0.9f;
+    in.s_lex = 0.2f;
+
+    expect(mg_rerank_batch(r, "q", &in, 1, &out) == MG_OK, "batch w_nli no-ce");
+    expect(isnan(out.s_nli), "s_nli is NaN without CE infra");
+    /* fused = (0.40*0.9 + 0.20*0.2) / (0.40+0.20) = 0.4/0.6 = 0.666... */
+    expect(approx(out.fused, (0.40f * 0.9f + 0.20f * 0.2f) / (0.40f + 0.20f)),
+           "fuse drops s_nli when unavailable");
+
+    mg_rerank_shutdown(r);
+    mg_config_free(&cfg);
+}
+
 static void test_disabled_init(void) {
     mg_config_t cfg;
     mg_config_defaults(&cfg);
@@ -139,6 +169,7 @@ int main(void) {
     test_fuse_all_signals();
     test_fuse_no_ce();
     test_fuse_all_nan();
+    test_fuse_with_nli_weight_no_ce();
     test_disabled_init();
     if (g_failures == 0) {
         printf("test_rerank: PASS\n");

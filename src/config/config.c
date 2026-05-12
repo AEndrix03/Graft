@@ -65,6 +65,7 @@ void mg_config_defaults(mg_config_t *cfg) {
   cfg->rerank_w_vec = 0.30f;
   cfg->rerank_w_lex = 0.25f;
   cfg->rerank_w_ce = 0.45f;
+  cfg->rerank_w_nli = 0.0f;
   cfg->edge_keyword_min = 0.5f;
   cfg->edge_semantic_min = 0.6f;
   cfg->edge_keyword_topk = 5;
@@ -217,6 +218,7 @@ static mg_err_t mg_config_apply(mg_config_t *cfg,
     if (strcmp(key, "w_vec") == 0 && mg_parse_float(value, &cfg->rerank_w_vec)) return MG_OK;
     if (strcmp(key, "w_lex") == 0 && mg_parse_float(value, &cfg->rerank_w_lex)) return MG_OK;
     if (strcmp(key, "w_ce") == 0 && mg_parse_float(value, &cfg->rerank_w_ce)) return MG_OK;
+    if (strcmp(key, "w_nli") == 0 && mg_parse_float(value, &cfg->rerank_w_nli)) return MG_OK;
   } else if (strcmp(section, "edges") == 0) {
     if (strcmp(key, "edge_keyword_min") == 0 && mg_parse_float(value, &cfg->edge_keyword_min)) return MG_OK;
     if (strcmp(key, "edge_semantic_min") == 0 && mg_parse_float(value, &cfg->edge_semantic_min)) return MG_OK;
