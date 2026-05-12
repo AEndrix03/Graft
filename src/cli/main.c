@@ -54,7 +54,9 @@ static void mg_apply_profile_env(void) {
     }
 }
 
+#include <errno.h>
 #include <inttypes.h>
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -303,6 +305,40 @@ static void print_node_markdown(mpack_node_t result) {
     fputc('\n', stdout);
 }
 
+/* -------------- numeric argument parsing -------------- */
+
+/* Parse an integer flag value strictly: full string consumed, no overflow,
+ * no leading whitespace. On failure prints an error to stderr and exits
+ * non-zero. atoi/atoll silently truncate garbage and return 0, which then
+ * masks user typos as "no flag given". */
+static long long mg_parse_ll(const char *flag, const char *s) {
+    if (!s || !*s) {
+        fprintf(stderr, "graft: %s expects a numeric value\n", flag);
+        exit(2);
+    }
+    char *end = NULL;
+    errno = 0;
+    long long v = strtoll(s, &end, 10);
+    if (errno == ERANGE) {
+        fprintf(stderr, "graft: %s value '%s' out of range\n", flag, s);
+        exit(2);
+    }
+    if (end == s || (end && *end != '\0')) {
+        fprintf(stderr, "graft: %s value '%s' is not a valid integer\n", flag, s);
+        exit(2);
+    }
+    return v;
+}
+
+static int mg_parse_int(const char *flag, const char *s) {
+    long long v = mg_parse_ll(flag, s);
+    if (v < INT_MIN || v > INT_MAX) {
+        fprintf(stderr, "graft: %s value '%s' out of range for int\n", flag, s);
+        exit(2);
+    }
+    return (int)v;
+}
+
 /* -------------- per-op argument writers -------------- */
 
 static int build_insert(int argc, char **argv, mpack_writer_t *w) {
@@ -315,7 +351,7 @@ static int build_insert(int argc, char **argv, mpack_writer_t *w) {
         if      (!strcmp(argv[i], "--title")   && i + 1 < argc) title = argv[++i];
         else if (!strcmp(argv[i], "--body")    && i + 1 < argc) body  = argv[++i];
         else if (!strcmp(argv[i], "--author")  && i + 1 < argc) author_flag = argv[++i];
-        else if (!strcmp(argv[i], "--expires-at") && i + 1 < argc) expires_at = (int64_t)atoll(argv[++i]);
+        else if (!strcmp(argv[i], "--expires-at") && i + 1 < argc) expires_at = (int64_t)mg_parse_ll("--expires-at", argv[++i]);
         else if ((!strcmp(argv[i], "--keyword") || !strcmp(argv[i], "--tag")) && i + 1 < argc
                  && n_kws < MG_CLI_MAX_KEYWORDS) {
             kws[n_kws++] = argv[++i];
@@ -357,7 +393,7 @@ static int build_retrieve(int argc, char **argv, mpack_writer_t *w) {
     const char *text = NULL;
     int top_k = 0;
     for (int i = 2; i < argc; i++) {
-        if (!strcmp(argv[i], "--top-k") && i + 1 < argc) top_k = atoi(argv[++i]);
+        if (!strcmp(argv[i], "--top-k") && i + 1 < argc) top_k = mg_parse_int("--top-k", argv[++i]);
         else if (!text) text = argv[i];
     }
     int n = 1 + (top_k > 0 ? 1 : 0);
@@ -381,9 +417,9 @@ static int build_explore(int argc, char **argv, mpack_writer_t *w) {
             && n_kws < MG_CLI_MAX_KEYWORDS) {
             kws[n_kws++] = argv[++i];
         } else if (!strcmp(argv[i], "--depth") && i + 1 < argc) {
-            depth = atoi(argv[++i]);
+            depth = mg_parse_int("--depth", argv[++i]);
         } else if (!strcmp(argv[i], "--beam") && i + 1 < argc) {
-            beam = atoi(argv[++i]);
+            beam = mg_parse_int("--beam", argv[++i]);
         } else if (!text) {
             text = argv[i];
         }
