@@ -12,6 +12,7 @@
 
 #include "graft/rerank.h"
 #include "graft/verify.h"
+#include "graft/verify_internal.h"
 
 #include <math.h>
 #include <stdio.h>
@@ -89,10 +90,24 @@ mg_err_t mg_rerank_batch(mg_rerank_ctx_t *r,
     }
     if (!r->enabled) return MG_ERR_INVALID_ARG;
 
-    /* Scaffold: CE not yet wired. Each candidate gets NaN for s_ce.
-     * Fusion still runs on the remaining signals (s_vec, s_lex). */
+    /* CE is sequential here — each candidate runs through one
+     * mg_ce_score_pair forward pass. True multi-pair batch decoding (packing
+     * multiple sequences into a single llama batch) is a future optimization;
+     * this loop IS the rerank hotspot when CE is on. */
+    bool ce_available = r->verify_ctx_for_ce != NULL &&
+                        r->verify_ctx_for_ce->ce_runtime_enabled;
+
     for (int i = 0; i < n; i++) {
         out[i].s_ce = NAN;
+        if (ce_available && cands[i].candidate_text) {
+            float ce = NAN;
+            if (mg_ce_score_pair(r->verify_ctx_for_ce,
+                                 query_text,
+                                 cands[i].candidate_text,
+                                 &ce) == 0) {
+                out[i].s_ce = ce;
+            }
+        }
         out[i].fused = mg_rerank_fuse(cands[i].s_vec,
                                       cands[i].s_lex,
                                       out[i].s_ce,
@@ -100,6 +115,5 @@ mg_err_t mg_rerank_batch(mg_rerank_ctx_t *r,
                                       r->cfg.rerank_w_lex,
                                       r->cfg.rerank_w_ce);
     }
-    (void)query_text;
     return MG_OK;
 }
