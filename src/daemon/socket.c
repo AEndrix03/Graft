@@ -22,6 +22,7 @@ typedef SOCKET mg_sock_t;
 #else
 #  include <sys/types.h>
 #  include <sys/socket.h>
+#  include <sys/stat.h>
 #  include <sys/un.h>
 #  include <unistd.h>
 #  include <errno.h>
@@ -77,9 +78,31 @@ int mg_daemon_socket_listen(const char *path) {
     struct sockaddr_un addr;
     if (fill_addr(&addr, path) != 0) { MG_CLOSE_SOCK(s); return -1; }
 
-    if (bind(s, (struct sockaddr *)&addr, sizeof(addr)) != 0) {
+#ifndef _WIN32
+    /* Restrict the socket file to the owner: clamp permissions with umask
+     * before bind() (which creates the inode), then chmod 0600 as a
+     * defense-in-depth follow-up in case the umask was already wider. */
+    mode_t old_umask = umask(0177);
+#endif
+
+    int bind_rc = bind(s, (struct sockaddr *)&addr, sizeof(addr));
+
+#ifndef _WIN32
+    umask(old_umask);
+#endif
+
+    if (bind_rc != 0) {
         MG_CLOSE_SOCK(s); return -1;
     }
+
+#ifndef _WIN32
+    if (chmod(path, 0600) != 0) {
+        MG_CLOSE_SOCK(s);
+        unlink(path);
+        return -1;
+    }
+#endif
+
     if (listen(s, 16) != 0) {
         MG_CLOSE_SOCK(s); return -1;
     }
