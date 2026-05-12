@@ -1,5 +1,9 @@
 plans/
 
+# Local config
+config.yaml
+config.yml
+
 # Local agent/tool state
 .cache/
 .serena/
