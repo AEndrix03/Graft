@@ -177,6 +177,27 @@ mg_err_t mg_http_start(mg_ctx_t *ctx, mg_http_server_t **out) {
     addr.sin_addr.s_addr = htonl(0x7F000001);  /* 127.0.0.1 — safe default */
   }
 
+  /* Refuse non-loopback binds unless the operator has explicitly opted in
+   * via `http.allow_remote: true`. The HTTP server ships with no auth, so
+   * binding to a public interface would expose unauthenticated access to
+   * the entire graph. localhost / 127.0.0.0/8 / ::1 are always allowed. */
+  {
+    const char *bind_str = (ctx->config->http_bind && *ctx->config->http_bind)
+                           ? ctx->config->http_bind : "127.0.0.1";
+    unsigned long ip = ntohl(addr.sin_addr.s_addr);
+    int is_loopback = ((ip & 0xFF000000UL) == 0x7F000000UL);  /* 127.0.0.0/8 */
+    int is_named_local = (strcmp(bind_str, "localhost") == 0);
+    if (!is_loopback && !is_named_local && !ctx->config->http_allow_remote) {
+      fprintf(stderr,
+              "http: refusing to bind non-loopback address %s — set "
+              "`http.allow_remote: true` in config.yaml to override "
+              "(WARNING: server has no auth).\n",
+              bind_str);
+      MG_CLOSE_SOCK(s);
+      return MG_ERR_CONFIG;
+    }
+  }
+
   if (bind(s, (struct sockaddr *)&addr, sizeof(addr)) != 0) {
     fprintf(stderr, "http: bind failed on %s:%d\n",
             ctx->config->http_bind, ctx->config->http_port);

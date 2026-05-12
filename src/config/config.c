@@ -68,6 +68,7 @@ void mg_config_defaults(mg_config_t *cfg) {
   cfg->http_enabled = false;
   cfg->http_bind = mg_config_strdup("127.0.0.1");
   cfg->http_port = 9977;
+  cfg->http_allow_remote = false;
   cfg->http_ep_match = true;
   cfg->http_ep_search = true;
   cfg->http_ep_explore = true;
@@ -211,6 +212,10 @@ static mg_err_t mg_config_apply(mg_config_t *cfg,
       return mg_config_set_string(&cfg->http_bind, value);
     }
     if (strcmp(key, "port") == 0 && mg_parse_int(value, &cfg->http_port)) return MG_OK;
+    if (strcmp(key, "allow_remote") == 0 && mg_parse_bool(value, &b)) {
+      cfg->http_allow_remote = b;
+      return MG_OK;
+    }
     if (strcmp(key, "endpoint_match")    == 0 && mg_parse_bool(value, &b)) { cfg->http_ep_match = b; return MG_OK; }
     if (strcmp(key, "endpoint_search")   == 0 && mg_parse_bool(value, &b)) { cfg->http_ep_search = b; return MG_OK; }
     if (strcmp(key, "endpoint_explore")  == 0 && mg_parse_bool(value, &b)) { cfg->http_ep_explore = b; return MG_OK; }

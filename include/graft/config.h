@@ -48,6 +48,7 @@ typedef struct {
   bool   http_enabled;
   char  *http_bind;             /* default "127.0.0.1" — local-first */
   int    http_port;             /* default 9977 */
+  bool   http_allow_remote;     /* default false — must be set to bind a non-loopback address */
   bool   http_ep_match;
   bool   http_ep_search;
   bool   http_ep_explore;
