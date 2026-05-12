@@ -86,4 +86,12 @@ function readStdinSync() { try { return readFileSync(0, 'utf8'); } catch (_) { r
       }
     }
   } catch (_) {}
+
+  process.stdout.write('<graft-proposal timing="post-tool">\n');
+  process.stdout.write(`This turn modified ${files.length || 1} candidate path(s) via ${tool}:\n`);
+  for (const f of files.slice(0, 10)) process.stdout.write(`  - ${f}\n`);
+  if (!files.length) process.stdout.write('  - <path unavailable>\n');
+  if (files.length > 10) process.stdout.write(`  - ... and ${files.length - 10} more\n`);
+  process.stdout.write('\nBefore the final response, decide automatically whether this solved a non-obvious problem or encoded a reusable decision. If yes, save 1-3 focused memory nodes now using /memoryze when available, otherwise graft classify + graft insert. If the edits were mechanical or not yet resolved, skip saving.\n');
+  process.stdout.write('</graft-proposal>\n');
 })();

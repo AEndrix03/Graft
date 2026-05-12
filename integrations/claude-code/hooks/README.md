@@ -5,8 +5,8 @@ Three event hooks that move graft from "the agent should remember to use it" to 
 | Event              | Script                  | What it does                                                                                              |
 | ------------------ | ----------------------- | --------------------------------------------------------------------------------------------------------- |
 | `UserPromptSubmit` | `query_inject.js`       | Runs `graft query <prompt>`. STRONG/WEAK hits inject `id_hex`, title, and body on STRONG. MISS injects only `<graft-cache hit="MISS" queried="true"/>` - no fallback neighbors (see "MISS policy" below). Also surfaces any `<graft-proposal>` queued by the previous turn's Stop hook. |
-| `PostToolUse` (matcher `Edit\|Write\|MultiEdit\|NotebookEdit`) | `mark_candidate.js`     | Records the tool call + file path in `~/.claude/hooks/graft/state/<session>.candidates`. Silent. |
-| `Stop`             | `propose_memoryze.js`   | If the session accumulated candidates, writes a compact `/memoryze` proposal to `<session>.proposal`. The next `UserPromptSubmit` surfaces it. Proposes, never auto-saves. |
+| `PostToolUse` (matcher `Edit\|Write\|MultiEdit\|NotebookEdit`) | `mark_candidate.js`     | Records the tool call + file path in `~/.claude/hooks/graft/state/<session>.candidates`, then emits a same-turn `<graft-proposal timing="post-tool">` so the agent can save before its final response. |
+| `Stop`             | `propose_memoryze.js`   | If the session accumulated candidates, writes a fallback `/memoryze` proposal to `<session>.proposal`. The next `UserPromptSubmit` surfaces it for clients that do not surface PostToolUse stdout. |
 
 The scripts are pure Node, no external deps, BOM-tolerant, all silent on error (exit 0 always). Latency cap via per-hook timeouts.
 
@@ -64,10 +64,11 @@ call.
 
 ## Save policy
 
-The Stop hook does not call `graft insert` by design. It records edit candidates
-and writes a proposal that is surfaced on the next user prompt, because deciding
-what is worth long-term memory needs task context. This avoids saving purely
-mechanical edits or accidental secrets.
+The hook layer does not call `graft insert` directly. It surfaces a same-turn
+proposal after edits, and the agent decides automatically before its final
+response whether the work is worth memory. If yes, it saves with `/memoryze`
+when available, otherwise `graft classify` + `graft insert`. The Stop hook keeps
+a next-turn fallback for clients that do not expose PostToolUse stdout.
 
 ## Skip rules
 

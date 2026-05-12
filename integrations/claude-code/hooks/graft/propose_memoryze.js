@@ -60,7 +60,7 @@ function readStdinSync() { try { return readFileSync(0, 'utf8'); } catch (_) { r
   let proposal = `This turn modified ${entries.length} entry/entries (${tools.join(', ')}) across ${files.length} file(s):\n`;
   for (const f of files.slice(0, 10)) proposal += `  - ${f}\n`;
   if (files.length > 10) proposal += `  - ... and ${files.length - 10} more\n`;
-  proposal += `\nIf any of these solved a non-obvious problem or encoded a decision, run /memoryze now (1-3 atomic nodes). Skip if it was all mechanical work future-you wouldn't search for.`;
+  proposal += `\nDecide automatically whether these changes solved a non-obvious problem or encoded a reusable decision. If yes, save 1-3 focused memory nodes now using /memoryze when available, otherwise graft classify + graft insert. If the edits were mechanical, incomplete, or not reusable, skip saving.`;
 
   const proposalFile = path.join(STATE_DIR, `${sessionId}.proposal`);
   try {
