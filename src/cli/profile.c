@@ -20,32 +20,48 @@
  */
 
 #include "profile.h"
+#include "autostart.h"
 #include "../daemon/internal.h"
 #include "graft/error.h"
 #include "graft/storage.h"
+#include "graft/wire.h"
+#include "mpack.h"
 
 #include <ctype.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 #ifdef _WIN32
 #  define WIN32_LEAN_AND_MEAN
 #  include <windows.h>
 #  include <direct.h>
+#  include <process.h>
 #  define MG_PATH_SEP '\\'
 #  define mg_mkdir(p) _mkdir(p)
 #  define mg_unlink(p) _unlink(p)
+#  define mg_setenv(k, v) _putenv_s((k), (v))
+#  define mg_getpid() _getpid()
+#  define mg_sleep_sec(s) Sleep((DWORD)((s) * 1000))
 #else
 #  include <sys/stat.h>
 #  include <sys/types.h>
+#  include <sys/wait.h>
+#  include <fcntl.h>
 #  include <unistd.h>
 #  include <dirent.h>
 #  include <errno.h>
 #  define MG_PATH_SEP '/'
 #  define mg_mkdir(p) mkdir((p), 0755)
 #  define mg_unlink(p) unlink(p)
+#  define mg_setenv(k, v) setenv((k), (v), 1)
+#  define mg_getpid() getpid()
+#  define mg_sleep_sec(s) sleep((unsigned)(s))
 #endif
+
+#define MG_AUTOSYNC_DEFAULT_INTERVAL 300
 
 static int profile_usage(void);
 
