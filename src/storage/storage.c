@@ -151,6 +151,53 @@ mg_err_t mg_storage_open(const char *db_path, mg_storage_t **out) {
             db_path);
   }
 #endif
+  /* Optional encryption-at-rest via SQLCipher. When GRAFT_DB_KEY is set,
+   * apply PRAGMA key as the first statement on the connection (SQLCipher
+   * requires this BEFORE any other access). Then probe PRAGMA cipher_version
+   * to confirm the linked sqlite is actually SQLCipher — vanilla sqlite
+   * silently ignores PRAGMA key, leaving the DB unencrypted. We log the
+   * mismatch loudly so operators don't get a false sense of security.
+   * Leaving GRAFT_DB_KEY unset preserves the legacy unencrypted behaviour. */
+  {
+    const char *key = getenv("GRAFT_DB_KEY");
+    if (key && *key) {
+      char *pragma = NULL;
+      sqlite3_stmt *probe = NULL;
+      size_t klen = strlen(key);
+      pragma = (char *)malloc(klen + 32u);
+      if (pragma) {
+        /* Single-quote the key and double any embedded single quotes to keep
+         * the PRAGMA syntactically valid. */
+        char *dst = pragma;
+        const char *src = key;
+        dst += sprintf(dst, "PRAGMA key='");
+        while (*src) {
+          if (*src == '\'') { *dst++ = '\''; *dst++ = '\''; }
+          else              { *dst++ = *src; }
+          ++src;
+        }
+        *dst++ = '\'';
+        *dst++ = ';';
+        *dst   = '\0';
+        if (sqlite3_exec(s->db, pragma, NULL, NULL, NULL) != SQLITE_OK) {
+          fprintf(stderr, "graft: warning: PRAGMA key failed — DB is NOT encrypted\n");
+        }
+        free(pragma);
+      }
+      if (sqlite3_prepare_v2(s->db, "PRAGMA cipher_version;", -1, &probe, NULL) == SQLITE_OK) {
+        int has_cipher = (sqlite3_step(probe) == SQLITE_ROW &&
+                          sqlite3_column_type(probe, 0) != SQLITE_NULL);
+        sqlite3_finalize(probe);
+        if (!has_cipher) {
+          fprintf(stderr,
+                  "graft: WARNING: GRAFT_DB_KEY is set but SQLCipher is not "
+                  "linked — the database is stored UNENCRYPTED. Rebuild with "
+                  "SQLCipher to enable encryption-at-rest, or unset the env "
+                  "var to silence this warning.\n");
+        }
+      }
+    }
+  }
   *out = s;
   return MG_OK;
 }

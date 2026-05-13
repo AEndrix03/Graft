@@ -25,13 +25,18 @@ daemon:
 
   # [security] SQLite database file. Contains EVERYTHING you have stored: node
   # titles, bodies, embeddings, edges, FTS5 indexes, usage history. Treat as
-  # secret. The daemon now forces mode 0600 on the file at open time (POSIX);
-  # but the parent directory must also be private to you. Relative paths are
+  # secret. The daemon forces mode 0600 on the file at open time (POSIX);
+  # the parent directory must also be private to you. Relative paths are
   # resolved against the daemon's CWD, which is unpredictable in the install
   # flow — prefer an absolute path under $HOME/.graft (or $XDG_DATA_HOME/graft)
-  # in production. Encryption at rest is NOT enabled by default; if your
-  # threat model includes disk theft, use full-disk encryption or wait for the
-  # planned SQLCipher integration.
+  # in production.
+  #
+  # Encryption-at-rest: set env GRAFT_DB_KEY before starting the daemon. When
+  # set, the daemon executes `PRAGMA key='<value>'` on every connection. This
+  # works ONLY if the linked sqlite is SQLCipher (see docs/SQLCIPHER.md); on
+  # vanilla sqlite the PRAGMA is silently ignored and the daemon logs a loud
+  # warning so you don't get false confidence. Unset the env var to keep the
+  # legacy unencrypted behaviour.
   db_path: "./graft.db"
 
 
