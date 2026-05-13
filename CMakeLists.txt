@@ -1,7 +1,9 @@
 cmake_minimum_required(VERSION 3.20)
 file(READ "${CMAKE_SOURCE_DIR}/VERSION" GRAFT_VERSION_RAW)
-string(STRIP "${GRAFT_VERSION_RAW}" GRAFT_VERSION)
-project(graft VERSION ${GRAFT_VERSION} LANGUAGES C)
+string(STRIP "${GRAFT_VERSION_RAW}" GRAFT_VERSION_FULL)
+# project(VERSION ...) only accepts X.Y.Z[.W], strip SemVer pre-release suffix.
+string(REGEX REPLACE "[-+].*$" "" GRAFT_VERSION_NUMERIC "${GRAFT_VERSION_FULL}")
+project(graft VERSION ${GRAFT_VERSION_NUMERIC} LANGUAGES C)
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
@@ -136,7 +138,7 @@ add_executable(graft
   src/cli/view.c
 )
 target_compile_definitions(graft PRIVATE
-  GRAFT_VERSION="${PROJECT_VERSION}"
+  GRAFT_VERSION="${GRAFT_VERSION_FULL}"
   GRAFT_REPOSITORY="AEndrix03/Graft"
 )
 target_link_libraries(graft graft_core)
