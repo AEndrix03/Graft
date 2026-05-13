@@ -265,13 +265,55 @@ step "Checking BGE-M3 model…"
 mkdir -p models
 MODEL_PATH="models/bge-m3.gguf"
 MODEL_URL="https://huggingface.co/lm-kit/bge-m3-gguf/resolve/main/bge-m3-Q8_0.gguf"
+
+# SHA256 verification. If the user pinned a hash via env var or via a
+# checked-in models/bge-m3.gguf.sha256 file, we verify after download and
+# fail-closed (delete the file + exit). The env var wins over the file so
+# operators can override per-deploy. When neither is set, we WARN and skip
+# (TOFU is left to the operator).
+MODEL_SHA="${GRAFT_MODEL_SHA256:-}"
+if [ -z "$MODEL_SHA" ] && [ -s "$MODEL_PATH.sha256" ]; then
+  MODEL_SHA=$(awk 'NF>0{print $1; exit}' "$MODEL_PATH.sha256")
+fi
+
+verify_model_sha() {
+  local file="$1" want="$2" got=""
+  if [ -z "$want" ]; then return 0; fi
+  if command -v sha256sum >/dev/null 2>&1; then
+    got=$(sha256sum "$file" | awk '{print $1}')
+  elif command -v shasum >/dev/null 2>&1; then
+    got=$(shasum -a 256 "$file" | awk '{print $1}')
+  else
+    warn "no sha256sum/shasum available; cannot verify $file"
+    return 2
+  fi
+  if [ "$got" != "$want" ]; then
+    fail "model SHA256 mismatch: want $want got $got — refusing to use $file"
+  fi
+  return 0
+}
+
 if [ -s "$MODEL_PATH" ]; then
   ok "model already at $MODEL_PATH ($(du -h "$MODEL_PATH" | cut -f1))"
+  if [ -n "$MODEL_SHA" ]; then
+    verify_model_sha "$MODEL_PATH" "$MODEL_SHA" || { rm -f "$MODEL_PATH"; fail "deleted tampered model"; }
+    ok "model SHA256 verified"
+  else
+    warn "no SHA256 pinned (set GRAFT_MODEL_SHA256 or create $MODEL_PATH.sha256) — skipping integrity check"
+  fi
 else
   if ask_yes_no "Download BGE-M3 (~600 MB) from Hugging Face?" "Y"; then
     note "this may take a few minutes…"
     curl -fL --ssl-no-revoke -o "$MODEL_PATH" "$MODEL_URL"
-    ok "model downloaded"
+    if [ -n "$MODEL_SHA" ]; then
+      if ! verify_model_sha "$MODEL_PATH" "$MODEL_SHA"; then
+        rm -f "$MODEL_PATH"
+        fail "deleted downloaded model with bad SHA256"
+      fi
+      ok "model downloaded and SHA256 verified"
+    else
+      warn "model downloaded WITHOUT checksum verification (set GRAFT_MODEL_SHA256 next time)"
+    fi
   else
     warn "skipping model download — daemon will fail to embed until $MODEL_PATH is provided"
   fi
