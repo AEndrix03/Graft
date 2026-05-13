@@ -68,6 +68,7 @@ typedef struct {
   char  *http_auth_token;       /* if non-NULL, /v1/* requires Authorization: Bearer <token>. Env GRAFT_HTTP_AUTH_TOKEN overrides. */
   char  *http_readonly_token;   /* optional second token. When matched, ONLY read endpoints (match/search/explore/classify/view) are allowed; writes get 403. */
   bool   http_view_anonymize;   /* when true, /v1/view strips titles and primary_keyword (topology only) */
+  char  *http_view_keyword_scope; /* when set, /v1/view returns only nodes tagged with this keyword (RBAC-lite) */
   bool   http_ep_match;
   bool   http_ep_search;
   bool   http_ep_explore;

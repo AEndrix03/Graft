@@ -374,6 +374,14 @@ http:
   # just without readable labels. Off by default.
   view_anonymize: false
 
+  # [security] RBAC-lite scope for /v1/view. When set to a keyword name, the
+  # endpoint returns ONLY nodes tagged with that keyword (and edges where
+  # BOTH endpoints are in scope). Lets you publish a curated subgraph (e.g.,
+  # keyword "public") without exposing private nodes. Empty/missing = full
+  # graph dump (legacy). Combine with view_anonymize for topology-only
+  # sharing of a scoped subset.
+  view_keyword_scope: ""
+
   # Per-endpoint toggles. Disable anything you do not actively use.
   endpoint_match:    true       # GET    /v1/match     — cache-hit probe (read)
   endpoint_search:   true       # GET    /v1/search    — full search (read)

@@ -106,14 +106,42 @@ mg_err_t mg_op_view(mg_ctx_t *ctx, mpack_node_t args, mpack_writer_t *result) {
 
   build_proj_matrix(R);
 
+  /* Optional RBAC-lite scope: only expose nodes tagged with this keyword.
+   * Edges are also filtered to those whose src AND dst both pass the scope.
+   * NULL/empty scope = expose everything (legacy behaviour). */
+  const char *scope_kw = ctx->config ? ctx->config->http_view_keyword_scope : NULL;
+  if (scope_kw && !*scope_kw) scope_kw = NULL;
+
   /* Count once for the version + array sizing. */
-  if (sqlite3_prepare_v2(db, "SELECT COUNT(*) FROM nodes;", -1, &stmt, NULL) != SQLITE_OK)
-    return MG_ERR_STORAGE;
+  if (scope_kw) {
+    if (sqlite3_prepare_v2(db,
+        "SELECT COUNT(*) FROM nodes n "
+        "WHERE EXISTS (SELECT 1 FROM node_keywords nk "
+        "              JOIN keywords k ON k.id = nk.keyword_id "
+        "              WHERE nk.node_id = n.id AND k.text = ?);",
+        -1, &stmt, NULL) != SQLITE_OK) return MG_ERR_STORAGE;
+    sqlite3_bind_text(stmt, 1, scope_kw, -1, SQLITE_STATIC);
+  } else {
+    if (sqlite3_prepare_v2(db, "SELECT COUNT(*) FROM nodes;", -1, &stmt, NULL) != SQLITE_OK)
+      return MG_ERR_STORAGE;
+  }
   if (sqlite3_step(stmt) == SQLITE_ROW) n_nodes = sqlite3_column_int(stmt, 0);
   sqlite3_finalize(stmt);
 
-  if (sqlite3_prepare_v2(db, "SELECT COUNT(*) FROM edges;", -1, &stmt, NULL) != SQLITE_OK)
-    return MG_ERR_STORAGE;
+  if (scope_kw) {
+    if (sqlite3_prepare_v2(db,
+        "SELECT COUNT(*) FROM edges e "
+        "WHERE EXISTS (SELECT 1 FROM node_keywords nk JOIN keywords k ON k.id = nk.keyword_id "
+        "              WHERE nk.node_id = e.src AND k.text = ?) "
+        "  AND EXISTS (SELECT 1 FROM node_keywords nk JOIN keywords k ON k.id = nk.keyword_id "
+        "              WHERE nk.node_id = e.dst AND k.text = ?);",
+        -1, &stmt, NULL) != SQLITE_OK) return MG_ERR_STORAGE;
+    sqlite3_bind_text(stmt, 1, scope_kw, -1, SQLITE_STATIC);
+    sqlite3_bind_text(stmt, 2, scope_kw, -1, SQLITE_STATIC);
+  } else {
+    if (sqlite3_prepare_v2(db, "SELECT COUNT(*) FROM edges;", -1, &stmt, NULL) != SQLITE_OK)
+      return MG_ERR_STORAGE;
+  }
   if (sqlite3_step(stmt) == SQLITE_ROW) n_edges = sqlite3_column_int(stmt, 0);
   sqlite3_finalize(stmt);
 
@@ -127,13 +155,27 @@ mg_err_t mg_op_view(mg_ctx_t *ctx, mpack_node_t args, mpack_writer_t *result) {
   /* The first keyword (lowest id alphabetically — see the LIMIT 1) acts as
    * the "primary tag" used by the viewer to color-code nodes. We also
    * surface body length so the client can size nodes proportionally. */
-  rc = sqlite3_prepare_v2(db,
-    "SELECT n.id, n.title, n.state, length(n.body), v.embedding, "
-    "       (SELECT k.text FROM node_keywords nk "
-    "          JOIN keywords k ON k.id = nk.keyword_id "
-    "          WHERE nk.node_id = n.id "
-    "          ORDER BY k.text COLLATE NOCASE ASC LIMIT 1) "
-    "FROM nodes n JOIN node_vec v ON v.id = n.id;", -1, &stmt, NULL);
+  if (scope_kw) {
+    rc = sqlite3_prepare_v2(db,
+      "SELECT n.id, n.title, n.state, length(n.body), v.embedding, "
+      "       (SELECT k.text FROM node_keywords nk "
+      "          JOIN keywords k ON k.id = nk.keyword_id "
+      "          WHERE nk.node_id = n.id "
+      "          ORDER BY k.text COLLATE NOCASE ASC LIMIT 1) "
+      "FROM nodes n JOIN node_vec v ON v.id = n.id "
+      "WHERE EXISTS (SELECT 1 FROM node_keywords nk "
+      "              JOIN keywords k ON k.id = nk.keyword_id "
+      "              WHERE nk.node_id = n.id AND k.text = ?);", -1, &stmt, NULL);
+    if (rc == SQLITE_OK) sqlite3_bind_text(stmt, 1, scope_kw, -1, SQLITE_STATIC);
+  } else {
+    rc = sqlite3_prepare_v2(db,
+      "SELECT n.id, n.title, n.state, length(n.body), v.embedding, "
+      "       (SELECT k.text FROM node_keywords nk "
+      "          JOIN keywords k ON k.id = nk.keyword_id "
+      "          WHERE nk.node_id = n.id "
+      "          ORDER BY k.text COLLATE NOCASE ASC LIMIT 1) "
+      "FROM nodes n JOIN node_vec v ON v.id = n.id;", -1, &stmt, NULL);
+  }
   if (rc != SQLITE_OK) {
     mpack_complete_array(result);
     mpack_complete_map(result);
@@ -175,10 +217,25 @@ mg_err_t mg_op_view(mg_ctx_t *ctx, mpack_node_t args, mpack_writer_t *result) {
   /* --------- edges --------- */
   mpack_write_cstr(result, "edges");
   mpack_build_array(result);
-  rc = sqlite3_prepare_v2(db,
-    "SELECT e.src, e.dst, e.kind, e.keyword_id, e.weight, k.text "
-    "FROM edges e LEFT JOIN keywords k ON k.id = e.keyword_id;",
-    -1, &stmt, NULL);
+  if (scope_kw) {
+    rc = sqlite3_prepare_v2(db,
+      "SELECT e.src, e.dst, e.kind, e.keyword_id, e.weight, k.text "
+      "FROM edges e LEFT JOIN keywords k ON k.id = e.keyword_id "
+      "WHERE EXISTS (SELECT 1 FROM node_keywords nk JOIN keywords kk ON kk.id = nk.keyword_id "
+      "              WHERE nk.node_id = e.src AND kk.text = ?) "
+      "  AND EXISTS (SELECT 1 FROM node_keywords nk JOIN keywords kk ON kk.id = nk.keyword_id "
+      "              WHERE nk.node_id = e.dst AND kk.text = ?);",
+      -1, &stmt, NULL);
+    if (rc == SQLITE_OK) {
+      sqlite3_bind_text(stmt, 1, scope_kw, -1, SQLITE_STATIC);
+      sqlite3_bind_text(stmt, 2, scope_kw, -1, SQLITE_STATIC);
+    }
+  } else {
+    rc = sqlite3_prepare_v2(db,
+      "SELECT e.src, e.dst, e.kind, e.keyword_id, e.weight, k.text "
+      "FROM edges e LEFT JOIN keywords k ON k.id = e.keyword_id;",
+      -1, &stmt, NULL);
+  }
   if (rc != SQLITE_OK) {
     mpack_complete_array(result);
     mpack_complete_map(result);

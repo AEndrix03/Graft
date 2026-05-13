@@ -38,6 +38,7 @@ static mg_err_t mg_verify_copy_config(const mg_config_t *src, mg_config_t *dst) 
   dst->http_bind = mg_verify_strdup(src->http_bind);
   dst->http_auth_token = mg_verify_strdup(src->http_auth_token);
   dst->http_readonly_token = mg_verify_strdup(src->http_readonly_token);
+  dst->http_view_keyword_scope = mg_verify_strdup(src->http_view_keyword_scope);
   dst->http_viewer_path = mg_verify_strdup(src->http_viewer_path);
 
   if ((src->socket_path && !dst->socket_path) ||
@@ -48,6 +49,7 @@ static mg_err_t mg_verify_copy_config(const mg_config_t *src, mg_config_t *dst) 
       (src->http_bind && !dst->http_bind) ||
       (src->http_auth_token && !dst->http_auth_token) ||
       (src->http_readonly_token && !dst->http_readonly_token) ||
+      (src->http_view_keyword_scope && !dst->http_view_keyword_scope) ||
       (src->http_viewer_path && !dst->http_viewer_path)) {
     mg_config_free(dst);
     return MG_ERR_OOM;
