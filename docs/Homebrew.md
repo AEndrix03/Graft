@@ -1,15 +1,16 @@
 # Homebrew install
 
 Graft ships a Homebrew formula in `Formula/graft.rb`. It is meant for a
-project-owned tap first, not for `homebrew/core` submission yet. The tap formula
-currently tracks `master`; switch the formula URL to a tagged tarball before a
-public stable release.
+project-owned tap first, not for `homebrew/core` submission yet. There is no
+tagged stable release yet, so the formula is **HEAD-only** today — install with
+`--HEAD`. Add a `stable` block (tarball URL + sha256 + `version`) and drop the
+`livecheck do skip ... end` once the first tag is published.
 
 ## Install from the repository tap
 
 ```sh
 brew tap AEndrix03/graft https://github.com/AEndrix03/Graft.git
-brew install graft
+brew install --HEAD graft
 graft stats
 ```
 
@@ -17,12 +18,12 @@ The formula builds the CLI and daemon from source, installs the pinned BGE-M3
 GGUF model as a checksummed Homebrew resource, and keeps runtime profiles under
 `~/.graft`.
 
-## Development install
+## Updating between commits
 
-Use `--HEAD` when testing unreleased changes from `master`:
+`brew` caches sources. After a push to `master`, pull the new HEAD with:
 
 ```sh
-brew reinstall --HEAD graft
+brew upgrade --fetch-HEAD graft   # or: brew reinstall --HEAD graft
 brew test graft
 ```
 

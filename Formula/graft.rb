@@ -1,10 +1,12 @@
 class Graft < Formula
   desc "Persistent graph memory for AI agents"
   homepage "https://github.com/AEndrix03/Graft"
-  url "https://github.com/AEndrix03/Graft.git", branch: "master"
-  version "0.1.0"
   license "Apache-2.0"
   head "https://github.com/AEndrix03/Graft.git", branch: "master"
+
+  livecheck do
+    skip "no tagged stable release yet; install with --HEAD"
+  end
 
   depends_on "cmake" => :build
   depends_on "git" => :build
@@ -13,19 +15,27 @@ class Graft < Formula
   depends_on "sqlite"
 
   resource "blake3" do
-    url "https://github.com/BLAKE3-team/BLAKE3.git", revision: "f3913d953128661319b6b57b1c001a3b9c2d526e"
+    url "https://github.com/BLAKE3-team/BLAKE3.git",
+        branch:   "master",
+        revision: "f3913d953128661319b6b57b1c001a3b9c2d526e"
   end
 
   resource "llama.cpp" do
-    url "https://github.com/ggerganov/llama.cpp.git", revision: "bbeb89d76c41bc250f16e4a6fefcc9b530d6e3f3"
+    url "https://github.com/ggerganov/llama.cpp.git",
+        tag:      "b9037",
+        revision: "bbeb89d76c41bc250f16e4a6fefcc9b530d6e3f3"
   end
 
   resource "mpack" do
-    url "https://github.com/ludocode/mpack.git", revision: "a2d720270329be5d2179cd71aad6c8014d1cc555"
+    url "https://github.com/ludocode/mpack.git",
+        branch:   "develop",
+        revision: "a2d720270329be5d2179cd71aad6c8014d1cc555"
   end
 
   resource "sqlite-vec" do
-    url "https://github.com/asg017/sqlite-vec.git", revision: "5778fecfebaddafc23b69a3a4b91a8ee80e37a92"
+    url "https://github.com/asg017/sqlite-vec.git",
+        branch:   "main",
+        revision: "5778fecfebaddafc23b69a3a4b91a8ee80e37a92"
   end
 
   resource "bge-m3" do
@@ -105,6 +115,9 @@ class Graft < Formula
 
   def caveats
     <<~EOS
+      Graft has no tagged stable release yet; install it with:
+        brew install --HEAD graft
+
       The default Homebrew config is:
         #{prefix}/config.example.yaml
 
