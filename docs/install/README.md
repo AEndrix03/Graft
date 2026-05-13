@@ -5,6 +5,7 @@ Graft is intentionally easy to install. You pick one of three paths depending on
 | Path | Time | When to pick it |
 | ---- | ---- | --------------- |
 | **Homebrew tap** (macOS / Linux)  | ~2 minutes | You want it to just work. |
+| **GitHub Release archive**        | ~1 minute  | You want a signed prebuilt binary archive. |
 | **One-shot installer**            | ~3 minutes | You want a managed build from source with sane defaults. |
 | **Manual build**                  | ~5 minutes | You want full control (custom flags, custom prefix, distro packaging). |
 
@@ -47,6 +48,23 @@ brew install --HEAD graft        # pulls master
 brew reinstall --HEAD graft      # re-pull and rebuild
 brew test graft                  # smoke check
 ```
+
+---
+
+## GitHub Release archives
+
+Download the archive for your platform from GitHub Releases, verify it with
+`SHA256SUMS` and the attached Sigstore signature, then extract it into
+`~/.graft/`.
+
+After a release-based install, future updates can be applied with:
+
+```bash
+graft upgrade
+graft upgrade --check
+```
+
+`graft upgrade` never overwrites profiles, DBs, models, or `~/.graft/config.yaml`.
 
 ---
 
@@ -197,7 +215,7 @@ You can override any of these with environment variables. See [`configuration/`]
 
 ## What's missing and how to improve it
 
-- **Prebuilt binaries** are not published yet — every install path builds from source. This is the single biggest friction point for newcomers and the most impactful contribution someone could make. Target: GitHub Releases tarballs for `linux-x86_64`, `linux-aarch64`, `macos-arm64`, `windows-x86_64`. The Homebrew formula could then become a thin bottle-fetcher.
+- **Package-manager coverage beyond Homebrew.** Signed GitHub Release archives are the base layer; distro-native packages still need maintainers.
 - **Linux distro packages** (apt / dnf / pacman / AUR). Out of scope for the core team; community PRs welcome.
 - **Container image**. A `Dockerfile` that builds graft + the viewer + the OAuth gateway in one image would unlock easy deployment behind any reverse proxy.
 - **Windows MSI / `winget`**. Today the only Windows path is the PowerShell installer or a manual build under MSYS2 / MinGW.

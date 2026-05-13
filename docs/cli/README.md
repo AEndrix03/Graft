@@ -33,6 +33,7 @@ Exit codes:
 - [`analytics`](#analytics) (CLI-only — never touches the daemon)
 - [`profile`](#profile)   (CLI-only)
 - [`setup`](#setup)       (CLI-only)
+- [`upgrade`](#upgrade)   (CLI-only)
 - [`view`](#view)         (opens the browser viewer at the daemon's HTTP layer)
 
 ---
@@ -291,6 +292,30 @@ graft setup opencode
 ```
 
 Copies the skill / hook / `AGENTS.md` files from `integrations/standard/` into the agent's user config directory. Re-running overwrites in place — safe and idempotent.
+
+---
+
+## upgrade
+
+```bash
+graft upgrade
+graft upgrade --check
+graft upgrade --yes
+```
+
+Checks the latest GitHub Release, compares it with `graft --version`, prompts
+for confirmation, downloads the platform archive plus `SHA256SUMS`, verifies
+the archive hash, and updates the installed graft runtime.
+
+`upgrade` only works from the standard install layout (`<root>/bin/graft`) and
+does not overwrite user profiles, DBs, models, or `~/.graft/config.yaml`.
+
+Environment overrides for forks/tests:
+
+| Variable | Effect |
+| -------- | ------ |
+| `GRAFT_UPGRADE_REPO` | Override `owner/repo` used for GitHub Releases. |
+| `GRAFT_UPGRADE_LATEST_URL` | Override the latest-release API URL. |
 
 ---
 

@@ -1,0 +1,194 @@
+name: release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "SemVer version to publish, without leading v (example: 0.2.0)"
+        required: true
+
+permissions:
+  contents: write
+  id-token: write
+  attestations: write
+
+jobs:
+  build:
+    name: build ${{ matrix.platform }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            platform: linux-x86_64
+            shell: bash
+          - runner: macos-13
+            platform: macos-x86_64
+            shell: bash
+          - runner: macos-14
+            platform: macos-arm64
+            shell: bash
+          - runner: windows-latest
+            platform: windows-x86_64
+            shell: msys2
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Validate VERSION against release tag
+        shell: bash
+        run: |
+          version="$(tr -d '[:space:]' < VERSION)"
+          if [ -n "${{ github.event.inputs.version }}" ] && [ "$version" != "${{ github.event.inputs.version }}" ]; then
+            echo "VERSION ($version) must match workflow input (${{ github.event.inputs.version }})" >&2
+            exit 1
+          fi
+          if [[ "${GITHUB_REF:-}" == refs/tags/v* ]]; then
+            tag="${GITHUB_REF#refs/tags/v}"
+            if [ "$version" != "$tag" ]; then
+              echo "VERSION ($version) must match tag v$tag" >&2
+              exit 1
+            fi
+          fi
+
+      - name: Install Linux dependencies
+        if: matrix.platform == 'linux-x86_64'
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake pkg-config libsqlite3-dev libyaml-dev curl
+
+      - name: Install macOS dependencies
+        if: startsWith(matrix.platform, 'macos-')
+        shell: bash
+        run: brew install cmake pkg-config sqlite libyaml
+
+      - uses: msys2/setup-msys2@v2
+        if: matrix.platform == 'windows-x86_64'
+        with:
+          msystem: MINGW64
+          update: true
+          install: >-
+            git
+            mingw-w64-x86_64-gcc
+            mingw-w64-x86_64-cmake
+            mingw-w64-x86_64-ninja
+            mingw-w64-x86_64-pkgconf
+            mingw-w64-x86_64-sqlite3
+            mingw-w64-x86_64-libyaml
+            mingw-w64-x86_64-curl
+
+      - name: Build graft
+        shell: ${{ matrix.shell == 'msys2' && 'msys2 {0}' || 'bash' }}
+        run: |
+          set -euo pipefail
+          rpath='$ORIGIN'
+          if [[ "${{ matrix.platform }}" == macos-* ]]; then rpath='@loader_path'; fi
+          gen=()
+          if [[ "${{ matrix.platform }}" == windows-* ]]; then gen=(-G Ninja); fi
+
+          cmake -S third_party/llama.cpp -B third_party/llama.cpp/build "${gen[@]}" \
+            -DBUILD_SHARED_LIBS=ON -DGGML_NATIVE=OFF \
+            -DLLAMA_CURL=OFF -DLLAMA_BUILD_SERVER=OFF \
+            -DLLAMA_BUILD_TOOLS=OFF -DLLAMA_BUILD_EXAMPLES=OFF \
+            -DLLAMA_BUILD_TESTS=OFF -DLLAMA_BUILD_COMMON=OFF \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_BUILD_RPATH="$rpath"
+          cmake --build third_party/llama.cpp/build --parallel
+
+          cmake -S . -B build "${gen[@]}" \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_BUILD_RPATH="$rpath"
+          cmake --build build --parallel
+
+      - name: Package release asset
+        shell: ${{ matrix.shell == 'msys2' && 'msys2 {0}' || 'bash' }}
+        run: bash scripts/package-release.sh "${{ matrix.platform }}"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: graft-${{ matrix.platform }}
+          path: dist/release/graft-${{ matrix.platform }}.*
+          if-no-files-found: error
+
+  publish:
+    name: publish GitHub release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist/release
+          merge-multiple: true
+
+      - name: Generate checksums and changelog
+        shell: bash
+        run: |
+          cd dist/release
+          sha256sum graft-* > SHA256SUMS
+          cd ../..
+          tag="${GITHUB_REF#refs/tags/}"
+          if [ "$tag" = "$GITHUB_REF" ]; then tag="v${{ github.event.inputs.version }}"; fi
+          prev="$(git describe --tags --abbrev=0 "${tag}^" 2>/dev/null || true)"
+          {
+            echo "# ${tag}"
+            echo
+            if [ -n "$prev" ]; then
+              git log --pretty='- %s (%h)' "$prev..HEAD"
+            else
+              git log --pretty='- %s (%h)'
+            fi
+          } > dist/release/CHANGELOG.md
+
+      - name: Generate SBOM
+        uses: anchore/sbom-action@v0
+        with:
+          path: .
+          format: spdx-json
+          output-file: dist/release/graft-sbom.spdx.json
+          upload-artifact: false
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3
+
+      - name: Sign release assets
+        shell: bash
+        run: |
+          cd dist/release
+          for f in graft-* SHA256SUMS; do
+            cosign sign-blob --yes "$f" \
+              --output-signature "$f.sig" \
+              --output-certificate "$f.pem"
+          done
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: "dist/release/graft-*"
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          tag="${GITHUB_REF#refs/tags/}"
+          if [ "$tag" = "$GITHUB_REF" ]; then tag="v${{ github.event.inputs.version }}"; fi
+          if ! git rev-parse "$tag" >/dev/null 2>&1; then
+            git tag "$tag"
+            git push origin "$tag"
+          fi
+          gh release create "$tag" dist/release/* \
+            --title "$tag" \
+            --notes-file dist/release/CHANGELOG.md \
+            --verify-tag

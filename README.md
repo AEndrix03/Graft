@@ -263,6 +263,7 @@ Everything is broken down by feature. Each page ends with a **"What's missing an
 | Folder | What's inside |
 | ------ | ------------- |
 | [`install/`](./docs/install/)               | Homebrew, install scripts, manual build, GPU builds, first-run check. |
+| [`release/`](./docs/release/)               | Versioning, GitHub Releases, signed assets, SBOM, `graft upgrade`. |
 | [`architecture/`](./docs/architecture/)     | CLI ↔ daemon split, wire protocol, request lifecycle. |
 | [`cli/`](./docs/cli/)                       | Every `graft` / `graftd` subcommand and flag. |
 | [`storage/`](./docs/storage/)               | SQLite schema, sqlite-vec, FTS5, atomic supersession, idempotency, WAL. |
@@ -344,7 +345,7 @@ Graft is **alpha**. It works end-to-end on Linux, macOS, and Windows MSYS2 / nat
 
 - The **cross-encoder reranker** is a stub (`mg_ce_score_pair` returns `-1`). Today the verify gate uses trigram-Jaccard + cosine, which is plenty for most corpora. Wiring BGE-reranker-v2-m3 is on the roadmap.
 - **Tests** cover storage, retrieval, insert, verify, and config paths, but coverage is uneven.
-- **No prebuilt binaries** yet — every install path builds from source.
+- **Prebuilt releases are being introduced** — source builds remain the fallback until the first signed GitHub Release is published.
 - **API contract**: the CLI JSON schema is the public surface. Internal C APIs may change without notice.
 
 ### Roadmap (the next-impact list)
@@ -354,7 +355,7 @@ Graft is **alpha**. It works end-to-end on Linux, macOS, and Windows MSYS2 / nat
 - Adaptive threshold calibration driven by `stats`.
 - Real content `consolidate` (dedup similar nodes, supersede stale ones, mark unused).
 - Importable thematic memory packs (postmortems, decision frameworks, ...) as opt-in seed libraries.
-- Prebuilt platform binaries on GitHub Releases.
+- Publish the first signed GitHub Release with SBOM, checksums, provenance, and platform archives.
 
 ---
 

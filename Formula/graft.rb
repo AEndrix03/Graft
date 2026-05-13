@@ -99,6 +99,8 @@ class Graft < Formula
     if (buildpath/"viewer/dist").directory?
       pkgshare.install "viewer/dist" => "viewer"
     end
+
+    (pkgshare/"integrations").install "integrations/standard" => "standard"
   end
 
   def caveats

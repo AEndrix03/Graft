@@ -24,6 +24,7 @@
 #include "usage_log.h"
 #include "profile.h"
 #include "setup.h"
+#include "upgrade.h"
 #include "view.h"
 
 #ifdef _WIN32
@@ -171,6 +172,8 @@ static int usage(void) {
         "  graft analytics [--since 7d|24h] [--seconds-per-hit 60]\n"
         "  graft profile <list|current|add|remove|set|import|export> ...\n"
         "  graft setup <claudecode|codex|opencode>\n"
+        "  graft upgrade [--check] [--yes]\n"
+        "  graft --version\n"
         "  graft view [--port 9977]   (opens 3D viewer in browser; needs http.enabled)\n");
     return 2;
 }
@@ -478,6 +481,11 @@ int main(int argc, char **argv) {
     if (argc < 2) return usage();
     const char *cmd = argv[1];
 
+    if (!strcmp(cmd, "--version") || !strcmp(cmd, "version")) {
+        printf("graft %s\n", GRAFT_VERSION);
+        return 0;
+    }
+
     /* `analytics` and `profile` are CLI-only — they never touch the daemon. */
     if (!strcmp(cmd, "analytics")) {
         return mg_usage_analytics(argc, argv);
@@ -487,6 +495,9 @@ int main(int argc, char **argv) {
     }
     if (!strcmp(cmd, "setup")) {
         return mg_setup_cmd(argc, argv);
+    }
+    if (!strcmp(cmd, "upgrade")) {
+        return mg_upgrade_cmd(argc, argv);
     }
     /* `view` opens the browser at the daemon's HTTP layer, auto-building
      * the viewer SPA (npm install + npm run build) on first run. */
