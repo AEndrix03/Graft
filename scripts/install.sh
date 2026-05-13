@@ -293,6 +293,38 @@ verify_model_sha() {
   return 0
 }
 
+# Optional cosign verification. When `cosign` is on PATH AND the env var
+# GRAFT_MODEL_COSIGN_KEY (path to a .pub key) OR GRAFT_MODEL_COSIGN_IDENTITY
+# (OIDC identity for keyless) is set, run cosign verify-blob against a
+# detached signature located at "$file.sig". Fail-closed on bad signature.
+# Silently skipped when cosign isn't available — TOFU is up to the operator.
+verify_model_cosign() {
+  local file="$1"
+  local sig="$file.sig"
+  if ! command -v cosign >/dev/null 2>&1; then return 0; fi
+  if [ ! -s "$sig" ]; then
+    note "cosign present but $sig missing — skipping signature check"
+    return 0
+  fi
+  if [ -n "${GRAFT_MODEL_COSIGN_KEY:-}" ]; then
+    if ! cosign verify-blob --key "$GRAFT_MODEL_COSIGN_KEY" --signature "$sig" "$file" >/dev/null 2>&1; then
+      fail "cosign signature verification failed for $file (key: $GRAFT_MODEL_COSIGN_KEY)"
+    fi
+    ok "model cosign-verified (key)"
+  elif [ -n "${GRAFT_MODEL_COSIGN_IDENTITY:-}" ] && [ -n "${GRAFT_MODEL_COSIGN_ISSUER:-}" ]; then
+    if ! cosign verify-blob \
+           --certificate-identity "$GRAFT_MODEL_COSIGN_IDENTITY" \
+           --certificate-oidc-issuer "$GRAFT_MODEL_COSIGN_ISSUER" \
+           --signature "$sig" "$file" >/dev/null 2>&1; then
+      fail "cosign keyless verification failed for $file"
+    fi
+    ok "model cosign-verified (keyless)"
+  else
+    note "cosign present but no key/identity pinned — skipping (set GRAFT_MODEL_COSIGN_KEY or _IDENTITY+_ISSUER)"
+  fi
+  return 0
+}
+
 if [ -s "$MODEL_PATH" ]; then
   ok "model already at $MODEL_PATH ($(du -h "$MODEL_PATH" | cut -f1))"
   if [ -n "$MODEL_SHA" ]; then
@@ -301,6 +333,7 @@ if [ -s "$MODEL_PATH" ]; then
   else
     warn "no SHA256 pinned (set GRAFT_MODEL_SHA256 or create $MODEL_PATH.sha256) — skipping integrity check"
   fi
+  verify_model_cosign "$MODEL_PATH"
 else
   if ask_yes_no "Download BGE-M3 (~600 MB) from Hugging Face?" "Y"; then
     note "this may take a few minutes…"
@@ -314,6 +347,7 @@ else
     else
       warn "model downloaded WITHOUT checksum verification (set GRAFT_MODEL_SHA256 next time)"
     fi
+    verify_model_cosign "$MODEL_PATH"
   else
     warn "skipping model download — daemon will fail to embed until $MODEL_PATH is provided"
   fi
@@ -403,6 +437,7 @@ fi
 INSTALL_DIR="$INSTALL_HOME/.graft"
 INSTALL_BIN="$INSTALL_DIR/bin"
 INSTALL_MODELS="$INSTALL_DIR/models"
+INSTALL_SHARE="$INSTALL_DIR/share/graft"
 mkdir -p "$INSTALL_BIN" "$INSTALL_MODELS"
 
 # binaries
@@ -467,6 +502,21 @@ awk -v model="$MODEL_ABS" -v viewer="$VIEWER_ABS" '
   { print }
 ' config.yaml > "$INSTALL_CONFIG"
 ok "installed binaries, model and config under $INSTALL_DIR"
+
+# Shared agent integration source used by `graft setup` when running from an
+# installed binary. User-specific agent configs still live under each tool's
+# own config directory.
+if [ -d integrations/standard ]; then
+  mkdir -p "$INSTALL_SHARE/integrations"
+  if command -v rsync >/dev/null 2>&1; then
+    rsync -a --delete integrations/standard/ "$INSTALL_SHARE/integrations/standard/"
+  else
+    rm -rf "$INSTALL_SHARE/integrations/standard"
+    mkdir -p "$INSTALL_SHARE/integrations"
+    cp -R integrations/standard "$INSTALL_SHARE/integrations/standard"
+  fi
+  ok "installed shared integrations under $INSTALL_SHARE/integrations/standard"
+fi
 
 # ---------- viewer source ----------
 # Copy the 3D viewer source (sans node_modules / dist) so `graft view` can
@@ -578,6 +628,7 @@ Switch profile in the current shell:
 Layout:
   $INSTALL_DIR/
   ├── bin/         (graft, graftd, llama dlls/so)
+  ├── share/       (agent integration templates)
   ├── models/      (bge-m3.gguf)
   ├── config.yaml  (used by the daemon)
   ├── profiles/    (one DB per profile)
