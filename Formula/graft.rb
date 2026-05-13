@@ -25,7 +25,7 @@ class Graft < Formula
   end
 
   resource "sqlite-vec" do
-    url "https://github.com/asg017/sqlite-vec.git", revision: "410ae77a16445f1a720068fd4ced0a3b6a53150a"
+    url "https://github.com/asg017/sqlite-vec.git", revision: "5778fecfebaddafc23b69a3a4b91a8ee80e37a92"
   end
 
   resource "bge-m3" do
