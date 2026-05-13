@@ -1,0 +1,198 @@
+name: homebrew-bottle
+
+on:
+  push:
+    branches:
+      - "release/**"
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: bottle ${{ matrix.platform }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            platform: x86_64_linux
+          - runner: macos-13
+            platform: ventura
+          - runner: macos-14
+            platform: arm64_sonoma
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Set up Homebrew (Linux)
+        if: runner.os == 'Linux'
+        uses: Homebrew/actions/setup-homebrew@master
+
+      - name: Resolve version and target tag
+        id: meta
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(tr -d '[:space:]' < VERSION)"
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            tag="${GITHUB_REF#refs/tags/}"
+            if [[ "$tag" != "v${version}" ]]; then
+              echo "tag ${tag} does not match VERSION ${version}" >&2
+              exit 1
+            fi
+          else
+            tag="v${version}"
+          fi
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "tag=${tag}"           >> "$GITHUB_OUTPUT"
+          echo "root_url=https://github.com/${GITHUB_REPOSITORY}/releases/download/${tag}" >> "$GITHUB_OUTPUT"
+
+      - name: Stage source tarball
+        id: src
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${{ steps.meta.outputs.version }}"
+          mkdir -p "${RUNNER_TEMP}/src"
+          out="${RUNNER_TEMP}/src/graft-${version}.tar.gz"
+          git archive --format=tar --prefix="graft-${version}/" HEAD | gzip > "$out"
+          sha=$(shasum -a 256 "$out" | awk '{print $1}')
+          echo "tarball=${out}" >> "$GITHUB_OUTPUT"
+          echo "sha256=${sha}"  >> "$GITHUB_OUTPUT"
+
+      - name: Patch formula for build
+        shell: bash
+        env:
+          SRC_TARBALL: ${{ steps.src.outputs.tarball }}
+          SRC_SHA: ${{ steps.src.outputs.sha256 }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os, re, pathlib
+          path = pathlib.Path("Formula/graft.rb")
+          text = path.read_text()
+          tarball = os.environ["SRC_TARBALL"]
+          sha = os.environ["SRC_SHA"]
+          # Replace the stable url + sha256 (the first occurrence at file scope, NOT
+          # the per-bottle sha256 cellar: lines).
+          text = re.sub(
+              r'(^  url\s+")[^"]+("\s*$)',
+              rf'\g<1>file://{tarball}\g<2>',
+              text, count=1, flags=re.M,
+          )
+          text = re.sub(
+              r'(^  sha256\s+")[0-9a-f]{64}("\s*$)',
+              rf'\g<1>{sha}\g<2>',
+              text, count=1, flags=re.M,
+          )
+          path.write_text(text)
+          print(text)
+          PY
+
+      - name: Build and bottle
+        shell: bash
+        env:
+          ROOT_URL: ${{ steps.meta.outputs.root_url }}
+        run: |
+          set -euxo pipefail
+          # Use a throwaway local tap so `brew bottle` has a tap-qualified name.
+          brew tap-new local/staging --no-git
+          tap_dir="$(brew --repository local/staging)"
+          mkdir -p "${tap_dir}/Formula"
+          cp Formula/graft.rb "${tap_dir}/Formula/graft.rb"
+
+          brew install --build-bottle --verbose local/staging/graft
+          brew bottle --no-rebuild --json --root-url="${ROOT_URL}" local/staging/graft
+
+          mkdir -p out
+          mv ./*.bottle.* out/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bottle-${{ matrix.platform }}
+          path: out/*
+          if-no-files-found: error
+
+  summarize:
+    name: summarize bottle block
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: bottles
+          merge-multiple: true
+
+      - name: Render bottle block
+        shell: bash
+        env:
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          REF_NAME: ${{ github.ref_name }}
+          REF: ${{ github.ref }}
+        run: |
+          set -euo pipefail
+          version="$(tr -d '[:space:]' < VERSION)"
+          if [[ "${REF}" == refs/tags/* ]]; then
+            tag="${REF_NAME}"
+          else
+            tag="v${version}"
+          fi
+          export GRAFT_ROOT_URL="https://github.com/${GITHUB_REPOSITORY}/releases/download/${tag}"
+
+          python3 - <<'PY' > bottle-block.rb
+          import json, glob, os, pathlib
+          root_url = os.environ["GRAFT_ROOT_URL"]
+          jsons = sorted(glob.glob("bottles/*.bottle.json"))
+          if not jsons:
+              raise SystemExit("no bottle JSON produced")
+          lines = ["  bottle do", f'    root_url "{root_url}"', "    rebuild 0"]
+          for jp in jsons:
+              data = json.loads(pathlib.Path(jp).read_text())
+              ((_name, payload),) = data.items()
+              tags = payload["bottle"]["tags"]
+              for os_tag, info in tags.items():
+                  sha = info["sha256"]
+                  cellar = info.get("cellar", ":any")
+                  cellar_lit = cellar if cellar.startswith(":") else f'"{cellar}"'
+                  lines.append(f'    sha256 cellar: {cellar_lit}, {os_tag}: "{sha}"')
+          lines.append("  end")
+          print("\n".join(lines))
+          PY
+
+          {
+            echo '## Bottle block to paste into Formula/graft.rb'
+            echo
+            echo '```ruby'
+            cat bottle-block.rb
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          cat bottle-block.rb
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bottle-block
+          path: bottle-block.rb
+
+      - name: Upload bottles to release
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF#refs/tags/}"
+          if ! gh release view "$tag" >/dev/null 2>&1; then
+            gh release create "$tag" --title "$tag" --notes "Bottle assets attached by homebrew-bottle workflow."
+          fi
+          gh release upload "$tag" bottles/graft--*.bottle.* --clobber
