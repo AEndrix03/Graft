@@ -815,8 +815,130 @@ static int cmd_remote_status(const char *name) {
     return 0;
 }
 
+/* ---------- daemon-routed sync helpers ----------
+ *
+ * The sync used to open the local DB directly from the CLI, which forced
+ * the user to stop the daemon first. Now the CLI sends a `remote_sync`
+ * frame to the per-profile daemon (auto-starting it if absent), and the
+ * daemon performs the pull+push using its already-open storage handle.
+ * Net effect: the user can `sync` while actively using the profile.
+ */
+
+static int apply_profile_env_for(const char *name) {
+    char sock[1024], db[1024];
+    if (mg_profile_socket_path(name, sock, sizeof(sock), 1) != 0) return -1;
+    if (mg_profile_db_path(name, db, sizeof(db), 1) != 0) return -1;
+    if (mg_setenv("GRAFT_SOCKET", sock) != 0) return -1;
+    if (mg_setenv("GRAFT_DB_PATH", db) != 0) return -1;
+    return 0;
+}
+
+static int connect_or_autostart(const char *sock_path, int *out_fd) {
+    if (mg_daemon_socket_connect(sock_path, out_fd) == MG_OK) return 0;
+    char err[256] = { 0 };
+    if (mg_autostart_daemon(sock_path, err, sizeof(err)) != MG_OK) {
+        fprintf(stderr, "auto-start failed: %s\n", err);
+        return -1;
+    }
+    if (mg_daemon_socket_connect(sock_path, out_fd) != MG_OK) {
+        fprintf(stderr, "connect failed after auto-start: %s\n", sock_path);
+        return -1;
+    }
+    return 0;
+}
+
+static int send_remote_sync(const char *sock_path, const char *url,
+                             int64_t *out_pulled, int64_t *out_deleted,
+                             int64_t *out_pushed, char *err, size_t err_cap) {
+    if (err && err_cap) err[0] = '\0';
+
+    char  *req     = NULL;
+    size_t req_len = 0;
+    mpack_writer_t w;
+    mpack_writer_init_growable(&w, &req, &req_len);
+    mpack_start_map(&w, 2);
+    mpack_write_cstr(&w, "op");
+    mpack_write_cstr(&w, "remote_sync");
+    mpack_write_cstr(&w, "args");
+    mpack_start_map(&w, 1);
+    mpack_write_cstr(&w, "url");
+    mpack_write_cstr(&w, url);
+    mpack_finish_map(&w);
+    mpack_finish_map(&w);
+    if (mpack_writer_destroy(&w) != mpack_ok) {
+        free(req);
+        if (err) snprintf(err, err_cap, "encode failed");
+        return -1;
+    }
+
+    int fd = -1;
+    if (connect_or_autostart(sock_path, &fd) != 0) {
+        free(req);
+        if (err) snprintf(err, err_cap, "connect failed");
+        return -1;
+    }
+    if (mg_wire_write_frame(fd, req, req_len) != MG_OK) {
+        mg_daemon_socket_close(fd);
+        free(req);
+        if (err) snprintf(err, err_cap, "send failed");
+        return -1;
+    }
+    free(req);
+
+    void  *resp     = NULL;
+    size_t resp_len = 0;
+    if (mg_wire_read_frame(fd, &resp, &resp_len) != MG_OK) {
+        mg_daemon_socket_close(fd);
+        if (err) snprintf(err, err_cap, "recv failed");
+        return -1;
+    }
+    mg_daemon_socket_close(fd);
+
+    mpack_tree_t tree;
+    mpack_tree_init_data(&tree, (const char *)resp, resp_len);
+    mpack_tree_parse(&tree);
+    int rc = 0;
+    if (mpack_tree_error(&tree) != mpack_ok) {
+        rc = -1;
+        if (err) snprintf(err, err_cap, "decode failed");
+    } else {
+        mpack_node_t root = mpack_tree_root(&tree);
+        mpack_node_t st = mpack_node_map_cstr_optional(root, "status");
+        int status_int = 0;
+        if (!mpack_node_is_missing(st) && !mpack_node_is_nil(st))
+            status_int = (int)mpack_node_int(st);
+        if (status_int != 0) {
+            rc = -1;
+            mpack_node_t en = mpack_node_map_cstr_optional(root, "error");
+            if (err && err_cap) {
+                if (!mpack_node_is_missing(en) && mpack_node_type(en) == mpack_type_str) {
+                    size_t l = mpack_node_strlen(en);
+                    if (l >= err_cap) l = err_cap - 1;
+                    memcpy(err, mpack_node_str(en), l);
+                    err[l] = '\0';
+                } else {
+                    snprintf(err, err_cap, "daemon status=%d", status_int);
+                }
+            }
+        } else {
+            mpack_node_t r = mpack_node_map_cstr_optional(root, "result");
+            if (!mpack_node_is_missing(r) && mpack_node_type(r) == mpack_type_map) {
+                mpack_node_t pn = mpack_node_map_cstr_optional(r, "pulled");
+                mpack_node_t dn = mpack_node_map_cstr_optional(r, "deleted");
+                mpack_node_t un = mpack_node_map_cstr_optional(r, "pushed");
+                if (out_pulled  && !mpack_node_is_missing(pn)) *out_pulled  = mpack_node_i64(pn);
+                if (out_deleted && !mpack_node_is_missing(dn)) *out_deleted = mpack_node_i64(dn);
+                if (out_pushed  && !mpack_node_is_missing(un)) *out_pushed  = mpack_node_i64(un);
+            }
+        }
+    }
+    mpack_tree_destroy(&tree);
+    free(resp);
+    return rc;
+}
+
 static int cmd_remote_sync(const char *name) {
-    char url[1024], token[1024], db[1024], sock[1024];
+    char url[1024], token[1024], sock[1024];
     (void)token;
     if (mg_profile_name_valid(name) != 0) {
         fprintf(stderr, "invalid profile name\n");
@@ -842,46 +964,16 @@ static int cmd_remote_sync(const char *name) {
         fprintf(stderr, "schema apply failed on remote\n");
         return 1;
     }
-    if (mg_profile_socket_path(name, sock, sizeof(sock), 0) == 0 && daemon_running(sock)) {
-        fprintf(stderr, "daemon for profile '%s' is running — stop it first\n", name);
+    if (apply_profile_env_for(name) != 0) {
+        fprintf(stderr, "failed to resolve profile paths\n");
         return 1;
     }
-    if (mg_profile_db_path(name, db, sizeof(db), 1) != 0) return 1;
+    if (mg_profile_socket_path(name, sock, sizeof(sock), 1) != 0) return 1;
 
-    mg_storage_t *local = NULL;
-    mg_err_t err = mg_storage_open(db, &local);
-    if (err == MG_OK) err = mg_storage_apply_schema(local);
-    if (err != MG_OK) {
-        if (local) mg_storage_close(local);
-        fprintf(stderr, "cannot open local profile DB: %s\n", mg_strerror(err));
-        return 1;
-    }
-    int64_t pulled = 0, deleted = 0;
-    err = mg_storage_pull_remote_file(local, url, &pulled, &deleted);
-    mg_storage_close(local);
-    if (err != MG_OK) {
-        fprintf(stderr, "pull failed: %s\n", mg_strerror(err));
-        return 1;
-    }
-
-    mg_storage_t *remote = NULL;
-    err = mg_storage_open(url, &remote);
-    if (err == MG_OK) err = mg_storage_apply_schema(remote);
-    if (err == MG_OK) err = mg_storage_merge_from(remote, db, 0);
-    if (remote) mg_storage_close(remote);
-    if (err != MG_OK) {
-        fprintf(stderr, "push failed: %s\n", mg_strerror(err));
-        return 1;
-    }
-
-    local = NULL;
-    err = mg_storage_open(db, &local);
-    if (err == MG_OK) err = mg_storage_apply_schema(local);
-    int64_t pushed = 0;
-    if (err == MG_OK) err = mg_storage_mark_local_pushed(local, &pushed);
-    if (local) mg_storage_close(local);
-    if (err != MG_OK) {
-        fprintf(stderr, "mark pushed failed: %s\n", mg_strerror(err));
+    int64_t pulled = 0, deleted = 0, pushed = 0;
+    char err[256] = { 0 };
+    if (send_remote_sync(sock, url, &pulled, &deleted, &pushed, err, sizeof(err)) != 0) {
+        fprintf(stderr, "remote sync failed: %s\n", err[0] ? err : "(no detail)");
         return 1;
     }
 
@@ -889,6 +981,351 @@ static int cmd_remote_sync(const char *name) {
     fputs(",\n  \"remote\": ", stdout); print_json_str(url);
     printf(",\n  \"pulled\": %lld,\n  \"deleted\": %lld,\n  \"pushed\": %lld\n}\n",
            (long long)pulled, (long long)deleted, (long long)pushed);
+    return 0;
+}
+
+/* ---------- autosync worker (--auto / --stop / --worker-loop) ---------- */
+
+static int autosync_pid_path(const char *name, char *out, size_t cap, int create) {
+    char dir[1024];
+    if (mg_profile_dir(name, dir, sizeof(dir), create) != 0) return -1;
+    if (snprintf(out, cap, "%s%cautosync.pid", dir, MG_PATH_SEP) >= (int)cap) return -1;
+    return 0;
+}
+
+static int autosync_log_path(const char *name, char *out, size_t cap, int create) {
+    char dir[1024];
+    if (mg_profile_dir(name, dir, sizeof(dir), create) != 0) return -1;
+    if (snprintf(out, cap, "%s%cautosync.log", dir, MG_PATH_SEP) >= (int)cap) return -1;
+    return 0;
+}
+
+static long long read_autosync_pid(const char *name) {
+    char path[1024];
+    if (autosync_pid_path(name, path, sizeof(path), 0) != 0) return 0;
+    FILE *fp = fopen(path, "r");
+    if (!fp) return 0;
+    long long pid = 0;
+    if (fscanf(fp, "%lld", &pid) != 1) pid = 0;
+    fclose(fp);
+    return pid;
+}
+
+static int process_alive(long long pid) {
+    if (pid <= 0) return 0;
+#ifdef _WIN32
+    HANDLE h = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, (DWORD)pid);
+    if (!h) return 0;
+    DWORD ec = 0;
+    int alive = (GetExitCodeProcess(h, &ec) && ec == STILL_ACTIVE) ? 1 : 0;
+    CloseHandle(h);
+    return alive;
+#else
+    if (kill((pid_t)pid, 0) == 0) return 1;
+    return (errno == EPERM) ? 1 : 0;
+#endif
+}
+
+static int own_exe_path(char *out, size_t cap) {
+#ifdef _WIN32
+    DWORD n = GetModuleFileNameA(NULL, out, (DWORD)cap);
+    return (n == 0 || n >= cap) ? -1 : 0;
+#elif defined(__APPLE__)
+    char raw[4096];
+    uint32_t rl = (uint32_t)sizeof(raw);
+    if (_NSGetExecutablePath(raw, &rl) != 0) return -1;
+    char resolved[4096];
+    const char *p = realpath(raw, resolved);
+    if (snprintf(out, cap, "%s", p ? p : raw) >= (int)cap) return -1;
+    return 0;
+#else
+    ssize_t n = readlink("/proc/self/exe", out, cap - 1);
+    if (n <= 0) return -1;
+    out[n] = '\0';
+    return 0;
+#endif
+}
+
+#ifdef _WIN32
+static int spawn_autosync_worker(const char *exe, const char *name, int interval,
+                                  char *err, size_t err_cap) {
+    char interval_s[32];
+    snprintf(interval_s, sizeof(interval_s), "%d", interval);
+    char cmdline[2048];
+    snprintf(cmdline, sizeof(cmdline),
+             "\"%s\" profile remote sync %s --worker-loop --interval %s",
+             exe, name, interval_s);
+
+    STARTUPINFOA si = { 0 };
+    si.cb = sizeof(si);
+    PROCESS_INFORMATION pi = { 0 };
+    if (!CreateProcessA(exe, cmdline, NULL, NULL, FALSE,
+                        DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP,
+                        NULL, NULL, &si, &pi)) {
+        snprintf(err, err_cap, "CreateProcess failed (%lu)",
+                 (unsigned long)GetLastError());
+        return -1;
+    }
+    CloseHandle(pi.hThread);
+    CloseHandle(pi.hProcess);
+    return 0;
+}
+#else
+static int spawn_autosync_worker(const char *exe, const char *name, int interval,
+                                  char *err, size_t err_cap) {
+    char interval_s[32];
+    snprintf(interval_s, sizeof(interval_s), "%d", interval);
+    pid_t pid = fork();
+    if (pid < 0) {
+        snprintf(err, err_cap, "fork failed: %s", strerror(errno));
+        return -1;
+    }
+    if (pid == 0) {
+        if (setsid() < 0) _exit(127);
+        pid_t pid2 = fork();
+        if (pid2 < 0) _exit(127);
+        if (pid2 > 0) _exit(0);
+        int devnull = open("/dev/null", O_RDONLY);
+        if (devnull >= 0) { dup2(devnull, 0); close(devnull); }
+        /* stdout/stderr are redirected by the worker once it resolves the
+         * log path; until then we leave them attached to whatever inherited
+         * from the parent. */
+        char *const argv[] = {
+            (char *)exe,
+            (char *)"profile", (char *)"remote", (char *)"sync",
+            (char *)name, (char *)"--worker-loop",
+            (char *)"--interval", interval_s,
+            NULL
+        };
+        execvp(exe, argv);
+        _exit(127);
+    }
+    int st = 0;
+    (void)waitpid(pid, &st, 0);
+    return 0;
+}
+#endif
+
+static int cmd_remote_sync_auto(const char *name, int interval) {
+    if (interval <= 0) interval = MG_AUTOSYNC_DEFAULT_INTERVAL;
+
+    if (mg_profile_name_valid(name) != 0) {
+        fprintf(stderr, "invalid profile name\n");
+        return 2;
+    }
+    if (!mg_profile_exists(name)) {
+        fprintf(stderr, "profile '%s' does not exist\n", name);
+        return 1;
+    }
+    char url[1024], token[1024];
+    if (read_remote_meta(name, url, sizeof(url), token, sizeof(token)) != 0) {
+        fprintf(stderr, "profile '%s' is not bound to a remote (bind one with `graft profile remote bind` first)\n", name);
+        return 1;
+    }
+    (void)token;
+
+    /* Refuse to start a second worker for the same profile — they would
+     * both fight for the same log/pid file and double the sync rate. */
+    long long old_pid = read_autosync_pid(name);
+    if (old_pid > 0 && process_alive(old_pid)) {
+        fprintf(stderr, "an autosync worker is already running for profile '%s' (pid %lld). "
+                        "Use `graft profile remote sync %s --stop` to stop it first.\n",
+                name, old_pid, name);
+        return 1;
+    }
+    if (old_pid > 0) {
+        char pidp[1024];
+        if (autosync_pid_path(name, pidp, sizeof(pidp), 0) == 0) mg_unlink(pidp);
+    }
+
+    if (apply_profile_env_for(name) != 0) {
+        fprintf(stderr, "failed to resolve profile paths\n");
+        return 1;
+    }
+
+    char exe[1024];
+    if (own_exe_path(exe, sizeof(exe)) != 0) {
+        fprintf(stderr, "cannot resolve self exe path\n");
+        return 1;
+    }
+
+    char err[256] = { 0 };
+    if (spawn_autosync_worker(exe, name, interval, err, sizeof(err)) != 0) {
+        fprintf(stderr, "spawn failed: %s\n", err);
+        return 1;
+    }
+
+    /* Wait briefly for the worker to write its pid file. */
+    long long pid = 0;
+    for (int i = 0; i < 40; i++) {
+        pid = read_autosync_pid(name);
+        if (pid > 0) break;
+#ifdef _WIN32
+        Sleep(100);
+#else
+        struct timespec ts = { 0, 100 * 1000 * 1000L };
+        nanosleep(&ts, NULL);
+#endif
+    }
+
+    char log[1024];
+    autosync_log_path(name, log, sizeof(log), 1);
+
+    fputs("{\n  \"autosync\": \"started\",\n  \"profile\": ", stdout);
+    print_json_str(name);
+    printf(",\n  \"pid\": %lld,\n  \"interval\": %d", pid, interval);
+    fputs(",\n  \"log\": ", stdout); print_json_str(log);
+    fputs("\n}\n", stdout);
+    return 0;
+}
+
+static int cmd_remote_sync_stop(const char *name) {
+    if (mg_profile_name_valid(name) != 0) {
+        fprintf(stderr, "invalid profile name\n");
+        return 2;
+    }
+    if (!mg_profile_exists(name)) {
+        fprintf(stderr, "profile '%s' does not exist\n", name);
+        return 1;
+    }
+    long long pid = read_autosync_pid(name);
+    if (pid <= 0) {
+        fputs("{\n  \"autosync\": \"not_running\",\n  \"profile\": ", stdout);
+        print_json_str(name);
+        fputs("\n}\n", stdout);
+        return 0;
+    }
+    if (!process_alive(pid)) {
+        char pidp[1024];
+        if (autosync_pid_path(name, pidp, sizeof(pidp), 0) == 0) mg_unlink(pidp);
+        fputs("{\n  \"autosync\": \"stale\",\n  \"profile\": ", stdout);
+        print_json_str(name);
+        printf(",\n  \"pid\": %lld\n}\n", pid);
+        return 0;
+    }
+#ifdef _WIN32
+    HANDLE h = OpenProcess(PROCESS_TERMINATE, FALSE, (DWORD)pid);
+    if (!h) {
+        fprintf(stderr, "cannot open process %lld: err=%lu\n",
+                pid, (unsigned long)GetLastError());
+        return 1;
+    }
+    BOOL ok = TerminateProcess(h, 0);
+    CloseHandle(h);
+    if (!ok) {
+        fprintf(stderr, "TerminateProcess failed (%lu)\n",
+                (unsigned long)GetLastError());
+        return 1;
+    }
+#else
+    if (kill((pid_t)pid, SIGTERM) != 0) {
+        fprintf(stderr, "kill failed: %s\n", strerror(errno));
+        return 1;
+    }
+    for (int i = 0; i < 30; i++) {
+        if (!process_alive(pid)) break;
+        struct timespec ts = { 0, 100 * 1000 * 1000L };
+        nanosleep(&ts, NULL);
+    }
+#endif
+    char pidp[1024];
+    if (autosync_pid_path(name, pidp, sizeof(pidp), 0) == 0 && file_exists(pidp))
+        mg_unlink(pidp);
+
+    fputs("{\n  \"autosync\": \"stopped\",\n  \"profile\": ", stdout);
+    print_json_str(name);
+    printf(",\n  \"pid\": %lld\n}\n", pid);
+    return 0;
+}
+
+static volatile sig_atomic_t g_worker_stop = 0;
+static void worker_on_signal(int sig) { (void)sig; g_worker_stop = 1; }
+
+static int cmd_remote_sync_worker(const char *name, int interval) {
+    if (interval <= 0) interval = MG_AUTOSYNC_DEFAULT_INTERVAL;
+
+    char log[1024], pidp[1024];
+    if (autosync_log_path(name, log, sizeof(log), 1) != 0) return 1;
+    if (autosync_pid_path(name, pidp, sizeof(pidp), 1) != 0) return 1;
+
+    /* All worker output goes to the per-profile log; the user asked
+     * explicitly that the worker not write to the parent's console. */
+    (void)freopen(log, "a", stderr);
+    (void)freopen(log, "a", stdout);
+#ifndef _WIN32
+    {
+        int fd = open("/dev/null", O_RDONLY);
+        if (fd >= 0) { dup2(fd, 0); close(fd); }
+    }
+#endif
+
+    FILE *pf = fopen(pidp, "w");
+    if (pf) {
+        fprintf(pf, "%lld\n", (long long)mg_getpid());
+        fclose(pf);
+    }
+
+    signal(SIGTERM, worker_on_signal);
+    signal(SIGINT,  worker_on_signal);
+
+    fprintf(stderr, "[autosync %s] worker started pid=%lld interval=%ds\n",
+            name, (long long)mg_getpid(), interval);
+    fflush(stderr);
+
+    while (!g_worker_stop) {
+        /* Sleep in 1s chunks so SIGTERM is responsive. */
+        for (int i = 0; i < interval && !g_worker_stop; i++) mg_sleep_sec(1);
+        if (g_worker_stop) break;
+
+        time_t now = time(NULL);
+        struct tm tm;
+#ifdef _WIN32
+        gmtime_s(&tm, &now);
+#else
+        gmtime_r(&now, &tm);
+#endif
+        char ts[32];
+        strftime(ts, sizeof(ts), "%Y-%m-%dT%H:%M:%SZ", &tm);
+
+        char url[1024], token[1024], sock[1024];
+        (void)token;
+        if (read_remote_meta(name, url, sizeof(url), token, sizeof(token)) != 0) {
+            fprintf(stderr, "[%s] remote.conf missing (detach?), worker exiting\n", ts);
+            fflush(stderr);
+            break;
+        }
+        if (is_http_url(url)) {
+            fprintf(stderr, "[%s] HTTP remote not supported in this build, exiting\n", ts);
+            fflush(stderr);
+            break;
+        }
+        if (!file_exists(url) || !looks_like_sqlite(url)) {
+            fprintf(stderr, "[%s] remote unavailable: %s — will retry next tick\n",
+                    ts, url);
+            fflush(stderr);
+            continue;
+        }
+        if (mg_profile_socket_path(name, sock, sizeof(sock), 1) != 0) {
+            fprintf(stderr, "[%s] cannot resolve socket path\n", ts);
+            fflush(stderr);
+            continue;
+        }
+
+        int64_t pulled = 0, deleted = 0, pushed = 0;
+        char err[256] = { 0 };
+        if (send_remote_sync(sock, url, &pulled, &deleted, &pushed,
+                              err, sizeof(err)) != 0) {
+            fprintf(stderr, "[%s] sync failed: %s\n", ts, err[0] ? err : "(no detail)");
+        } else {
+            fprintf(stderr, "[%s] sync ok pulled=%lld deleted=%lld pushed=%lld\n",
+                    ts, (long long)pulled, (long long)deleted, (long long)pushed);
+        }
+        fflush(stderr);
+    }
+
+    fprintf(stderr, "[autosync %s] worker stopping\n", name);
+    fflush(stderr);
+    mg_unlink(pidp);
     return 0;
 }
 
@@ -906,7 +1343,21 @@ static int cmd_remote(int argc, char **argv) {
     }
     if (!strcmp(action, "detach")) return cmd_remote_detach(name);
     if (!strcmp(action, "status")) return cmd_remote_status(name);
-    if (!strcmp(action, "sync"))   return cmd_remote_sync(name);
+    if (!strcmp(action, "sync")) {
+        int auto_flag = 0, stop_flag = 0, worker_loop = 0;
+        int interval = MG_AUTOSYNC_DEFAULT_INTERVAL;
+        for (int i = 5; i < argc; i++) {
+            if      (!strcmp(argv[i], "--auto"))         auto_flag   = 1;
+            else if (!strcmp(argv[i], "--stop"))         stop_flag   = 1;
+            else if (!strcmp(argv[i], "--worker-loop")) worker_loop  = 1;
+            else if (!strcmp(argv[i], "--interval") && i + 1 < argc)
+                interval = atoi(argv[++i]);
+        }
+        if (stop_flag)   return cmd_remote_sync_stop(name);
+        if (worker_loop) return cmd_remote_sync_worker(name, interval);
+        if (auto_flag)   return cmd_remote_sync_auto(name, interval);
+        return cmd_remote_sync(name);
+    }
     return profile_usage();
 }
 
@@ -923,7 +1374,8 @@ static int profile_usage(void) {
         "  graft profile export <name> --path <file>\n"
         "  graft profile import --name <name> --file <file> [--force]\n"
         "  graft profile merge  --into <name> --from <file> [--overwrite]\n"
-        "  graft profile remote <bind|detach|status|sync> <name> [--url <file-or-url>] [--token T]\n");
+        "  graft profile remote <bind|detach|status|sync> <name> [--url <file-or-url>] [--token T]\n"
+        "  graft profile remote sync <name> [--auto [--interval SEC]] | [--stop]\n");
     return 2;
 }
 

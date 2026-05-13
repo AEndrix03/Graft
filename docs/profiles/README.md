@@ -123,6 +123,8 @@ When you want two machines to share a profile **without** running a managed serv
 graft profile remote bind   work --url /Volumes/sync/work.graft.db
 graft profile remote status work
 graft profile remote sync   work
+graft profile remote sync   work --auto [--interval SEC]   # detached worker
+graft profile remote sync   work --stop                    # kill the worker
 graft profile remote detach work
 ```
 
@@ -131,6 +133,19 @@ What `sync` does:
 1. **Pull** the remote: read the remote file, insert rows the local doesn't have (as `origin = REMOTE`), apply delete-wins-remote rules to rows that aren't `LOCAL`.
 2. **Push** the local: copy any rows marked local (origin = LOCAL) into the remote file as a `merge_from`.
 3. Mark all just-pushed local rows as "pushed" so the next pull doesn't treat them as new.
+
+Since 2026-05, `sync` is routed through the per-profile daemon (`remote_sync` op): the daemon is auto-started if down and uses its already-open storage handle. You no longer need to stop the daemon before running sync.
+
+### Background autosync
+
+`--auto` spawns a detached worker that re-runs the sync every `--interval` seconds (default `300`). Output is silent on the parent shell; everything the worker logs goes to a per-profile log file. Lifecycle files live next to the profile DB:
+
+| Path | Purpose |
+| ---- | ------- |
+| `$GRAFT_HOME/profiles/<name>/autosync.pid` | PID of the running worker (auto-cleared on graceful stop) |
+| `$GRAFT_HOME/profiles/<name>/autosync.log` | Append-only log: one line per tick with `pulled`, `deleted`, `pushed` (or error) |
+
+A second `--auto` invocation while a worker is already running is refused — stop the old one with `--stop` first. If you `remote detach` while a worker is active it will notice on the next tick (`remote.conf missing`) and exit by itself; you don't have to stop it manually. The worker is not auto-restarted on host reboot — wrap it in tmux / systemd / Task Scheduler if you want that.
 
 The expected `--url` is a **file path** to a SQLite DB. HTTP remote sync is reserved for future use — passing an `http://` URL today prints a clear "not available in this build" message. The shared file can live on:
 
