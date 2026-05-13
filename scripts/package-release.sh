@@ -36,6 +36,13 @@ cp -f "build/graft${EXE}" "build/graftd${EXE}" "$PAYLOAD/bin/"
 case "$PLATFORM" in
   windows-*)
     cp -f third_party/llama.cpp/build/bin/*.dll "$PAYLOAD/bin/" 2>/dev/null || true
+    MGW_BIN="/mingw64/bin"
+    [ -d "$MGW_BIN" ] || MGW_BIN="/c/msys64/mingw64/bin"
+    if [ -d "$MGW_BIN" ]; then
+      for n in libgcc_s_seh-1 libstdc++-6 libwinpthread-1 libgomp-1 libyaml-0-2 libsqlite3-0; do
+        [ -f "$MGW_BIN/$n.dll" ] && cp -f "$MGW_BIN/$n.dll" "$PAYLOAD/bin/" || true
+      done
+    fi
     ;;
   linux-*)
     for d in third_party/llama.cpp/build/bin third_party/llama.cpp/build/src third_party/llama.cpp/build/ggml/src; do

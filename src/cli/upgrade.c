@@ -280,7 +280,7 @@ static int install_root(char *out, size_t cap) {
 
 static int make_temp_dir(char *out, size_t cap) {
 #ifdef _WIN32
-    char base[MAX_PATH], name[MAX_PATH];
+    char base[MAX_PATH], name[1024];
     if (!GetTempPathA(sizeof(base), base)) return -1;
     snprintf(name, sizeof(name), "%sgraft-upgrade-%lu", base, (unsigned long)GetCurrentProcessId());
     if (mkdir_p(name) != 0) return -1;
@@ -322,11 +322,9 @@ static int apply_payload(const char *payload, const char *root, const char *tmp)
              "Remove-Item -Recurse -Force '%s'\n",
              (unsigned long)GetCurrentProcessId(), payload, root, tmp);
     if (write_text(script, text) != 0) return -1;
-    char qscript[1024];
-    if (shell_quote(script, qscript, sizeof(qscript)) != 0) return -1;
     snprintf(cmd, sizeof(cmd),
-             "powershell -NoProfile -Command \"Start-Process powershell -WindowStyle Hidden -ArgumentList '-NoProfile -ExecutionPolicy Bypass -File %s'\"",
-             qscript);
+             "powershell -NoProfile -Command \"Start-Process powershell -WindowStyle Hidden -ArgumentList '-NoProfile -ExecutionPolicy Bypass -File ''%s'''\"",
+             script);
     if (run_cmd(cmd) != 0) return -1;
     printf("Upgrade staged. Files will be replaced after this graft process exits.\n");
     return 0;

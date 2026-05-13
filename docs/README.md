@@ -15,6 +15,7 @@ If you want to **understand the internals**, start with [`architecture/`](./arch
 | Folder | What's inside |
 | ------ | ------------- |
 | [`install/`](./install/)               | Homebrew, install scripts, manual build, GPU builds, first-run check. |
+| [`release/`](./release/)               | Versioning, GitHub Releases, signed assets, SBOM, `graft upgrade`. |
 | [`architecture/`](./architecture/)     | CLI ↔ daemon split, the wire protocol, the request/response lifecycle. |
 | [`cli/`](./cli/)                       | Every `graft` / `graftd` subcommand and flag, with examples. |
 | [`storage/`](./storage/)               | SQLite schema, `sqlite-vec`, FTS5, atomic supersession, idempotency, WAL. |
