@@ -9,6 +9,10 @@
 #include <string.h>
 #include <time.h>
 
+#ifndef _WIN32
+#include <sys/stat.h>
+#endif
+
 extern int sqlite3_vec_init(sqlite3 *db, char **pzErrMsg, const sqlite3_api_routines *pApi);
 extern const char *mg_storage_schema_sql(void);
 extern const char *mg_storage_migration_v2_sql(void);
@@ -135,6 +139,18 @@ mg_err_t mg_storage_open(const char *db_path, mg_storage_t **out) {
     mg_storage_close(s);
     return MG_ERR_STORAGE;
   }
+#ifndef _WIN32
+  /* Restrict the DB file to the owner. The file holds embeddings, FTS data,
+   * and usage history — treat it as secret. SQLite may have created it with
+   * the default umask (often world-readable on POSIX); force 0600 after open
+   * regardless of umask. Errors are non-fatal: the daemon can still operate,
+   * but log so operators notice if the FS rejects the chmod (rare). */
+  if (chmod(db_path, S_IRUSR | S_IWUSR) != 0) {
+    fprintf(stderr,
+            "graft: warning: chmod(0600) on db file failed (%s)\n",
+            db_path);
+  }
+#endif
   *out = s;
   return MG_OK;
 }
