@@ -277,9 +277,32 @@ mg_err_t mg_http_start(mg_ctx_t *ctx, mg_http_server_t **out) {
     return MG_ERR_INTERNAL;
   }
 
-  fprintf(stderr, "http: listening on %s:%d%s\n",
-          ctx->config->http_bind, ctx->config->http_port,
-          " (local-only auth: none)");
+  /* Operator-visible banner. The HTTP server has no native auth: anything
+   * that reaches bind:port can call /v1/*. Surface the exact attack surface
+   * so misconfiguration is loud, not silent. */
+  {
+    const char *bind_str = (ctx->config->http_bind && *ctx->config->http_bind)
+                           ? ctx->config->http_bind : "127.0.0.1";
+    fprintf(stderr, "\n");
+    fprintf(stderr, "================ graft HTTP API ================\n");
+    fprintf(stderr, "  listening on http://%s:%d  (plaintext, NO AUTH)\n",
+            bind_str, ctx->config->http_port);
+    if (ctx->config->http_allow_remote) {
+      fprintf(stderr, "  ALLOW_REMOTE: enabled — bind is NOT loopback.\n");
+      fprintf(stderr, "  Put an authenticating reverse proxy in front, or\n");
+      fprintf(stderr, "  the entire memory graph is exposed to the network.\n");
+    }
+    fprintf(stderr, "  enabled endpoints (no auth gate):\n");
+    if (ctx->config->http_ep_match)    fprintf(stderr, "    GET    /v1/match     (read)\n");
+    if (ctx->config->http_ep_search)   fprintf(stderr, "    GET    /v1/search    (read)\n");
+    if (ctx->config->http_ep_explore)  fprintf(stderr, "    GET    /v1/explore   (read)\n");
+    if (ctx->config->http_ep_classify) fprintf(stderr, "    GET    /v1/classify  (read)\n");
+    if (ctx->config->http_ep_view)     fprintf(stderr, "    GET    /v1/view      (read: FULL GRAPH DUMP)\n");
+    if (ctx->config->http_ep_insert)   fprintf(stderr, "    POST   /v1/insert    (WRITE)\n");
+    if (ctx->config->http_ep_delete)   fprintf(stderr, "    DELETE /v1/nodes/*   (WRITE)\n");
+    fprintf(stderr, "  Disable any endpoint you do not need in config.yaml.\n");
+    fprintf(stderr, "================================================\n\n");
+  }
 
   *out = srv;
   return MG_OK;

@@ -25,9 +25,13 @@ daemon:
 
   # [security] SQLite database file. Contains EVERYTHING you have stored: node
   # titles, bodies, embeddings, edges, FTS5 indexes, usage history. Treat as
-  # secret. The file is created with default umask — chmod it to 0600 and put
-  # it under a per-user directory. Relative paths are resolved against the
-  # daemon's CWD, which is unpredictable; use an absolute path in production.
+  # secret. The daemon now forces mode 0600 on the file at open time (POSIX);
+  # but the parent directory must also be private to you. Relative paths are
+  # resolved against the daemon's CWD, which is unpredictable in the install
+  # flow — prefer an absolute path under $HOME/.graft (or $XDG_DATA_HOME/graft)
+  # in production. Encryption at rest is NOT enabled by default; if your
+  # threat model includes disk theft, use full-disk encryption or wait for the
+  # planned SQLCipher integration.
   db_path: "./graft.db"
 
 
