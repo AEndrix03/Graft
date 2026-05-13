@@ -366,24 +366,47 @@ mg_err_t mg_http_start(mg_ctx_t *ctx, mg_http_server_t **out) {
     addr.sin_addr.s_addr = htonl(0x7F000001);  /* 127.0.0.1 — safe default */
   }
 
-  /* Refuse non-loopback binds unless the operator has explicitly opted in
-   * via `http.allow_remote: true`. The HTTP server ships with no auth, so
-   * binding to a public interface would expose unauthenticated access to
-   * the entire graph. localhost / 127.0.0.0/8 / ::1 are always allowed. */
+  /* Layered defense for non-loopback binds. The daemon ships PLAINTEXT, so
+   * exposing it remotely without protection means anyone on the network can
+   * read/write the entire graph. Two layers:
+   *   1. allow_remote: must be true to bind off-loopback (operator opt-in)
+   *   2. EITHER an auth_token OR tls_terminated_externally must be true,
+   *      so unauthenticated cleartext can never accidentally hit the wire.
+   * Both layers can be disabled (allow_remote:false → local-only, default).
+   * localhost / 127.0.0.0/8 / ::1 are always allowed. */
   {
     const char *bind_str = (ctx->config->http_bind && *ctx->config->http_bind)
                            ? ctx->config->http_bind : "127.0.0.1";
     unsigned long ip = ntohl(addr.sin_addr.s_addr);
     int is_loopback = ((ip & 0xFF000000UL) == 0x7F000000UL);  /* 127.0.0.0/8 */
     int is_named_local = (strcmp(bind_str, "localhost") == 0);
-    if (!is_loopback && !is_named_local && !ctx->config->http_allow_remote) {
-      fprintf(stderr,
-              "http: refusing to bind non-loopback address %s — set "
-              "`http.allow_remote: true` in config.yaml to override "
-              "(WARNING: server has no auth).\n",
-              bind_str);
-      MG_CLOSE_SOCK(s);
-      return MG_ERR_CONFIG;
+    if (!is_loopback && !is_named_local) {
+      if (!ctx->config->http_allow_remote) {
+        fprintf(stderr,
+                "http: refusing to bind non-loopback address %s — set "
+                "`http.allow_remote: true` in config.yaml to override "
+                "(daemon has no native TLS).\n",
+                bind_str);
+        MG_CLOSE_SOCK(s);
+        return MG_ERR_CONFIG;
+      }
+      {
+        const char *full_tok = mg_http_effective_token(ctx);
+        const char *ro_tok = (ctx->config->http_readonly_token &&
+                              *ctx->config->http_readonly_token)
+                             ? ctx->config->http_readonly_token : NULL;
+        if (!full_tok && !ro_tok && !ctx->config->http_tls_terminated_externally) {
+          fprintf(stderr,
+                  "http: refusing remote bind %s — non-loopback exposure "
+                  "without ANY protection. Either set http.auth_token (a "
+                  "bearer secret), OR set http.tls_terminated_externally: "
+                  "true to attest a TLS-terminating reverse proxy is in "
+                  "front, OR turn off http.allow_remote.\n",
+                  bind_str);
+          MG_CLOSE_SOCK(s);
+          return MG_ERR_CONFIG;
+        }
+      }
     }
   }
 
@@ -428,14 +451,17 @@ mg_err_t mg_http_start(mg_ctx_t *ctx, mg_http_server_t **out) {
     fprintf(stderr, "================ graft HTTP API ================\n");
     fprintf(stderr, "  listening on http://%s:%d  (plaintext, %s)\n",
             bind_str, ctx->config->http_port, auth_state);
-    if (ctx->config->http_allow_remote && !full_tok && !ro_tok) {
-      fprintf(stderr, "  ALLOW_REMOTE: enabled with NO AUTH — bind is NOT loopback.\n");
-      fprintf(stderr, "  Put an authenticating reverse proxy in front OR set\n");
-      fprintf(stderr, "  http.auth_token (or env GRAFT_HTTP_AUTH_TOKEN), or the\n");
-      fprintf(stderr, "  entire memory graph is exposed to the network.\n");
-    } else if (ctx->config->http_allow_remote) {
-      fprintf(stderr, "  ALLOW_REMOTE: enabled — connections must carry the\n");
-      fprintf(stderr, "  bearer token. Still plaintext: terminate TLS upstream.\n");
+    if (ctx->config->http_allow_remote) {
+      fprintf(stderr, "  ALLOW_REMOTE: enabled — bind is NOT loopback.\n");
+      if (ctx->config->http_tls_terminated_externally) {
+        fprintf(stderr, "  TLS: terminated upstream (operator-attested).\n");
+      } else {
+        fprintf(stderr, "  TLS: plaintext — make sure a TLS proxy terminates\n");
+        fprintf(stderr, "       this socket OR clients are on a trusted LAN.\n");
+      }
+      if (!full_tok && !ro_tok) {
+        fprintf(stderr, "  AUTH: still NO TOKEN — clients are not authenticated.\n");
+      }
     }
     fprintf(stderr, "  enabled endpoints (/v1/* gated by auth when token set):\n");
     if (ctx->config->http_ep_match)    fprintf(stderr, "    GET    /v1/match     (read)\n");

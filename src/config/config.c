@@ -82,6 +82,7 @@ void mg_config_defaults(mg_config_t *cfg) {
   cfg->http_bind = mg_config_strdup("127.0.0.1");
   cfg->http_port = 9977;
   cfg->http_allow_remote = false;
+  cfg->http_tls_terminated_externally = false;
   cfg->http_auth_token = NULL;
   cfg->http_readonly_token = NULL;
   cfg->http_view_anonymize = false;
@@ -255,6 +256,10 @@ static mg_err_t mg_config_apply(mg_config_t *cfg,
     if (strcmp(key, "port") == 0 && mg_parse_int(value, &cfg->http_port)) return MG_OK;
     if (strcmp(key, "allow_remote") == 0 && mg_parse_bool(value, &b)) {
       cfg->http_allow_remote = b;
+      return MG_OK;
+    }
+    if (strcmp(key, "tls_terminated_externally") == 0 && mg_parse_bool(value, &b)) {
+      cfg->http_tls_terminated_externally = b;
       return MG_OK;
     }
     if (strcmp(key, "auth_token") == 0) {

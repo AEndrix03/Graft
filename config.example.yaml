@@ -322,11 +322,20 @@ http:
   # TCP port. Pick something not in use; 9977 is the project default.
   port: 9977
 
-  # [security] OPT-IN required to bind a non-loopback address. Leave false
-  # unless you know exactly what you are doing. Set `auth_token` below (or
-  # GRAFT_HTTP_AUTH_TOKEN env) before flipping this on, OR front the daemon
-  # with an authenticating reverse proxy. The daemon does NOT terminate TLS.
+  # [security] OPT-IN required to bind a non-loopback address. When true,
+  # the daemon enforces a second check at startup: at least ONE of
+  # (auth_token non-empty, tls_terminated_externally: true) MUST hold,
+  # otherwise startup is refused. This makes an accidentally-exposed
+  # plaintext unauthenticated daemon impossible without flipping both
+  # safety rails off explicitly.
   allow_remote: false
+
+  # [security] Operator attestation that a TLS-terminating reverse proxy
+  # (caddy / nginx / stunnel / cloudflared) is in front of the daemon. The
+  # daemon itself does NOT speak TLS — native TLS is on the roadmap. When
+  # you put a proxy in front (e.g., to expose graft on a LAN with HTTPS),
+  # flip this to true to satisfy the allow_remote gate. Leave false otherwise.
+  tls_terminated_externally: false
 
   # [security] Bearer token (full access). When non-empty, every /v1/* request
   # MUST carry `Authorization: Bearer <token>` or get 401. Constant-time
