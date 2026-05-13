@@ -104,23 +104,77 @@ static const char *mg_http_effective_token(const mg_ctx_t *ctx) {
   return NULL;
 }
 
-/* Check Authorization header for "Bearer <token>" matching the configured
- * value. Returns 1 if auth is satisfied (or not required), 0 otherwise. */
-static int mg_http_auth_ok(const mg_ctx_t *ctx, const mg_http_request_t *req) {
-  const char *want = mg_http_effective_token(ctx);
-  const char *got;
-  if (!want) return 1;  /* auth disabled */
-  got = mg_http_header_get(req, "Authorization");
-  if (!got) return 0;
-  /* Skip the "Bearer " prefix (case-insensitive). */
+/* Capability assigned to an authenticated request. */
+typedef enum {
+  MG_AUTH_DISABLED = 0,  /* no auth configured — legacy behavior, allow all */
+  MG_AUTH_FAIL     = 1,  /* auth required, no/wrong token */
+  MG_AUTH_FULL     = 2,  /* full token matched: reads + writes */
+  MG_AUTH_READONLY = 3   /* readonly token matched: reads only */
+} mg_auth_t;
+
+/* Extract a bearer token from the Authorization header. Returns NULL when
+ * the header is missing or not a Bearer scheme. Otherwise returns a pointer
+ * into the header value (do NOT free). */
+static const char *mg_http_bearer_value(const mg_http_request_t *req) {
+  const char *h = mg_http_header_get(req, "Authorization");
+  if (!h) return NULL;
 #ifdef _WIN32
-  if (_strnicmp(got, "Bearer ", 7) != 0) return 0;
+  if (_strnicmp(h, "Bearer ", 7) != 0) return NULL;
 #else
-  if (strncasecmp(got, "Bearer ", 7) != 0) return 0;
+  if (strncasecmp(h, "Bearer ", 7) != 0) return NULL;
 #endif
-  got += 7;
-  while (*got == ' ' || *got == '\t') ++got;
-  return mg_const_time_eq(got, want);
+  h += 7;
+  while (*h == ' ' || *h == '\t') ++h;
+  return h;
+}
+
+/* Decide auth state. When neither token is set, auth is DISABLED (legacy
+ * "no-auth" behavior — the user explicitly opted out of the protection).
+ * The full token wins over the readonly one if both happen to match (defense
+ * against config typos pinning both to the same value). */
+static mg_auth_t mg_http_check_auth(const mg_ctx_t *ctx,
+                                    const mg_http_request_t *req) {
+  const char *full = mg_http_effective_token(ctx);
+  const char *ro   = (ctx->config->http_readonly_token &&
+                      *ctx->config->http_readonly_token)
+                     ? ctx->config->http_readonly_token : NULL;
+  const char *got;
+  if (!full && !ro) return MG_AUTH_DISABLED;
+  got = mg_http_bearer_value(req);
+  if (!got) return MG_AUTH_FAIL;
+  if (full && mg_const_time_eq(got, full)) return MG_AUTH_FULL;
+  if (ro   && mg_const_time_eq(got, ro))   return MG_AUTH_READONLY;
+  return MG_AUTH_FAIL;
+}
+
+/* Returns 1 if the HTTP method is a write (mutates state), 0 for reads. */
+static int mg_http_method_is_write(const char *method) {
+  if (!method) return 0;
+  return strcmp(method, "POST") == 0 ||
+         strcmp(method, "PUT") == 0 ||
+         strcmp(method, "DELETE") == 0 ||
+         strcmp(method, "PATCH") == 0;
+}
+
+/* CSRF defense for /v1/* writes. Only ENFORCED when auth is on (config has
+ * a token) — when auth is off the user explicitly opted out of the security
+ * layer and we honor that. Origin/Referer must match Host, else 403.
+ * Browsers always send Origin on cross-origin requests; absent headers from
+ * non-browser clients (curl, daemon-to-daemon) are accepted. */
+static int mg_http_csrf_ok(const mg_ctx_t *ctx,
+                           const mg_http_request_t *req,
+                           mg_auth_t auth) {
+  const char *origin, *host;
+  if (auth == MG_AUTH_DISABLED) return 1;  /* opted out */
+  if (!mg_http_method_is_write(req->method)) return 1;
+  origin = mg_http_header_get(req, "Origin");
+  if (!origin) origin = mg_http_header_get(req, "Referer");
+  if (!origin) return 1;  /* no browser origin to match — non-browser client */
+  host = mg_http_header_get(req, "Host");
+  if (!host) return 0;  /* should not happen — Host check already passed */
+  /* Trivial substring check: Origin must contain the Host. Strict prefix
+   * "http://<host>" or "https://<host>" both match this contains test. */
+  return strstr(origin, host) != NULL;
 }
 
 /* DNS-rebinding defense: only accept Host: headers naming the loopback
@@ -202,21 +256,26 @@ static void *handle_client(void *arg) {
    * to /v1/* are gated below. */
   if (mg_http_try_static(ctx, &req, &resp)) goto send;
 
-  /* Bearer token gate for the API surface. When `http.auth_token` (or env
-   * GRAFT_HTTP_AUTH_TOKEN) is set, every /v1/* request must carry
-   * `Authorization: Bearer <token>`. Constant-time compare avoids timing
-   * oracles. 401 + WWW-Authenticate signals the auth scheme to clients. */
+  /* Auth + capability + CSRF gate for /v1/*. All three layers are tied to
+   * the token configuration — when no token is set the user has explicitly
+   * opted out of the protection and we behave like the pre-auth daemon. */
   if (req.path && strncmp(req.path, "/v1/", 4) == 0) {
-    if (!mg_http_auth_ok(ctx, &req)) {
+    mg_auth_t auth = mg_http_check_auth(ctx, &req);
+    if (auth == MG_AUTH_FAIL) {
       mg_http_error(&resp, 401, "unauthorized");
-      /* Advertise the bearer scheme so well-behaved clients prompt for a
-       * token. extra_headers stores borrowed string literals — safe to
-       * assign without strdup. */
       if (resp.n_extra_headers < 8) {
         resp.extra_headers[resp.n_extra_headers * 2]     = (char *)"WWW-Authenticate";
         resp.extra_headers[resp.n_extra_headers * 2 + 1] = (char *)"Bearer realm=\"graft\"";
         resp.n_extra_headers++;
       }
+      goto send;
+    }
+    if (auth == MG_AUTH_READONLY && mg_http_method_is_write(req.method)) {
+      mg_http_error(&resp, 403, "forbidden: readonly token");
+      goto send;
+    }
+    if (!mg_http_csrf_ok(ctx, &req, auth)) {
+      mg_http_error(&resp, 403, "forbidden: origin mismatch");
       goto send;
     }
   }
@@ -356,14 +415,20 @@ mg_err_t mg_http_start(mg_ctx_t *ctx, mg_http_server_t **out) {
   {
     const char *bind_str = (ctx->config->http_bind && *ctx->config->http_bind)
                            ? ctx->config->http_bind : "127.0.0.1";
-    const char *auth_state = mg_http_effective_token(ctx)
-                             ? "bearer token required"
-                             : "NO AUTH";
+    const char *full_tok = mg_http_effective_token(ctx);
+    const char *ro_tok   = (ctx->config->http_readonly_token &&
+                            *ctx->config->http_readonly_token)
+                           ? ctx->config->http_readonly_token : NULL;
+    const char *auth_state;
+    if (full_tok && ro_tok)      auth_state = "bearer auth (full + readonly)";
+    else if (full_tok)           auth_state = "bearer auth (full only)";
+    else if (ro_tok)             auth_state = "bearer auth (readonly only)";
+    else                         auth_state = "NO AUTH (opted out)";
     fprintf(stderr, "\n");
     fprintf(stderr, "================ graft HTTP API ================\n");
     fprintf(stderr, "  listening on http://%s:%d  (plaintext, %s)\n",
             bind_str, ctx->config->http_port, auth_state);
-    if (ctx->config->http_allow_remote && !mg_http_effective_token(ctx)) {
+    if (ctx->config->http_allow_remote && !full_tok && !ro_tok) {
       fprintf(stderr, "  ALLOW_REMOTE: enabled with NO AUTH — bind is NOT loopback.\n");
       fprintf(stderr, "  Put an authenticating reverse proxy in front OR set\n");
       fprintf(stderr, "  http.auth_token (or env GRAFT_HTTP_AUTH_TOKEN), or the\n");

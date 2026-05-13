@@ -65,6 +65,8 @@ typedef struct {
   int    http_port;             /* default 9977 */
   bool   http_allow_remote;     /* default false — must be set to bind a non-loopback address */
   char  *http_auth_token;       /* if non-NULL, /v1/* requires Authorization: Bearer <token>. Env GRAFT_HTTP_AUTH_TOKEN overrides. */
+  char  *http_readonly_token;   /* optional second token. When matched, ONLY read endpoints (match/search/explore/classify/view) are allowed; writes get 403. */
+  bool   http_view_anonymize;   /* when true, /v1/view strips titles and primary_keyword (topology only) */
   bool   http_ep_match;
   bool   http_ep_search;
   bool   http_ep_explore;

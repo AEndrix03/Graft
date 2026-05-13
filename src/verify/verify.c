@@ -37,6 +37,7 @@ static mg_err_t mg_verify_copy_config(const mg_config_t *src, mg_config_t *dst) 
   dst->nli_prompt_template = mg_verify_strdup(src->nli_prompt_template);
   dst->http_bind = mg_verify_strdup(src->http_bind);
   dst->http_auth_token = mg_verify_strdup(src->http_auth_token);
+  dst->http_readonly_token = mg_verify_strdup(src->http_readonly_token);
   dst->http_viewer_path = mg_verify_strdup(src->http_viewer_path);
 
   if ((src->socket_path && !dst->socket_path) ||
@@ -46,6 +47,7 @@ static mg_err_t mg_verify_copy_config(const mg_config_t *src, mg_config_t *dst) 
       (src->nli_prompt_template && !dst->nli_prompt_template) ||
       (src->http_bind && !dst->http_bind) ||
       (src->http_auth_token && !dst->http_auth_token) ||
+      (src->http_readonly_token && !dst->http_readonly_token) ||
       (src->http_viewer_path && !dst->http_viewer_path)) {
     mg_config_free(dst);
     return MG_ERR_OOM;

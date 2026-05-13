@@ -83,6 +83,8 @@ void mg_config_defaults(mg_config_t *cfg) {
   cfg->http_port = 9977;
   cfg->http_allow_remote = false;
   cfg->http_auth_token = NULL;
+  cfg->http_readonly_token = NULL;
+  cfg->http_view_anonymize = false;
   cfg->http_ep_match = true;
   cfg->http_ep_search = true;
   cfg->http_ep_explore = true;
@@ -105,6 +107,7 @@ void mg_config_free(mg_config_t *cfg) {
   free(cfg->nli_prompt_template);
   free(cfg->http_bind);
   free(cfg->http_auth_token);
+  free(cfg->http_readonly_token);
   free(cfg->http_viewer_path);
   memset(cfg, 0, sizeof(*cfg));
 }
@@ -256,6 +259,13 @@ static mg_err_t mg_config_apply(mg_config_t *cfg,
     }
     if (strcmp(key, "auth_token") == 0) {
       return mg_config_set_string(&cfg->http_auth_token, value);
+    }
+    if (strcmp(key, "readonly_token") == 0) {
+      return mg_config_set_string(&cfg->http_readonly_token, value);
+    }
+    if (strcmp(key, "view_anonymize") == 0 && mg_parse_bool(value, &b)) {
+      cfg->http_view_anonymize = b;
+      return MG_OK;
     }
     if (strcmp(key, "endpoint_match")    == 0 && mg_parse_bool(value, &b)) { cfg->http_ep_match = b; return MG_OK; }
     if (strcmp(key, "endpoint_search")   == 0 && mg_parse_bool(value, &b)) { cfg->http_ep_search = b; return MG_OK; }
