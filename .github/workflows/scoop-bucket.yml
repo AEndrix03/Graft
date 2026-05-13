@@ -1,0 +1,277 @@
+name: scoop-bucket
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to (re)build (e.g. v0.1.0)"
+        required: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: scoop-bucket-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  prep:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      tag: ${{ steps.v.outputs.tag }}
+      stable: ${{ steps.v.outputs.stable }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+      - id: v
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            tag="${{ inputs.tag }}"
+          else
+            tag="${GITHUB_REF_NAME}"
+          fi
+          [[ "$tag" =~ ^v ]] || { echo "tag must start with 'v', got: $tag" >&2; exit 1; }
+          version="${tag#v}"
+          file_v="$(tr -d '[:space:]' < VERSION)"
+          if [[ "$version" != "$file_v" ]]; then
+            echo "tag ${tag} does not match VERSION file (${file_v})" >&2
+            exit 1
+          fi
+          if [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            stable="true"
+          else
+            stable="false"
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag"          >> "$GITHUB_OUTPUT"
+          echo "stable=$stable"    >> "$GITHUB_OUTPUT"
+          echo "::notice title=Scoop plan::tag=$tag version=$version stable=$stable"
+
+  build:
+    needs: prep
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: "msys2 {0}"
+    env:
+      VERSION: ${{ needs.prep.outputs.version }}
+      TAG: ${{ needs.prep.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prep.outputs.tag }}
+          submodules: recursive
+          fetch-depth: 0
+
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: >-
+            git
+            mingw-w64-x86_64-gcc
+            mingw-w64-x86_64-cmake
+            mingw-w64-x86_64-ninja
+            mingw-w64-x86_64-pkgconf
+            mingw-w64-x86_64-sqlite3
+            mingw-w64-x86_64-libyaml
+            mingw-w64-x86_64-curl
+
+      - name: Build llama.cpp and graft
+        run: |
+          set -euo pipefail
+
+          cmake -S third_party/llama.cpp -B third_party/llama.cpp/build -G Ninja \
+            -DBUILD_SHARED_LIBS=ON -DGGML_NATIVE=OFF \
+            -DLLAMA_CURL=OFF -DLLAMA_BUILD_SERVER=OFF \
+            -DLLAMA_BUILD_TOOLS=OFF -DLLAMA_BUILD_EXAMPLES=OFF \
+            -DLLAMA_BUILD_TESTS=OFF -DLLAMA_BUILD_COMMON=OFF \
+            -DCMAKE_BUILD_TYPE=Release
+          cmake --build third_party/llama.cpp/build --parallel
+
+          cmake -S . -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release
+          cmake --build build --parallel
+
+      - name: Stage zip layout
+        id: pack
+        run: |
+          set -euo pipefail
+          name="graft-windows-x86_64"
+          stage="dist/${name}"
+          mkdir -p "${stage}/bin" "${stage}/share/graft/integrations"
+
+          # graft binaries
+          cp build/graft.exe build/graftd.exe "${stage}/bin/"
+
+          # llama.cpp shared libs alongside the exes (rpath-equivalent on Windows
+          # is "DLLs next to the .exe", and MinGW64 doesn't honor RPATH at all).
+          cp third_party/llama.cpp/build/bin/*.dll "${stage}/bin/" 2>/dev/null || true
+          cp third_party/llama.cpp/build/src/*.dll "${stage}/bin/" 2>/dev/null || true
+          find third_party/llama.cpp/build/ggml -name '*.dll' -exec cp {} "${stage}/bin/" \; 2>/dev/null || true
+
+          # MinGW64 runtime DLLs the exes link against (sqlite, yaml, libstdc++, gcc, winpthread, ...)
+          for dll in libsqlite3-0.dll libyaml-0-2.dll libstdc++-6.dll libgcc_s_seh-1.dll libwinpthread-1.dll libcurl-4.dll zlib1.dll; do
+            src="/mingw64/bin/${dll}"
+            [[ -f "$src" ]] && cp "$src" "${stage}/bin/" || true
+          done
+
+          # bundled assets that brew formula already lays out
+          if [[ -d viewer/dist ]]; then
+            mkdir -p "${stage}/share/graft/viewer"
+            cp -r viewer/dist/. "${stage}/share/graft/viewer/"
+          fi
+          cp -r integrations/standard "${stage}/share/graft/integrations/standard"
+          cp config.example.yaml "${stage}/share/graft/" 2>/dev/null || true
+
+          out="dist/${name}.zip"
+          (cd dist && /usr/bin/zip -r "${name}.zip" "${name}")
+          sha=$(sha256sum "$out" | awk '{print $1}')
+          echo "zip=$out"          >> "$GITHUB_OUTPUT"
+          echo "name=${name}.zip"  >> "$GITHUB_OUTPUT"
+          echo "sha=$sha"          >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: scoop-asset
+          path: ${{ steps.pack.outputs.zip }}
+          if-no-files-found: error
+
+      - name: Save sha and filename
+        run: |
+          mkdir -p meta
+          printf '%s' "${{ steps.pack.outputs.sha }}"  > meta/sha
+          printf '%s' "${{ steps.pack.outputs.name }}" > meta/name
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: scoop-meta
+          path: meta/
+
+  publish:
+    needs: [prep, build]
+    if: needs.prep.outputs.stable == 'true'
+    runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ needs.prep.outputs.version }}
+      TAG: ${{ needs.prep.outputs.tag }}
+      REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: master
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: scoop-asset
+          path: dist
+      - uses: actions/download-artifact@v4
+        with:
+          name: scoop-meta
+          path: meta
+
+      - name: Read meta
+        id: meta
+        shell: bash
+        run: |
+          set -euo pipefail
+          sha="$(cat meta/sha)"
+          name="$(cat meta/name)"
+          url="https://github.com/${REPO}/releases/download/${TAG}/${name}"
+          echo "sha=$sha"   >> "$GITHUB_OUTPUT"
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+          echo "url=$url"   >> "$GITHUB_OUTPUT"
+
+      - name: Upload zip to release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! gh release view "${TAG}" >/dev/null 2>&1; then
+            gh release create "${TAG}" --title "${TAG}" --generate-notes --verify-tag
+          fi
+          gh release upload "${TAG}" "dist/${{ steps.meta.outputs.name }}" --clobber
+
+      - name: Patch bucket/graft.json on master
+        env:
+          ASSET_URL: ${{ steps.meta.outputs.url }}
+          ASSET_SHA: ${{ steps.meta.outputs.sha }}
+        shell: bash
+        run: |
+          set -euxo pipefail
+          python3 - <<'PY'
+          import json, os, pathlib
+          path = pathlib.Path("bucket/graft.json")
+          data = json.loads(path.read_text())
+          data["version"] = os.environ["VERSION"]
+          data["url"] = os.environ["ASSET_URL"]
+          data["hash"] = os.environ["ASSET_SHA"]
+          data.pop("notes", None)
+          path.write_text(json.dumps(data, indent=4) + "\n")
+          PY
+
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Retry-aware push: if brew workflow pushed before us, rebase and try again.
+          for attempt in 1 2 3; do
+            git pull --rebase origin master
+            git add bucket/graft.json
+            if git diff --cached --quiet; then
+              echo "no manifest changes to commit"
+              exit 0
+            fi
+            if [[ "$attempt" == "1" ]]; then
+              git commit -m "chore(release): publish ${TAG} scoop manifest [skip ci]"
+            fi
+            if git push origin master; then
+              exit 0
+            fi
+          done
+          echo "could not push scoop manifest update after 3 attempts" >&2
+          exit 1
+
+      - name: Summary
+        shell: bash
+        run: |
+          {
+            echo "## Scoop manifest updated for ${TAG}"
+            echo
+            echo "- Asset: \`${{ steps.meta.outputs.name }}\`"
+            echo "- URL: ${{ steps.meta.outputs.url }}"
+            echo "- SHA256: \`${{ steps.meta.outputs.sha }}\`"
+            echo
+            echo "Users can now install with:"
+            echo
+            echo "    scoop bucket add graft https://github.com/${REPO}"
+            echo "    scoop install graft"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  summarize-prerelease:
+    needs: [prep, build]
+    if: needs.prep.outputs.stable != 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: scoop-asset
+          path: dist
+      - shell: bash
+        run: |
+          ls -la dist/
+          {
+            echo "## Pre-release Windows build OK: ${{ needs.prep.outputs.tag }}"
+            echo
+            echo "Zip artifact attached to this workflow run for inspection."
+            echo "Pre-release versions do **not** update \`bucket/graft.json\` and do **not** publish a GitHub Release."
+          } >> "$GITHUB_STEP_SUMMARY"
