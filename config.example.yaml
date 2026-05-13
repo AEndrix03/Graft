@@ -323,10 +323,19 @@ http:
   port: 9977
 
   # [security] OPT-IN required to bind a non-loopback address. Leave false
-  # unless you know exactly what you are doing. Even with this on, you should
-  # still front the daemon with an authenticated reverse proxy — the daemon
-  # itself does NOT authenticate clients.
+  # unless you know exactly what you are doing. Set `auth_token` below (or
+  # GRAFT_HTTP_AUTH_TOKEN env) before flipping this on, OR front the daemon
+  # with an authenticating reverse proxy. The daemon does NOT terminate TLS.
   allow_remote: false
+
+  # [security] Bearer token. When non-empty, every /v1/* request MUST carry
+  # `Authorization: Bearer <token>` or get 401. Constant-time compared to
+  # avoid timing oracles. The env var GRAFT_HTTP_AUTH_TOKEN overrides this
+  # field so secrets can stay out of YAML. The static SPA at / is NOT auth-
+  # gated (the viewer JS must inject the token itself when fetching /v1/*).
+  # Leave empty to keep the legacy no-auth behaviour (matches localhost-only
+  # deployments where the bearer check is unnecessary).
+  auth_token: ""
 
   # Per-endpoint toggles. Disable anything you do not actively use.
   endpoint_match:    true       # GET    /v1/match     — cache-hit probe (read)

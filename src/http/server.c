@@ -71,6 +71,58 @@ static mg_http_handler_fn route(const char *method, const char *path) {
   return NULL;
 }
 
+/* Constant-time string comparison. Returns 1 if both strings are non-NULL,
+ * have the same length, and every byte matches. Defends against timing
+ * oracles that would otherwise leak the prefix of the configured token. */
+static int mg_const_time_eq(const char *a, const char *b) {
+  size_t la, lb, i;
+  unsigned char diff = 0;
+  if (!a || !b) return 0;
+  la = strlen(a);
+  lb = strlen(b);
+  diff |= (unsigned char)((la ^ lb) | ((la ^ lb) >> 8));
+  /* Walk min(la, lb) bytes regardless of mismatch so the loop's runtime
+   * depends only on the input lengths, not on where the first mismatch is. */
+  {
+    size_t n = la < lb ? la : lb;
+    for (i = 0; i < n; ++i) {
+      diff |= (unsigned char)(a[i] ^ b[i]);
+    }
+  }
+  return diff == 0;
+}
+
+/* Resolve the effective auth token. Env GRAFT_HTTP_AUTH_TOKEN wins over the
+ * config field so secrets can stay out of YAML. Returns NULL/empty when no
+ * token is configured at all (auth disabled). */
+static const char *mg_http_effective_token(const mg_ctx_t *ctx) {
+  const char *env = getenv("GRAFT_HTTP_AUTH_TOKEN");
+  if (env && *env) return env;
+  if (ctx->config->http_auth_token && *ctx->config->http_auth_token) {
+    return ctx->config->http_auth_token;
+  }
+  return NULL;
+}
+
+/* Check Authorization header for "Bearer <token>" matching the configured
+ * value. Returns 1 if auth is satisfied (or not required), 0 otherwise. */
+static int mg_http_auth_ok(const mg_ctx_t *ctx, const mg_http_request_t *req) {
+  const char *want = mg_http_effective_token(ctx);
+  const char *got;
+  if (!want) return 1;  /* auth disabled */
+  got = mg_http_header_get(req, "Authorization");
+  if (!got) return 0;
+  /* Skip the "Bearer " prefix (case-insensitive). */
+#ifdef _WIN32
+  if (_strnicmp(got, "Bearer ", 7) != 0) return 0;
+#else
+  if (strncasecmp(got, "Bearer ", 7) != 0) return 0;
+#endif
+  got += 7;
+  while (*got == ' ' || *got == '\t') ++got;
+  return mg_const_time_eq(got, want);
+}
+
 /* DNS-rebinding defense: only accept Host: headers naming the loopback
  * interface (or the explicitly allow-listed external bind). Block attacker
  * pages that point a public DNS name at our local server.
@@ -145,8 +197,29 @@ static void *handle_client(void *arg) {
   }
 
   /* Static SPA bundle is served by the local-first daemon. Public production
-   * deployments should place the OAuth gateway in front of /v1/* instead. */
+   * deployments should place the OAuth gateway in front of /v1/* instead.
+   * Static paths are NOT auth-gated so the viewer HTML can boot; data fetches
+   * to /v1/* are gated below. */
   if (mg_http_try_static(ctx, &req, &resp)) goto send;
+
+  /* Bearer token gate for the API surface. When `http.auth_token` (or env
+   * GRAFT_HTTP_AUTH_TOKEN) is set, every /v1/* request must carry
+   * `Authorization: Bearer <token>`. Constant-time compare avoids timing
+   * oracles. 401 + WWW-Authenticate signals the auth scheme to clients. */
+  if (req.path && strncmp(req.path, "/v1/", 4) == 0) {
+    if (!mg_http_auth_ok(ctx, &req)) {
+      mg_http_error(&resp, 401, "unauthorized");
+      /* Advertise the bearer scheme so well-behaved clients prompt for a
+       * token. extra_headers stores borrowed string literals — safe to
+       * assign without strdup. */
+      if (resp.n_extra_headers < 8) {
+        resp.extra_headers[resp.n_extra_headers * 2]     = (char *)"WWW-Authenticate";
+        resp.extra_headers[resp.n_extra_headers * 2 + 1] = (char *)"Bearer realm=\"graft\"";
+        resp.n_extra_headers++;
+      }
+      goto send;
+    }
+  }
 
   h = route(req.method, req.path);
   if (!h) {
@@ -283,16 +356,23 @@ mg_err_t mg_http_start(mg_ctx_t *ctx, mg_http_server_t **out) {
   {
     const char *bind_str = (ctx->config->http_bind && *ctx->config->http_bind)
                            ? ctx->config->http_bind : "127.0.0.1";
+    const char *auth_state = mg_http_effective_token(ctx)
+                             ? "bearer token required"
+                             : "NO AUTH";
     fprintf(stderr, "\n");
     fprintf(stderr, "================ graft HTTP API ================\n");
-    fprintf(stderr, "  listening on http://%s:%d  (plaintext, NO AUTH)\n",
-            bind_str, ctx->config->http_port);
-    if (ctx->config->http_allow_remote) {
-      fprintf(stderr, "  ALLOW_REMOTE: enabled — bind is NOT loopback.\n");
-      fprintf(stderr, "  Put an authenticating reverse proxy in front, or\n");
-      fprintf(stderr, "  the entire memory graph is exposed to the network.\n");
+    fprintf(stderr, "  listening on http://%s:%d  (plaintext, %s)\n",
+            bind_str, ctx->config->http_port, auth_state);
+    if (ctx->config->http_allow_remote && !mg_http_effective_token(ctx)) {
+      fprintf(stderr, "  ALLOW_REMOTE: enabled with NO AUTH — bind is NOT loopback.\n");
+      fprintf(stderr, "  Put an authenticating reverse proxy in front OR set\n");
+      fprintf(stderr, "  http.auth_token (or env GRAFT_HTTP_AUTH_TOKEN), or the\n");
+      fprintf(stderr, "  entire memory graph is exposed to the network.\n");
+    } else if (ctx->config->http_allow_remote) {
+      fprintf(stderr, "  ALLOW_REMOTE: enabled — connections must carry the\n");
+      fprintf(stderr, "  bearer token. Still plaintext: terminate TLS upstream.\n");
     }
-    fprintf(stderr, "  enabled endpoints (no auth gate):\n");
+    fprintf(stderr, "  enabled endpoints (/v1/* gated by auth when token set):\n");
     if (ctx->config->http_ep_match)    fprintf(stderr, "    GET    /v1/match     (read)\n");
     if (ctx->config->http_ep_search)   fprintf(stderr, "    GET    /v1/search    (read)\n");
     if (ctx->config->http_ep_explore)  fprintf(stderr, "    GET    /v1/explore   (read)\n");
