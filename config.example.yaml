@@ -328,14 +328,37 @@ http:
   # with an authenticating reverse proxy. The daemon does NOT terminate TLS.
   allow_remote: false
 
-  # [security] Bearer token. When non-empty, every /v1/* request MUST carry
-  # `Authorization: Bearer <token>` or get 401. Constant-time compared to
-  # avoid timing oracles. The env var GRAFT_HTTP_AUTH_TOKEN overrides this
-  # field so secrets can stay out of YAML. The static SPA at / is NOT auth-
-  # gated (the viewer JS must inject the token itself when fetching /v1/*).
-  # Leave empty to keep the legacy no-auth behaviour (matches localhost-only
-  # deployments where the bearer check is unnecessary).
+  # [security] Bearer token (full access). When non-empty, every /v1/* request
+  # MUST carry `Authorization: Bearer <token>` or get 401. Constant-time
+  # compared to avoid timing oracles. Env GRAFT_HTTP_AUTH_TOKEN overrides
+  # this field so secrets can stay out of YAML. The static SPA at / is NOT
+  # auth-gated (viewer JS must inject the token when fetching /v1/*).
+  # LEAVE EMPTY to disable auth entirely (legacy no-auth behaviour, fine for
+  # localhost-only deployments).
   auth_token: ""
+
+  # [security] Optional second token with READ-ONLY scope. Holders can call
+  # GET endpoints (match/search/explore/classify/view/nodes) but POST/DELETE
+  # mutations return 403. Useful for handing out a "viewer-only" credential
+  # without giving the viewer the ability to write or delete. Set both this
+  # AND auth_token to enable two-tier access; set only one (or neither) for
+  # single-token or no-auth mode.
+  readonly_token: ""
+
+  # [security] When true, the CSRF Origin/Referer check is enforced on /v1/*
+  # writes only when an auth token is set (config above). Browsers always
+  # send Origin on cross-origin requests; non-browser clients (curl, daemon-
+  # to-daemon) are not penalized. This protects against XSS on the SPA
+  # injecting a stolen token from a different origin into a write. The flag
+  # itself has no toggle here — CSRF is tied to auth being on. When you
+  # disable auth (empty tokens), CSRF protection is off too, by design.
+
+  # [security] When true, /v1/view strips titles and primary_keyword from the
+  # response so the dump is graph TOPOLOGY only — coordinates, ids, edges,
+  # state, body_len. Useful for sharing a graph layout publicly without
+  # leaking what the nodes ARE. The viewer SPA still renders shapes/edges,
+  # just without readable labels. Off by default.
+  view_anonymize: false
 
   # Per-endpoint toggles. Disable anything you do not actively use.
   endpoint_match:    true       # GET    /v1/match     — cache-hit probe (read)

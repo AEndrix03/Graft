@@ -34,6 +34,7 @@
 
 #include <sqlite3.h>
 #include <math.h>
+#include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -138,6 +139,10 @@ mg_err_t mg_op_view(mg_ctx_t *ctx, mpack_node_t args, mpack_writer_t *result) {
     mpack_complete_map(result);
     return MG_ERR_STORAGE;
   }
+  /* When http.view_anonymize is on, strip titles and primary_keyword so the
+   * client gets topology only (graph shape, edges, coords) without content.
+   * Useful for sharing a graph layout without leaking what the nodes ARE. */
+  bool anonymize = ctx->config && ctx->config->http_view_anonymize;
   while (sqlite3_step(stmt) == SQLITE_ROW) {
     const uint8_t *id    = (const uint8_t *)sqlite3_column_blob(stmt, 0);
     const char    *title = (const char *)sqlite3_column_text(stmt, 1);
@@ -153,12 +158,12 @@ mg_err_t mg_op_view(mg_ctx_t *ctx, mpack_node_t args, mpack_writer_t *result) {
     project(R, (const float *)eb, xyz);
     mpack_build_map(result);
     mpack_write_cstr(result, "id_hex");  mpack_write_cstr(result, id_hex);
-    mpack_write_cstr(result, "title");   mpack_write_cstr(result, title ? title : "");
+    mpack_write_cstr(result, "title");   mpack_write_cstr(result, anonymize ? "" : (title ? title : ""));
     mpack_write_cstr(result, "state");   mpack_write_cstr(result, state_to_string(state));
     mpack_write_cstr(result, "body_len"); mpack_write_int(result, body_len);
     mpack_write_cstr(result, "primary_keyword");
-    if (primary_kw) mpack_write_cstr(result, primary_kw);
-    else            mpack_write_nil(result);
+    if (primary_kw && !anonymize) mpack_write_cstr(result, primary_kw);
+    else                          mpack_write_nil(result);
     mpack_write_cstr(result, "x");       mpack_write_float(result, xyz[0]);
     mpack_write_cstr(result, "y");       mpack_write_float(result, xyz[1]);
     mpack_write_cstr(result, "z");       mpack_write_float(result, xyz[2]);
