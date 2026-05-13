@@ -287,9 +287,10 @@ See [`profiles/`](../profiles/) for the full multi-tenancy story.
 ```bash
 graft setup claudecode
 graft setup codex
+graft setup opencode
 ```
 
-Copies the skill / hook / `AGENTS.md` files from `integrations/<agent>/` into the agent's user config directory. Re-running overwrites in place — safe and idempotent.
+Copies the skill / hook / `AGENTS.md` files from `integrations/standard/` into the agent's user config directory. Re-running overwrites in place — safe and idempotent.
 
 ---
 

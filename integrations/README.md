@@ -49,6 +49,7 @@ Per installare skill/istruzioni e hook nel profilo utente dell'assistant:
 ```bash
 graft setup claudecode
 graft setup codex
+graft setup opencode
 ```
 
 ## Mapping operazioni → tool name

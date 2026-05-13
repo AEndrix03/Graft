@@ -232,7 +232,7 @@ Full pattern, sample code, deployment shapes, and failure modes: **[`docs/micros
 | Claude Desktop | MCP server (stdio)        | `integrations/claude-ai/claude_desktop_config.json` |
 | ChatGPT        | MCP server (stdio or HTTP)| `integrations/chatgpt/mcp_config.json` |
 | Gemini CLI     | `GEMINI.md` memory file   | `integrations/gemini-cli/` |
-| Open Code      | `AGENTS.md`               | `integrations/opencode/` |
+| Open Code      | `AGENTS.md` + Skills      | `graft setup opencode` |
 
 Each adapter ships **skills** (telling the model *when* to search and *when* to save) and, where the harness supports them, **hooks** (running deterministically on `UserPromptSubmit` / `PostToolUse` / `Stop` so the model can't "forget").
 

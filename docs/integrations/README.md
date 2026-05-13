@@ -38,7 +38,7 @@ Two families:
 | Claude Desktop | MCP server (stdio)           | `integrations/claude-ai/` + `integrations/mcp-server/` |
 | ChatGPT        | MCP server (stdio or HTTP)   | `integrations/chatgpt/` + `integrations/mcp-server/` |
 | Gemini CLI     | `GEMINI.md` memory file      | `integrations/gemini-cli/`                           |
-| Open Code      | `AGENTS.md`                  | `integrations/opencode/`                             |
+| Open Code      | `AGENTS.md` + Skills         | `integrations/opencode/`                             |
 
 Each adapter has its own README with install steps.
 
@@ -203,7 +203,7 @@ Both wire the stdio MCP server (`integrations/mcp-server/server.py`) so the chat
 
 ### Open Code
 
-`AGENTS.md` shipped. The Open Code harness reads it on launch.
+`graft setup opencode` copies the shared `AGENTS.md` instructions and native skills into `~/.config/opencode/`. The Open Code harness reads `AGENTS.md` on launch and loads skills from `~/.config/opencode/skills/`.
 
 ---
 
