@@ -65,12 +65,9 @@ jobs:
           - runner: ubuntu-latest
             platform: x86_64_linux
             primary: true
-          - runner: macos-13
-            platform: ventura
-            primary: false
-          - runner: macos-14
-            platform: arm64_sonoma
-            primary: false
+        # macOS bottles are intentionally not built for now: brew users on
+        # macOS fall back to `--build-from-source` automatically. Re-add the
+        # macos-13 / macos-14 entries when you want native mac bottles.
     env:
       VERSION: ${{ needs.prep.outputs.version }}
       TAG: ${{ needs.prep.outputs.tag }}

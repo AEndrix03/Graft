@@ -25,10 +25,8 @@ jobs:
         include:
           - runner: ubuntu-latest
             platform: linux-x86_64
-          - runner: macos-13
-            platform: macos-x86_64
-          - runner: macos-14
-            platform: macos-arm64
+        # macOS targets are temporarily disabled. Restore the macos-13 /
+        # macos-14 entries when Apple-flavored tarballs are needed again.
 
     defaults:
       run:
