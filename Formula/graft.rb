@@ -76,6 +76,7 @@ class Graft < Formula
     graft_args = std_cmake_args + %W[
       -DCMAKE_BUILD_TYPE=Release
       -DCMAKE_BUILD_RPATH=#{rpath_token}
+      -DGRAFT_BUILD_TESTS=OFF
     ]
     system "cmake", "-S", ".", "-B", "build", *graft_args
     system "cmake", "--build", "build", "--parallel"

@@ -98,7 +98,8 @@ jobs:
           cmake --build third_party/llama.cpp/build --parallel
 
           cmake -S . -B build -G Ninja \
-            -DCMAKE_BUILD_TYPE=Release
+            -DCMAKE_BUILD_TYPE=Release \
+            -DGRAFT_BUILD_TESTS=OFF
           cmake --build build --parallel
 
       - name: Stage zip layout

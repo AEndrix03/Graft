@@ -85,7 +85,8 @@ jobs:
 
           cmake -S . -B build \
             -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_BUILD_RPATH="$rpath"
+            -DCMAKE_BUILD_RPATH="$rpath" \
+            -DGRAFT_BUILD_TESTS=OFF
           cmake --build build --parallel
 
       - name: Package release asset

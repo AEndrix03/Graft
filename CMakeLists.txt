@@ -40,6 +40,7 @@ add_library(blake3 STATIC
 target_include_directories(blake3 PUBLIC ${BLAKE3_DIR})
 target_compile_definitions(blake3 PRIVATE
   BLAKE3_NO_SSE2 BLAKE3_NO_SSE41 BLAKE3_NO_AVX2 BLAKE3_NO_AVX512
+  BLAKE3_USE_NEON=0
 )
 
 # sqlite-vec
@@ -144,11 +145,14 @@ target_compile_definitions(graft PRIVATE
 target_link_libraries(graft graft_core)
 
 # === Tests ===
-enable_testing()
-file(GLOB TEST_SRC tests/test_*.c)
-foreach(TFILE ${TEST_SRC})
-  get_filename_component(TNAME ${TFILE} NAME_WE)
-  add_executable(${TNAME} ${TFILE})
-  target_link_libraries(${TNAME} graft_core)
-  add_test(NAME ${TNAME} COMMAND ${TNAME})
-endforeach()
+option(GRAFT_BUILD_TESTS "Build the test executables" ON)
+if(GRAFT_BUILD_TESTS)
+  enable_testing()
+  file(GLOB TEST_SRC tests/test_*.c)
+  foreach(TFILE ${TEST_SRC})
+    get_filename_component(TNAME ${TFILE} NAME_WE)
+    add_executable(${TNAME} ${TFILE})
+    target_link_libraries(${TNAME} graft_core)
+    add_test(NAME ${TNAME} COMMAND ${TNAME})
+  endforeach()
+endif()
