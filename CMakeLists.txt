@@ -85,7 +85,13 @@ add_library(mpack STATIC
 target_include_directories(mpack PUBLIC ${MPACK_DIR})
 
 # === Headers ===
-include_directories(${CMAKE_SOURCE_DIR}/include)
+# SQLITE/YAML headers may live outside the compiler default search path on
+# Homebrew arm64 (/opt/homebrew/include) — explicitly add the pkg-config dirs.
+include_directories(
+  ${CMAKE_SOURCE_DIR}/include
+  ${SQLITE_INCLUDE_DIRS}
+  ${YAML_INCLUDE_DIRS}
+)
 
 # === Sorgenti core (libreria condivisa interna) ===
 file(GLOB GRAFT_SRC CONFIGURE_DEPENDS
