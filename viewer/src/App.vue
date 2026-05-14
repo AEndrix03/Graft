@@ -369,6 +369,7 @@ const stats = computed(() => `${nodes.value.length} nodes · ${edges.value.lengt
     </div>
 
     <div class="status">
+      <img class="brand-logo" src="/graft.png" alt="" />
       <span class="brand">graft</span>
       <span class="dim">·</span>
       <span class="stats">{{ stats }}</span>
@@ -421,8 +422,10 @@ const stats = computed(() => `${nodes.value.length} nodes · ${edges.value.lengt
   border-radius: var(--radius-sm);
   backdrop-filter: blur(8px);
   display: flex;
+  align-items: center;
   gap: 8px;
 }
+.brand-logo { height: 18px; width: 18px; object-fit: contain; display: block; }
 .brand { color: var(--text); font-weight: 500; }
 .dim { color: var(--text-muted); }
 .err { color: #f87171; }
