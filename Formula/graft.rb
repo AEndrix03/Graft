@@ -71,7 +71,9 @@ class Graft < Formula
     ]
     llama_args << "-DCMAKE_BUILD_RPATH=#{rpath_token}"
     system "cmake", *llama_args
-    system "cmake", "--build", "third_party/llama.cpp/build", "--parallel"
+    # cap parallelism: linux GH runner has 7 GB RAM, llama.cpp link of
+    # libllama.so under unlimited -j OOMs the runner ("lost communication").
+    system "cmake", "--build", "third_party/llama.cpp/build", "--parallel", "2"
 
     graft_args = std_cmake_args + %W[
       -DCMAKE_BUILD_TYPE=Release
