@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="./assets/graft.png" alt="graft logo" width="180"/>
+
 <h1>graft</h1>
 
 <p><strong>Persistent graph memory for AI agents and microservices.</strong><br/>
