@@ -159,7 +159,6 @@ jobs:
 
   publish:
     needs: [prep, build]
-    if: needs.prep.outputs.stable == 'true'
     runs-on: ubuntu-latest
     env:
       VERSION: ${{ needs.prep.outputs.version }}
@@ -196,11 +195,14 @@ jobs:
       - name: Upload zip to release
         env:
           GH_TOKEN: ${{ github.token }}
+          STABLE: ${{ needs.prep.outputs.stable }}
         shell: bash
         run: |
           set -euo pipefail
+          prerelease_flag=""
+          [[ "$STABLE" != "true" ]] && prerelease_flag="--prerelease"
           if ! gh release view "${TAG}" >/dev/null 2>&1; then
-            gh release create "${TAG}" --title "${TAG}" --generate-notes --verify-tag
+            gh release create "${TAG}" --title "${TAG}" --generate-notes --verify-tag $prerelease_flag
           fi
           gh release upload "${TAG}" "dist/${{ steps.meta.outputs.name }}" --clobber
 
@@ -244,6 +246,8 @@ jobs:
           exit 1
 
       - name: Summary
+        env:
+          STABLE: ${{ needs.prep.outputs.stable }}
         shell: bash
         run: |
           {
@@ -252,28 +256,10 @@ jobs:
             echo "- Asset: \`${{ steps.meta.outputs.name }}\`"
             echo "- URL: ${{ steps.meta.outputs.url }}"
             echo "- SHA256: \`${{ steps.meta.outputs.sha }}\`"
+            [[ "$STABLE" != "true" ]] && echo "" && echo "> **Pre-release**: manifest points at a pre-release build."
             echo
             echo "Users can now install with:"
             echo
             echo "    scoop bucket add graft https://github.com/${REPO}"
             echo "    scoop install graft"
-          } >> "$GITHUB_STEP_SUMMARY"
-
-  summarize-prerelease:
-    needs: [prep, build]
-    if: needs.prep.outputs.stable != 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          name: scoop-asset
-          path: dist
-      - shell: bash
-        run: |
-          ls -la dist/
-          {
-            echo "## Pre-release Windows build OK: ${{ needs.prep.outputs.tag }}"
-            echo
-            echo "Zip artifact attached to this workflow run for inspection."
-            echo "Pre-release versions do **not** update \`bucket/graft.json\` and do **not** publish a GitHub Release."
           } >> "$GITHUB_STEP_SUMMARY"
