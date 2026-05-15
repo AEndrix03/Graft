@@ -156,10 +156,19 @@ mg_err_t mg_storage_node_keywords(
 mg_err_t mg_storage_merge_from(mg_storage_t *s, const char *source_path,
                                int overwrite);
 
-/* Remote-profile file sync helpers. Pull imports remote-only nodes as
- * REMOTE and applies delete-wins-remote only to rows that are not LOCAL. */
+/* Remote-profile file sync helpers.
+ *
+ * pull_remote_file: imports remote-only nodes (origin=REMOTE) and applies
+ *   delete-wins-remote for rows that are not LOCAL. Uses the existing
+ *   connection so WAL serialises the writes against other daemon threads.
+ *
+ * push_to_remote_file: copies only LOCAL nodes (origin=0) to the remote
+ *   file and marks them PUSHED (origin=2) in the same transaction, so the
+ *   mark is atomic with the push. The remote is opened via ATTACH on the
+ *   same connection — no second open of the local WAL file. */
 mg_err_t mg_storage_pull_remote_file(mg_storage_t *s, const char *source_path,
                                      int64_t *inserted, int64_t *deleted);
-mg_err_t mg_storage_mark_local_pushed(mg_storage_t *s, int64_t *updated);
+mg_err_t mg_storage_push_to_remote_file(mg_storage_t *s, const char *dest_path,
+                                        int64_t *pushed);
 
 #endif

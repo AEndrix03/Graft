@@ -1284,6 +1284,107 @@ mg_err_t mg_storage_mark_local_pushed(mg_storage_t *s, int64_t *updated) {
   return err;
 }
 
+mg_err_t mg_storage_push_to_remote_file(mg_storage_t *s, const char *dest_path,
+                                        int64_t *pushed) {
+  /* Strategy: ATTACH the remote file as "dest" on the daemon's existing
+   * connection. This avoids opening a second connection to the local WAL,
+   * which was the source of SQLITE_BUSY failures under concurrent inserts.
+   *
+   * The whole copy + mark runs in one BEGIN IMMEDIATE transaction:
+   *   - only origin=0 (LOCAL) nodes are pushed, not already-remote ones
+   *   - origin is flipped to 2 (PUSHED) in the same transaction, so there
+   *     is no window where a new insert gets marked PUSHED without being sent
+   */
+  if (!s || !dest_path) return MG_ERR_INVALID_ARG;
+  if (pushed) *pushed = 0;
+
+  sqlite3_busy_timeout(s->db, 5000);
+
+  sqlite3_stmt *stmt = NULL;
+  if (sqlite3_prepare_v2(s->db, "ATTACH DATABASE ? AS dest", -1, &stmt, NULL)
+      != SQLITE_OK) {
+    sqlite3_busy_timeout(s->db, 0);
+    return MG_ERR_STORAGE;
+  }
+  sqlite3_bind_text(stmt, 1, dest_path, -1, SQLITE_STATIC);
+  int rc = sqlite3_step(stmt);
+  sqlite3_finalize(stmt);
+  if (rc != SQLITE_DONE) {
+    sqlite3_busy_timeout(s->db, 0);
+    return MG_ERR_STORAGE;
+  }
+
+  mg_err_t err = exec_sql(s->db, "BEGIN IMMEDIATE;");
+  if (err != MG_OK) goto detach;
+
+  /* 1. keywords referenced by local nodes */
+  err = exec_sql(s->db,
+    "INSERT OR IGNORE INTO dest.keywords(text, embedding) "
+    "SELECT DISTINCT k.text, k.embedding "
+    "FROM main.keywords AS k "
+    "JOIN main.node_keywords AS nk ON nk.keyword_id = k.id "
+    "JOIN main.nodes AS n ON n.id = nk.node_id "
+    "WHERE n.origin = 0;");
+  if (err != MG_OK) goto rollback;
+
+  /* 2. nodes (LOCAL only) */
+  err = exec_sql(s->db,
+    "INSERT OR IGNORE INTO dest.nodes"
+    "(id, content_hash, title, body, author,"
+    " created_at, expires_at, last_access, access_count, state, origin) "
+    "SELECT id, content_hash, title, body, author,"
+    "       created_at, expires_at, last_access, access_count, state, 0 "
+    "FROM main.nodes WHERE origin = 0;");
+  if (err != MG_OK) goto rollback;
+  if (pushed) *pushed = sqlite3_changes64(s->db);
+
+  /* 3. embeddings for pushed nodes */
+  err = exec_sql(s->db,
+    "INSERT OR IGNORE INTO dest.node_vec(id, embedding) "
+    "SELECT id, embedding FROM main.node_vec "
+    "WHERE id IN (SELECT id FROM main.nodes WHERE origin = 0);");
+  if (err != MG_OK) goto rollback;
+
+  /* 4. node_keywords with keyword id remap via text */
+  err = exec_sql(s->db,
+    "INSERT OR IGNORE INTO dest.node_keywords(node_id, keyword_id) "
+    "SELECT nk.node_id, dk.id "
+    "FROM main.node_keywords AS nk "
+    "JOIN main.keywords AS mk ON mk.id = nk.keyword_id "
+    "JOIN dest.keywords  AS dk ON dk.text = mk.text COLLATE NOCASE "
+    "WHERE EXISTS (SELECT 1 FROM dest.nodes WHERE id = nk.node_id);");
+  if (err != MG_OK) goto rollback;
+
+  /* 5. edges where both endpoints are in dest */
+  err = exec_sql(s->db,
+    "INSERT OR IGNORE INTO dest.edges(src, dst, kind, keyword_id, weight) "
+    "SELECT e.src, e.dst, e.kind, "
+    "       CASE WHEN e.keyword_id IS NULL THEN NULL ELSE dk.id END, "
+    "       e.weight "
+    "FROM main.edges AS e "
+    "LEFT JOIN main.keywords AS mk ON mk.id = e.keyword_id "
+    "LEFT JOIN dest.keywords  AS dk ON dk.text = mk.text COLLATE NOCASE "
+    "WHERE EXISTS (SELECT 1 FROM dest.nodes WHERE id = e.src) "
+    "  AND EXISTS (SELECT 1 FROM dest.nodes WHERE id = e.dst);");
+  if (err != MG_OK) goto rollback;
+
+  /* 6. flip origin to PUSHED — atomic with the copy above */
+  err = exec_sql(s->db, "UPDATE main.nodes SET origin = 2 WHERE origin = 0;");
+  if (err != MG_OK) goto rollback;
+
+  err = exec_sql(s->db, "COMMIT;");
+  if (err != MG_OK) goto rollback;
+  goto detach;
+
+rollback:
+  (void)exec_sql(s->db, "ROLLBACK;");
+  if (pushed) *pushed = 0;
+detach:
+  (void)exec_sql(s->db, "DETACH DATABASE dest;");
+  sqlite3_busy_timeout(s->db, 0);
+  return err;
+}
+
 mg_err_t mg_storage_node_keywords(mg_storage_t *s,
                                   const mg_node_id_t node_id,
                                   mg_keyword_id_t *out_ids,

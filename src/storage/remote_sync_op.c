@@ -6,11 +6,13 @@
  * Result map:
  *   { "pulled": int, "deleted": int, "pushed": int }
  *
- * Running this op from inside the daemon avoids the "stop the daemon first"
- * dance that the standalone CLI sync used to require: the local handle is
- * already open and SQLite's WAL serializes the pull's writes against other
- * client threads. The remote file is opened transiently as a second SQLite
- * connection for the push half (mg_storage_merge_from) and closed again.
+ * Both halves run through the daemon's existing storage connection:
+ *   pull — ATTACHes remote as src, writes local under BEGIN IMMEDIATE
+ *   push — ATTACHes remote as dest, copies LOCAL nodes and flips their
+ *           origin to PUSHED in one transaction (atomic, no double-open)
+ *
+ * A 5-second busy_timeout on the local connection means brief WAL contention
+ * from concurrent inserts retries instead of returning SQLITE_BUSY immediately.
  */
 
 #include "graft/ops.h"
@@ -34,14 +36,7 @@ mg_err_t mg_op_remote_sync(mg_ctx_t *ctx, mpack_node_t args, mpack_writer_t *res
     mg_err_t err = mg_storage_pull_remote_file(ctx->storage, url, &pulled, &deleted);
     if (err != MG_OK) { free(url); return err; }
 
-    mg_storage_t *remote = NULL;
-    err = mg_storage_open(url, &remote);
-    if (err == MG_OK) err = mg_storage_apply_schema(remote);
-    if (err == MG_OK) err = mg_storage_merge_from(remote, ctx->config->db_path, 0);
-    if (remote) mg_storage_close(remote);
-    if (err != MG_OK) { free(url); return err; }
-
-    err = mg_storage_mark_local_pushed(ctx->storage, &pushed);
+    err = mg_storage_push_to_remote_file(ctx->storage, url, &pushed);
     if (err != MG_OK) { free(url); return err; }
 
     free(url);
