@@ -1,10 +1,10 @@
-/* Smoke test for the retrieve/query/get handlers.
+/* Smoke test for the retrieve/query/get/delete/view/remote_sync handlers.
  *
  * Note: most modules (storage, embed, verify) are not yet implemented at
  * the time this test compiles in isolation. We therefore only exercise
  * paths that do NOT reach into those modules:
  *   - hex encode/decode roundtrip
- *   - NULL/invalid arg validation in op handlers
+ *   - NULL/invalid arg validation in all op handlers
  *   - mg_op_get rejects malformed hex without touching storage
  */
 
@@ -42,11 +42,32 @@ static int test_hex_roundtrip(void) {
     rc = mg_retrieve_hex_decode("zz", 2, out, 1);
     assert(rc == -1);
 
-    /* length mismatch */
+    /* length mismatch: hex_len/2 != out_len */
     rc = mg_retrieve_hex_decode("aa", 2, out, 16);
     assert(rc == -1);
 
     printf("ok hex roundtrip\n");
+    return 0;
+}
+
+static int test_hex_encode_known(void) {
+    /* Known-value test so that a byte-swap in hex_encode is caught. */
+    uint8_t in[4] = { 0xde, 0xad, 0xbe, 0xef };
+    char hex[9] = {0};
+    mg_retrieve_hex_encode(in, 4, hex);
+    assert(strcmp(hex, "deadbeef") == 0);
+
+    /* all-zeros */
+    uint8_t zeros[4] = {0};
+    mg_retrieve_hex_encode(zeros, 4, hex);
+    assert(strcmp(hex, "00000000") == 0);
+
+    /* all-0xff */
+    uint8_t ones[4] = {0xff, 0xff, 0xff, 0xff};
+    mg_retrieve_hex_encode(ones, 4, hex);
+    assert(strcmp(hex, "ffffffff") == 0);
+
+    printf("ok hex encode known values\n");
     return 0;
 }
 
@@ -78,14 +99,27 @@ static int test_null_ctx(void) {
     assert(mg_op_get(NULL, args, &w) == MG_ERR_INVALID_ARG);
     (void)mpack_writer_destroy(&w);
 
+    mpack_writer_init(&w, buf, sizeof(buf));
+    assert(mg_op_delete(NULL, args, &w) == MG_ERR_INVALID_ARG);
+    (void)mpack_writer_destroy(&w);
+
+    mpack_writer_init(&w, buf, sizeof(buf));
+    assert(mg_op_view(NULL, args, &w) == MG_ERR_INVALID_ARG);
+    (void)mpack_writer_destroy(&w);
+
+    mpack_writer_init(&w, buf, sizeof(buf));
+    assert(mg_op_remote_sync(NULL, args, &w) == MG_ERR_INVALID_ARG);
+    (void)mpack_writer_destroy(&w);
+
     mpack_tree_destroy(&tree);
-    printf("ok null ctx rejected\n");
+    printf("ok null ctx rejected (retrieve/query/get/delete/view/remote_sync)\n");
     return 0;
 }
 
 int main(void) {
     int rc = 0;
     rc |= test_hex_roundtrip();
+    rc |= test_hex_encode_known();
     rc |= test_null_ctx();
     if (rc == 0) printf("test_retrieve: PASS\n");
     return rc;

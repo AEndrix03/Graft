@@ -170,5 +170,9 @@ mg_err_t mg_storage_pull_remote_file(mg_storage_t *s, const char *source_path,
                                      int64_t *inserted, int64_t *deleted);
 mg_err_t mg_storage_push_to_remote_file(mg_storage_t *s, const char *dest_path,
                                         int64_t *pushed);
+/* Marks all LOCAL (origin=0) nodes as PUSHED (origin=2). Used before a pull
+ * so that pulled deletes of already-pushed nodes are not misapplied locally.
+ * *updated receives the count of rows changed. */
+mg_err_t mg_storage_mark_local_pushed(mg_storage_t *s, int64_t *updated);
 
 #endif
