@@ -1,6 +1,8 @@
 # graft — documentation
 
-This is the developer reference for **graft**, the persistent graph-memory daemon for AI agents. Each section is a feature folder; open the one you care about.
+This is the developer reference for **graft**, the local-first agentic memory layer for AI coding agents. Each section is a feature folder; open the one you care about.
+
+If you are **new to graft**, start with [concepts](./concepts.md) and [use cases](./use-cases.md) — they explain the mental model without C internals.
 
 If you only want to **try graft**, jump to [`install/`](./install/) and you'll be running in under a minute.
 
@@ -12,23 +14,25 @@ If you want to **understand the internals**, start with [`architecture/`](./arch
 
 ## Map
 
-| Folder | What's inside |
-| ------ | ------------- |
-| [`install/`](./install/)               | Homebrew, install scripts, manual build, GPU builds, first-run check. |
-| [`release/`](./release/)               | Versioning, GitHub Releases, signed assets, SBOM, `graft upgrade`. |
-| [`architecture/`](./architecture/)     | CLI ↔ daemon split, the wire protocol, the request/response lifecycle. |
-| [`cli/`](./cli/)                       | Every `graft` / `graftd` subcommand and flag, with examples. |
-| [`storage/`](./storage/)               | SQLite schema, `sqlite-vec`, FTS5, atomic supersession, idempotency, WAL. |
-| [`embeddings/`](./embeddings/)         | BGE-M3 (1024-dim), llama.cpp, threading, CPU vs CUDA vs ROCm. |
-| [`retrieval/`](./retrieval/)           | `query` (cache lookup), `retrieve` (RRF), `explore` (beam + MMR), the verify pipeline. |
-| [`insert/`](./insert/)                 | Insert pipeline, keyword / semantic edge construction, MMR diversity, content hashing, `classify`. |
-| [`profiles/`](./profiles/)             | Multi-tenancy, per-profile DB + socket + daemon, export / import / merge / remote sync. |
-| [`http-api/`](./http-api/)             | Optional REST layer (`/v1/*`), per-endpoint flags, response envelope, examples. |
-| [`viewer/`](./viewer/)                 | Browser 3D viewer (Vue + three.js + CodeMirror), build, modes, edit-with-supersession. |
-| [`integrations/`](./integrations/)     | Claude Code, Codex, Claude Desktop, ChatGPT, Gemini CLI, Open Code, MCP / OAuth gateway. |
-| [`microservices/`](./microservices/)   | The L1 Redis + L2 graft semantic + L3 graft + AI agentic stack. Read this before embedding graft. |
-| [`maintenance/`](./maintenance/)       | `stats`, `consolidate`, the usage log, `analytics`, what to run when. |
-| [`configuration/`](./configuration/)   | Every key in `config.yaml`, every recognised environment variable, defaults table. |
+| Page / Folder | What's inside |
+| ------------- | ------------- |
+| [`concepts.md`](./concepts.md)          | Mental model: node, profile, semantic cache, edge, supersession, confidence, local-first. |
+| [`use-cases.md`](./use-cases.md)        | Concrete workflows: coding agent memory, bug fix reuse, architectural decisions, team memory. |
+| [`install/`](./install/)                | Homebrew, install scripts, manual build, GPU builds, first-run check. |
+| [`release/`](./release/)                | Versioning, GitHub Releases, signed assets, SBOM, `graft upgrade`. |
+| [`architecture/`](./architecture/)      | CLI ↔ daemon split, the wire protocol, the request/response lifecycle. |
+| [`cli/`](./cli/)                        | Every `graft` / `graftd` subcommand and flag, with examples. |
+| [`storage/`](./storage/)                | SQLite schema, `sqlite-vec`, FTS5, atomic supersession, idempotency, WAL. |
+| [`embeddings/`](./embeddings/)          | BGE-M3 (1024-dim), llama.cpp, threading, CPU vs CUDA vs ROCm. |
+| [`retrieval/`](./retrieval/)            | `query` (cache lookup), `retrieve` (RRF), `explore` (beam + MMR), the verify pipeline. |
+| [`insert/`](./insert/)                  | Insert pipeline, keyword / semantic edge construction, MMR diversity, content hashing, `classify`. |
+| [`profiles/`](./profiles/)              | Multi-tenancy, per-profile DB + socket + daemon, export / import / merge / remote sync. |
+| [`http-api/`](./http-api/)              | Optional REST layer, per-endpoint flags, response envelope, examples. |
+| [`viewer/`](./viewer/)                  | Browser 3D viewer (Vue + three.js + CodeMirror), build, modes, edit-with-supersession. |
+| [`integrations/`](./integrations/)      | Claude Code, Codex, Claude Desktop, ChatGPT, Gemini CLI, Open Code, MCP / OAuth gateway. |
+| [`microservices/`](./microservices/)    | The L1 Redis + L2 graft semantic + L3 graft + AI agentic stack. Read this before embedding graft. |
+| [`maintenance/`](./maintenance/)        | `stats`, `consolidate`, the usage log, `analytics`, what to run when. |
+| [`configuration/`](./configuration/)    | Every key in `config.yaml`, every recognised environment variable, defaults table. |
 
 ## Legacy single-file references
 
