@@ -2,139 +2,422 @@ name: release
 
 on:
   push:
-    tags:
-      - "v*.*.*"
-  workflow_dispatch:
-    inputs:
-      version:
-        description: "SemVer version to publish, without leading v (example: 0.2.0)"
-        required: true
+    branches: [release]
 
 permissions:
   contents: write
   id-token: write
   attestations: write
 
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
-  build:
-    name: build ${{ matrix.platform }}
-    runs-on: ${{ matrix.runner }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - runner: ubuntu-latest
-            platform: linux-x86_64
-        # macOS targets are temporarily disabled. Restore the macos-13 /
-        # macos-14 entries when Apple-flavored tarballs are needed again.
-
-    defaults:
-      run:
+  prep:
+    name: validate version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      tag: ${{ steps.v.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: v
         shell: bash
+        run: |
+          set -euo pipefail
+          version="$(tr -d '[:space:]' < VERSION)"
+          if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error title=Invalid version::VERSION='$version' is not strict semver x.y.z (pre-release modifiers like -alpha/-beta/-rc are not allowed on the release branch)"
+            exit 1
+          fi
+          tag="v${version}"
+          if git rev-parse "$tag" >/dev/null 2>&1; then
+            echo "::error title=Tag exists::tag $tag already exists; bump VERSION before pushing to release"
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag"         >> "$GITHUB_OUTPUT"
+          echo "::notice title=Release plan::tag=$tag version=$version"
 
+  test:
+    name: ctest
+    needs: prep
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
           fetch-depth: 0
-
-      - name: Validate VERSION against release tag
-        shell: bash
-        run: |
-          version="$(tr -d '[:space:]' < VERSION)"
-          if [ -n "${{ github.event.inputs.version }}" ] && [ "$version" != "${{ github.event.inputs.version }}" ]; then
-            echo "VERSION ($version) must match workflow input (${{ github.event.inputs.version }})" >&2
-            exit 1
-          fi
-          if [[ "${GITHUB_REF:-}" == refs/tags/v* ]]; then
-            tag="${GITHUB_REF#refs/tags/v}"
-            if [ "$version" != "$tag" ]; then
-              echo "VERSION ($version) must match tag v$tag" >&2
-              exit 1
-            fi
-          fi
-
-      - name: Install Linux dependencies
-        if: matrix.platform == 'linux-x86_64'
-        shell: bash
+      - name: Install dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y build-essential cmake pkg-config libsqlite3-dev libyaml-dev curl
-
-      - name: Install macOS dependencies
-        if: startsWith(matrix.platform, 'macos-')
+      - name: Compute llama.cpp cache key
+        id: llamakey
         shell: bash
-        run: brew install cmake pkg-config sqlite libyaml
-
-      - name: Build graft
+        run: |
+          sha=$(git submodule status third_party/llama.cpp | awk '{print $1}' | tr -d '+-')
+          echo "key=llama-linux-x86_64-${sha}-v1" >> "$GITHUB_OUTPUT"
+      - name: Cache llama.cpp build
+        id: llamacache
+        uses: actions/cache@v4
+        with:
+          path: third_party/llama.cpp/build
+          key: ${{ steps.llamakey.outputs.key }}
+      - name: ccache
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          key: ccache-test-${{ runner.os }}
+          max-size: 500M
+      - name: Build llama.cpp
+        if: steps.llamacache.outputs.cache-hit != 'true'
         run: |
           set -euo pipefail
-          rpath='$ORIGIN'
-          if [[ "${{ matrix.platform }}" == macos-* ]]; then rpath='@loader_path'; fi
-
           cmake -S third_party/llama.cpp -B third_party/llama.cpp/build \
             -DBUILD_SHARED_LIBS=ON -DGGML_NATIVE=OFF \
             -DLLAMA_CURL=OFF -DLLAMA_BUILD_SERVER=OFF \
             -DLLAMA_BUILD_TOOLS=OFF -DLLAMA_BUILD_EXAMPLES=OFF \
             -DLLAMA_BUILD_TESTS=OFF -DLLAMA_BUILD_COMMON=OFF \
             -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_BUILD_RPATH="$rpath"
+            -DCMAKE_BUILD_RPATH='$ORIGIN'
           cmake --build third_party/llama.cpp/build --parallel 2
-
+      - name: Build graft with tests
+        run: |
+          set -euo pipefail
           cmake -S . -B build \
             -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_BUILD_RPATH="$rpath" \
-            -DGRAFT_BUILD_TESTS=OFF
+            -DCMAKE_BUILD_RPATH='$ORIGIN' \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+            -DGRAFT_BUILD_TESTS=ON
           cmake --build build --parallel
+      - name: Run ctest
+        run: ctest --test-dir build --output-on-failure --parallel 2
 
-      - name: Package release asset
-        run: bash scripts/package-release.sh "${{ matrix.platform }}"
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: graft-${{ matrix.platform }}
-          path: dist/release/graft-${{ matrix.platform }}.*
-          if-no-files-found: error
-
-  publish:
-    name: publish GitHub release
-    needs: build
+  tarball:
+    name: build linux tarball
+    needs: test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
+          submodules: recursive
           fetch-depth: 0
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake pkg-config libsqlite3-dev libyaml-dev curl
+      - name: Compute llama.cpp cache key
+        id: llamakey
+        shell: bash
+        run: |
+          sha=$(git submodule status third_party/llama.cpp | awk '{print $1}' | tr -d '+-')
+          echo "key=llama-linux-x86_64-${sha}-v1" >> "$GITHUB_OUTPUT"
+      - name: Cache llama.cpp build
+        id: llamacache
+        uses: actions/cache@v4
+        with:
+          path: third_party/llama.cpp/build
+          key: ${{ steps.llamakey.outputs.key }}
+      - name: ccache
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          key: ccache-tarball-${{ runner.os }}
+          max-size: 500M
+      - name: Build llama.cpp
+        if: steps.llamacache.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          cmake -S third_party/llama.cpp -B third_party/llama.cpp/build \
+            -DBUILD_SHARED_LIBS=ON -DGGML_NATIVE=OFF \
+            -DLLAMA_CURL=OFF -DLLAMA_BUILD_SERVER=OFF \
+            -DLLAMA_BUILD_TOOLS=OFF -DLLAMA_BUILD_EXAMPLES=OFF \
+            -DLLAMA_BUILD_TESTS=OFF -DLLAMA_BUILD_COMMON=OFF \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_BUILD_RPATH='$ORIGIN'
+          cmake --build third_party/llama.cpp/build --parallel 2
+      - name: Build graft
+        run: |
+          set -euo pipefail
+          cmake -S . -B build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_BUILD_RPATH='$ORIGIN' \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+            -DGRAFT_BUILD_TESTS=OFF
+          cmake --build build --parallel
+      - name: Package
+        run: bash scripts/package-release.sh linux-x86_64
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tarball-linux-x86_64
+          path: dist/release/graft-linux-x86_64.*
+          if-no-files-found: error
+
+  bottle:
+    name: build homebrew bottle
+    needs: [prep, test]
+    runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ needs.prep.outputs.version }}
+      TAG: ${{ needs.prep.outputs.tag }}
+      ROOT_URL: https://github.com/${{ github.repository }}/releases/download/${{ needs.prep.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+      - uses: Homebrew/actions/setup-homebrew@master
+      - name: Stage source tarball
+        id: src
+        shell: bash
+        run: |
+          set -euo pipefail
+          name="graft-${VERSION}"
+          mkdir -p "${RUNNER_TEMP}/src"
+          out="${RUNNER_TEMP}/src/${name}.tar.gz"
+          git archive --format=tar --prefix="${name}/" HEAD | gzip > "$out"
+          sha=$(shasum -a 256 "$out" | awk '{print $1}')
+          echo "tarball=${out}" >> "$GITHUB_OUTPUT"
+          echo "sha256=${sha}"  >> "$GITHUB_OUTPUT"
+          echo "asset=${name}.tar.gz" >> "$GITHUB_OUTPUT"
+      - name: Inject stable section into formula
+        env:
+          SRC_TARBALL: ${{ steps.src.outputs.tarball }}
+          SRC_SHA: ${{ steps.src.outputs.sha256 }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os, re, pathlib
+          path = pathlib.Path("Formula/graft.rb")
+          t = path.read_text()
+          version = os.environ["VERSION"]
+          src_tarball = os.environ["SRC_TARBALL"]
+          src_sha = os.environ["SRC_SHA"]
+          t = re.sub(r"\n  livecheck do\n.*?  end\n", "\n", t, count=1, flags=re.S)
+          head_match = re.search(r"^  head .*$", t, flags=re.M)
+          head_line = head_match.group(0) if head_match else None
+          if head_line:
+              t = re.sub(r"^  head .*\n", "", t, count=1, flags=re.M)
+          stable = (
+              f'  url "file://{src_tarball}"\n'
+              f'  sha256 "{src_sha}"\n'
+              f'  version "{version}"\n'
+          )
+          t = re.sub(r'(^  homepage\s+"[^"]+"\n)', rf"\g<1>{stable}", t, count=1, flags=re.M)
+          if head_line:
+              t = re.sub(r'(^  license\s+"[^"]+"\n)', rf"\g<1>{head_line}\n", t, count=1, flags=re.M)
+          path.write_text(t)
+          PY
+      - name: Build and bottle
+        shell: bash
+        run: |
+          set -euxo pipefail
+          brew tap-new local/staging --no-git
+          tap_dir="$(brew --repository local/staging)"
+          mkdir -p "${tap_dir}/Formula"
+          cp Formula/graft.rb "${tap_dir}/Formula/graft.rb"
+          brew install --build-bottle --verbose local/staging/graft
+          brew bottle --no-rebuild --json --root-url="${ROOT_URL}" local/staging/graft
+          mkdir -p out
+          mv ./*.bottle.* out/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bottle-x86_64_linux
+          path: out/*
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: source-tarball
+          path: ${{ steps.src.outputs.tarball }}
+          if-no-files-found: error
+
+  scoop:
+    name: build scoop zip
+    needs: [prep, test]
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: "msys2 {0}"
+    env:
+      VERSION: ${{ needs.prep.outputs.version }}
+      TAG: ${{ needs.prep.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          cache: true
+          install: >-
+            git
+            zip
+            mingw-w64-x86_64-gcc
+            mingw-w64-x86_64-cmake
+            mingw-w64-x86_64-ninja
+            mingw-w64-x86_64-pkgconf
+            mingw-w64-x86_64-sqlite3
+            mingw-w64-x86_64-libyaml
+            mingw-w64-x86_64-curl
+            mingw-w64-x86_64-ccache
+      - name: Compute llama.cpp cache key
+        id: llamakey
+        run: |
+          sha=$(git submodule status third_party/llama.cpp | awk '{print $1}' | tr -d '+-')
+          echo "key=llama-windows-x86_64-${sha}-v1" >> "$GITHUB_OUTPUT"
+      - name: Cache llama.cpp build
+        id: llamacache
+        uses: actions/cache@v4
+        with:
+          path: third_party/llama.cpp/build
+          key: ${{ steps.llamakey.outputs.key }}
+      - name: Cache ccache
+        uses: actions/cache@v4
+        with:
+          path: ~/.ccache
+          key: ccache-scoop-windows-${{ github.sha }}
+          restore-keys: ccache-scoop-windows-
+      - name: Build llama.cpp
+        if: steps.llamacache.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          cmake -S third_party/llama.cpp -B third_party/llama.cpp/build -G Ninja \
+            -DBUILD_SHARED_LIBS=ON -DGGML_NATIVE=OFF \
+            -DLLAMA_CURL=OFF -DLLAMA_BUILD_SERVER=OFF \
+            -DLLAMA_BUILD_TOOLS=OFF -DLLAMA_BUILD_EXAMPLES=OFF \
+            -DLLAMA_BUILD_TESTS=OFF -DLLAMA_BUILD_COMMON=OFF \
+            -DCMAKE_BUILD_TYPE=Release
+          cmake --build third_party/llama.cpp/build --parallel 2
+      - name: Build graft
+        env:
+          CCACHE_MAXSIZE: 500M
+        run: |
+          set -euo pipefail
+          ccache -z || true
+          cmake -S . -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+            -DGRAFT_BUILD_TESTS=OFF
+          cmake --build build --parallel
+          ccache -s || true
+      - name: Stage zip layout
+        id: pack
+        run: |
+          set -euo pipefail
+          name="graft-windows-x86_64"
+          stage="dist/${name}"
+          mkdir -p "${stage}/bin" "${stage}/share/graft/integrations"
+          cp build/graft.exe build/graftd.exe "${stage}/bin/"
+          cp third_party/llama.cpp/build/bin/*.dll "${stage}/bin/" 2>/dev/null || true
+          cp third_party/llama.cpp/build/src/*.dll "${stage}/bin/" 2>/dev/null || true
+          find third_party/llama.cpp/build/ggml -name '*.dll' -exec cp {} "${stage}/bin/" \; 2>/dev/null || true
+          for dll in libsqlite3-0.dll libyaml-0-2.dll libstdc++-6.dll libgcc_s_seh-1.dll libwinpthread-1.dll libcurl-4.dll zlib1.dll; do
+            src="/mingw64/bin/${dll}"
+            [[ -f "$src" ]] && cp "$src" "${stage}/bin/" || true
+          done
+          if [[ -d viewer/dist ]]; then
+            mkdir -p "${stage}/share/graft/viewer"
+            cp -r viewer/dist/. "${stage}/share/graft/viewer/"
+          fi
+          cp -r integrations/standard "${stage}/share/graft/integrations/standard"
+          cp config.example.yaml "${stage}/share/graft/" 2>/dev/null || true
+          out="dist/${name}.zip"
+          (cd dist && /usr/bin/zip -r "${name}.zip" "${name}")
+          sha=$(sha256sum "$out" | awk '{print $1}')
+          echo "zip=$out"          >> "$GITHUB_OUTPUT"
+          echo "name=${name}.zip"  >> "$GITHUB_OUTPUT"
+          echo "sha=$sha"          >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: scoop-asset
+          path: ${{ steps.pack.outputs.zip }}
+          if-no-files-found: error
+      - name: Save sha and filename
+        run: |
+          mkdir -p meta
+          printf '%s' "${{ steps.pack.outputs.sha }}"  > meta/sha
+          printf '%s' "${{ steps.pack.outputs.name }}" > meta/name
+      - uses: actions/upload-artifact@v4
+        with:
+          name: scoop-meta
+          path: meta/
+
+  publish:
+    name: publish github release
+    needs: [prep, tarball, bottle, scoop]
+    runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ needs.prep.outputs.version }}
+      TAG: ${{ needs.prep.outputs.tag }}
+      REPO: ${{ github.repository }}
+      ROOT_URL: https://github.com/${{ github.repository }}/releases/download/${{ needs.prep.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - uses: actions/download-artifact@v4
         with:
-          path: dist/release
+          path: dist
           merge-multiple: true
 
-      - name: Generate checksums and changelog
+      - name: Layout assets
         shell: bash
         run: |
-          cd dist/release
-          sha256sum graft-* > SHA256SUMS
-          cd ../..
-          tag="${GITHUB_REF#refs/tags/}"
-          if [ "$tag" = "$GITHUB_REF" ]; then tag="v${{ github.event.inputs.version }}"; fi
-          prev="$(git describe --tags --abbrev=0 "${tag}^" 2>/dev/null || true)"
-          {
-            echo "# ${tag}"
-            echo
-            if [ -n "$prev" ]; then
-              git log --pretty='- %s (%h)' "$prev..HEAD"
-            else
-              git log --pretty='- %s (%h)'
-            fi
-          } > dist/release/CHANGELOG.md
+          set -euo pipefail
+          mkdir -p assets
+          # tarball + checksum
+          cp dist/graft-linux-x86_64.tar.gz assets/
+          # brew bottle + source tarball + json sidecar
+          cp dist/*.bottle.tar.gz dist/*.bottle.json assets/ 2>/dev/null || true
+          cp dist/graft-${VERSION}.tar.gz assets/ 2>/dev/null || true
+          # scoop zip
+          cp dist/graft-windows-x86_64.zip assets/
+          ls -la assets/
+
+      - name: Compute scoop metadata
+        id: scoopmeta
+        shell: bash
+        run: |
+          set -euo pipefail
+          sha="$(cat dist/sha 2>/dev/null || sha256sum assets/graft-windows-x86_64.zip | awk '{print $1}')"
+          name="graft-windows-x86_64.zip"
+          echo "sha=$sha"   >> "$GITHUB_OUTPUT"
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+          echo "url=${ROOT_URL}/${name}" >> "$GITHUB_OUTPUT"
+
+      - name: Compute source tarball metadata
+        id: srcmeta
+        shell: bash
+        run: |
+          set -euo pipefail
+          src="assets/graft-${VERSION}.tar.gz"
+          if [ ! -f "$src" ]; then
+            echo "missing source tarball for brew formula" >&2; exit 1
+          fi
+          sha=$(shasum -a 256 "$src" | awk '{print $1}')
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "name=graft-${VERSION}.tar.gz" >> "$GITHUB_OUTPUT"
+
+      - name: Generate checksums
+        shell: bash
+        run: |
+          cd assets
+          sha256sum graft-linux-x86_64.* graft-windows-x86_64.zip graft-${VERSION}.tar.gz *.bottle.tar.gz > SHA256SUMS
 
       - name: Generate SBOM
         uses: anchore/sbom-action@v0
         with:
           path: .
           format: spdx-json
-          output-file: dist/release/graft-sbom.spdx.json
+          output-file: assets/graft-sbom.spdx.json
           upload-artifact: false
 
       - name: Install cosign
@@ -143,8 +426,10 @@ jobs:
       - name: Sign release assets
         shell: bash
         run: |
-          cd dist/release
-          for f in graft-* SHA256SUMS; do
+          set -euo pipefail
+          cd assets
+          for f in graft-linux-x86_64.* graft-windows-x86_64.zip graft-${VERSION}.tar.gz *.bottle.tar.gz SHA256SUMS; do
+            [ -f "$f" ] || continue
             cosign sign-blob --yes "$f" \
               --output-signature "$f.sig" \
               --output-certificate "$f.pem"
@@ -153,20 +438,123 @@ jobs:
       - name: Attest build provenance
         uses: actions/attest-build-provenance@v2
         with:
-          subject-path: "dist/release/graft-*"
+          subject-path: "assets/graft-*"
 
-      - name: Publish release
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: Resolve release notes
+        id: notes
         shell: bash
         run: |
-          tag="${GITHUB_REF#refs/tags/}"
-          if [ "$tag" = "$GITHUB_REF" ]; then tag="v${{ github.event.inputs.version }}"; fi
-          if ! git rev-parse "$tag" >/dev/null 2>&1; then
-            git tag "$tag"
-            git push origin "$tag"
+          set -euo pipefail
+          if [ -f CHANGELOG.md ]; then
+            cp CHANGELOG.md assets/CHANGELOG.md
+            echo "notes_flag=--notes-file assets/CHANGELOG.md" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning title=No CHANGELOG.md::falling back to auto-generated release notes"
+            echo "notes_flag=--generate-notes" >> "$GITHUB_OUTPUT"
           fi
-          gh release create "$tag" dist/release/* \
-            --title "$tag" \
-            --notes-file dist/release/CHANGELOG.md \
-            --verify-tag
+
+      - name: Create tag and release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NOTES_FLAG: ${{ steps.notes.outputs.notes_flag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "${TAG}"
+          git push origin "${TAG}"
+          gh release create "${TAG}" assets/* \
+            --title "${TAG}" \
+            --verify-tag \
+            ${NOTES_FLAG}
+
+      - name: Patch Formula/graft.rb and bucket/graft.json on master
+        env:
+          SRC_NAME: ${{ steps.srcmeta.outputs.name }}
+          SRC_SHA: ${{ steps.srcmeta.outputs.sha }}
+          ASSET_URL: ${{ steps.scoopmeta.outputs.url }}
+          ASSET_SHA: ${{ steps.scoopmeta.outputs.sha }}
+        shell: bash
+        run: |
+          set -euxo pipefail
+          git fetch origin master
+          git checkout master
+          git pull --rebase origin master
+
+          python3 - <<'PY'
+          import os, re, json, glob, pathlib
+
+          version  = os.environ["VERSION"]
+          root_url = os.environ["ROOT_URL"]
+          src_name = os.environ["SRC_NAME"]
+          src_sha  = os.environ["SRC_SHA"]
+
+          # Formula
+          bottles = []
+          for jp in sorted(glob.glob("dist/*.bottle.json")):
+              data = json.loads(pathlib.Path(jp).read_text())
+              ((_, payload),) = data.items()
+              for os_tag, info in payload["bottle"]["tags"].items():
+                  bottles.append((os_tag, info.get("cellar", ":any"), info["sha256"]))
+          if not bottles:
+              raise SystemExit("no bottle JSON files in dist/")
+          lines = ["  bottle do", f'    root_url "{root_url}"', "    rebuild 0"]
+          for os_tag, cellar, sha in bottles:
+              cellar_lit = cellar if cellar.startswith(":") else f'"{cellar}"'
+              lines.append(f'    sha256 cellar: {cellar_lit}, {os_tag}: "{sha}"')
+          lines.append("  end")
+          new_bottle = "\n".join(lines)
+
+          fp = pathlib.Path("Formula/graft.rb")
+          t = fp.read_text()
+          t = re.sub(r"\n  livecheck do\n.*?  end\n", "\n", t, count=1, flags=re.S)
+          t = re.sub(r"\n  bottle do\n.*?  end\n",    "\n", t, count=1, flags=re.S)
+          t = re.sub(r'^  url\s+"[^"]+"\n',           "",   t, count=1, flags=re.M)
+          t = re.sub(r'^  sha256\s+"[0-9a-f]+"\n',    "",   t, count=1, flags=re.M)
+          t = re.sub(r'^  version\s+"[^"]+"\n',       "",   t, count=1, flags=re.M)
+          head_match = re.search(r"^  head .*$", t, flags=re.M)
+          head_line = head_match.group(0) if head_match else None
+          if head_line:
+              t = re.sub(r"^  head .*\n", "", t, count=1, flags=re.M)
+          stable_block = (
+              f'  url "{root_url}/{src_name}"\n'
+              f'  sha256 "{src_sha}"\n'
+              f'  version "{version}"\n'
+          )
+          t = re.sub(r'(^  homepage\s+"[^"]+"\n)', rf"\g<1>{stable_block}", t, count=1, flags=re.M)
+          if head_line:
+              t = re.sub(r'(^  license\s+"[^"]+"\n)', rf"\g<1>{head_line}\n", t, count=1, flags=re.M)
+          t = re.sub(r"(^  depends_on )", new_bottle + "\n\n\\1", t, count=1, flags=re.M)
+          fp.write_text(t)
+
+          # Scoop manifest
+          mp = pathlib.Path("bucket/graft.json")
+          data = json.loads(mp.read_text())
+          data["version"] = version
+          data["url"]     = os.environ["ASSET_URL"]
+          data["hash"]    = os.environ["ASSET_SHA"]
+          data.pop("notes", None)
+          mp.write_text(json.dumps(data, indent=4) + "\n")
+          PY
+
+          git add Formula/graft.rb bucket/graft.json
+          if git diff --cached --quiet; then
+            echo "no manifest changes to commit"
+          else
+            git commit -m "chore(release): publish ${TAG} formula and scoop manifest [skip ci]"
+            git push origin master
+          fi
+
+      - name: Summary
+        shell: bash
+        run: |
+          {
+            echo "## Released ${TAG}"
+            echo
+            echo "- Release: https://github.com/${REPO}/releases/tag/${TAG}"
+            echo "- Tarball: graft-linux-x86_64.tar.gz"
+            echo "- Bottle: x86_64_linux"
+            echo "- Scoop zip: graft-windows-x86_64.zip"
+            echo "- Formula and bucket manifest patched on master"
+          } >> "$GITHUB_STEP_SUMMARY"
