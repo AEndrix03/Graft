@@ -61,3 +61,6 @@ models/
 Thumbs.db
 .DS_Store
 
+
+# Local clone of the GitHub wiki repo; not a submodule of this project.
+Graft.wiki/

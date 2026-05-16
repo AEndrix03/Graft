@@ -21,6 +21,24 @@ jobs:
       version: ${{ steps.v.outputs.version }}
       tag: ${{ steps.v.outputs.tag }}
     steps:
+      - name: Skip if another release run is already in progress
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SELF_ID: ${{ github.run_id }}
+          REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          others=$(gh run list -R "$REPO" --workflow=release.yml --status=in_progress \
+                     --json databaseId --jq ".[] | select(.databaseId != ${SELF_ID}) | .databaseId" \
+                   || true)
+          if [ -n "$others" ]; then
+            echo "::notice title=Release skipped::another release run is already in progress ($others); cancelling self"
+            gh run cancel "$SELF_ID" -R "$REPO" || true
+            # Block until the cancel takes effect so downstream jobs don't run.
+            sleep 120
+            exit 1
+          fi
       - uses: actions/checkout@v4
       - id: v
         shell: bash
