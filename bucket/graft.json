@@ -1,14 +1,10 @@
 {
-    "version": "0.0.0",
+    "version": "0.1.0",
     "description": "Persistent graph memory for AI agents",
     "homepage": "https://github.com/AEndrix03/Graft",
     "license": "Apache-2.0",
-    "notes": [
-        "No stable release has been published yet.",
-        "Once vX.Y.Z is tagged, this manifest is patched in CI to point at the matching zip + bge-m3 model."
-    ],
-    "url": "https://github.com/AEndrix03/Graft/releases/download/v0.0.0/graft-windows-x86_64.zip",
-    "hash": "0000000000000000000000000000000000000000000000000000000000000000",
+    "url": "https://github.com/AEndrix03/Graft/releases/download/v0.1.0/graft-windows-x86_64.zip",
+    "hash": "11b8999205e5791623febb826ec0f1e5bcf4f08e07339bd071a93099555bd462",
     "extract_dir": "graft-windows-x86_64",
     "bin": [
         "bin/graft.exe",
