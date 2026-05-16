@@ -6,7 +6,7 @@
 
 <p><strong>Local-first agentic memory for AI coding agents.</strong><br/>
 Stop solving the same problems twice. Give Claude Code, Codex and any other agent a persistent memory<br/>
-that survives sessions, context resets and machine switches — in milliseconds, with no cloud, no API key.</p>
+that survives sessions, context resets and machine switches — locally, with no cloud and no API key.</p>
 
 <sub>C11 · SQLite + sqlite-vec + FTS5 · llama.cpp + BGE-M3 · MessagePack · AF_UNIX socket · optional REST + 3D viewer</sub>
 
@@ -46,6 +46,22 @@ It is not a vector database, a RAG framework, or a chatbot platform. It is the s
 
 ---
 
+## Agentic memory, not a vector DB
+
+Graft is shaped around how an **agent** writes and reads notes about its own work — not around how an application indexes a document corpus.
+
+| Vector DB / RAG store          | Graft (agentic memory)                                     |
+| ------------------------------ | ---------------------------------------------------------- |
+| Index documents you already have | Capture decisions, gotchas, and root causes as an agent solves them |
+| Query → top-k chunks            | Query → verified `STRONG` / `WEAK` / `MISS` with a single best answer |
+| You decide what to ingest       | The agent decides what is worth remembering, in-loop       |
+| Stateless reads                 | Edges + supersession track how knowledge evolves           |
+| Library / managed service       | Local binary, single SQLite file, no SDK to bind to        |
+
+If you need a vector DB, use a vector DB. Graft is for the layer above: **persistent reasoning the agent can build on**, not a search index over your files.
+
+---
+
 ## Install in 30 seconds
 
 ```bash
@@ -64,7 +80,7 @@ That's it. No daemon to start. No model to download by hand. No config to write.
 > pwsh scripts/install.ps1        # Windows (auto-installs MSYS2 if needed)
 > ```
 >
-> Optional GPU acceleration: `GRAFT_GPU=cuda bash scripts/install.sh` (NVIDIA CUDA) or `GRAFT_GPU=hip bash scripts/install.sh` (AMD ROCm 6 / 7). The build is **fast** — under 3 minutes on a laptop — so contributors can iterate without pain.
+> Optional GPU acceleration: `GRAFT_GPU=cuda bash scripts/install.sh` (NVIDIA CUDA) or `GRAFT_GPU=hip bash scripts/install.sh` (AMD ROCm 6 / 7). Builds are kept lightweight so contributors can iterate without long compile cycles.
 
 Full installation reference: [`docs/install/`](./docs/install/).
 
@@ -103,24 +119,25 @@ The two queries used **different phrasing**. The match is semantic plus lexical,
 
 ## What you get
 
+Each capability is labelled by maturity: **Stable** = shipped and used by the integrations; **Experimental** = wired up but rough edges or no benchmarks; **Vision** = a future direction, partially scaffolded at most.
+
 <table>
 <tr>
 <td width="33%" valign="top">
 
-#### Cache-first retrieval
-`graft query <text>` returns `STRONG` / `WEAK` / `MISS` in milliseconds.
-STRONG injects title + body straight into the agent's context.
+#### Cache-first retrieval · *Stable*
+`graft query <text>` returns `STRONG` / `WEAK` / `MISS`. STRONG injects title + body straight into the agent's context, so the agent does not have to choose between a list of candidates.
 
 </td>
 <td width="33%" valign="top">
 
-#### Hybrid search
+#### Hybrid search · *Stable*
 `graft retrieve` fuses dense (BGE-M3 cosine) and lexical (BM25 over title and body) via Reciprocal Rank Fusion.
 
 </td>
 <td width="33%" valign="top">
 
-#### Graph walks
+#### Graph walks · *Stable*
 `graft explore` follows keyword and semantic edges with beam search and MMR diversity, decay `gamma^step`.
 
 </td>
@@ -128,43 +145,42 @@ STRONG injects title + body straight into the agent's context.
 <tr>
 <td valign="top">
 
-#### Multi-tenant profiles
+#### Multi-tenant profiles · *Stable*
 Isolated DBs and sockets per profile (`work`, `personal`, project-scoped).
 Import / export / merge as plain SQLite files.
 
 </td>
 <td valign="top">
 
-#### Local-first
+#### Local-first · *Stable*
 Single binary, single DB file, no network.
-Models run on CPU out of the box; opt-in to CUDA or ROCm 6 / 7 with a flag.
+Models run on CPU out of the box; opt-in to CUDA or ROCm 6 / 7 with a build flag.
 
 </td>
 <td valign="top">
 
-#### Optional REST + 3D viewer
-Flip a flag in `config.yaml`, get nine JSON endpoints and a browser-based graph explorer with click-to-edit (atomic supersession).
+#### Optional REST + 3D viewer · *Experimental*
+Flip a flag in `config.yaml`, get JSON endpoints and a browser-based graph explorer with click-to-edit (atomic supersession). API surface still evolving.
 
 </td>
 </tr>
 <tr>
 <td valign="top">
 
-#### Pluggable into anything
+#### Agent integrations · *Stable*
 Claude Code (skills + hooks), Codex (`AGENTS.md` + hooks), Claude Desktop / ChatGPT (MCP), Gemini CLI, Open Code.
 
 </td>
 <td valign="top">
 
-#### Microservices-friendly
-Behind your REST gateway: <b>L1 Redis</b> + <b>L2 graft semantic cache</b> + <b>L3 graft + AI agentic retrieve</b>.
-[See the pattern](./docs/microservices/).
+#### Microservice cache pattern · *Experimental*
+Design pattern: <b>L1 Redis</b> + <b>L2 graft semantic cache</b> + <b>L3 graft + LLM</b>. Reference docs, no published benchmarks. [See the pattern](./docs/microservices/).
 
 </td>
 <td valign="top">
 
-#### Easy to contribute
-Small C11 codebase (~10 K LOC of project code). Builds in under 3 min. Tests + commit-msg policy included.
+#### Remote / team memory · *Vision*
+A shared memory store across machines or teammates is a planned direction, not a shipped feature. Today: per-machine local profiles, plus export / import / merge as SQLite files.
 
 </td>
 </tr>
@@ -184,42 +200,6 @@ Small C11 codebase (~10 K LOC of project code). Builds in under 3 min. Tests + c
 | **Confidence** | STRONG = both semantic similarity and lexical overlap pass the verify gate. WEAK = semantic signal only. |
 
 Full glossary → [`docs/concepts.md`](./docs/concepts.md).
-
----
-
-## The recommended microservice stack
-
-Most "GPT in a microservice" deployments burn money on tokens because every request runs an LLM, even when the answer hasn't changed. Graft fits naturally as the layer that **kills most of those LLM calls before they happen**:
-
-```text
-                       ┌──────────────────────────────┐
-        ┌────────────► │  L1 — Redis                  │  ~1 ms  · exact key match
-        │              │  cache:<sha256(prompt)>      │
-        │              └──────────────┬───────────────┘
-        │                  MISS       │
-        │                             ▼
-  Client                 ┌──────────────────────────────┐
-   request ─────────────►│  L2 — graft semantic cache   │  ~30–80 ms · paraphrase-aware,
-        ▲                │  GET /v1/match?text=...      │              verified STRONG/WEAK/MISS
-        │                └──────────────┬───────────────┘
-        │                    MISS       │
-        │                               ▼
-        │                 ┌──────────────────────────────┐
-        │                 │  L3 — graft + AI agentic     │  ~500 ms+ · top-k retrieve +
-        │                 │  GET /v1/search → LLM        │             LLM synthesis
-        │                 │  POST /v1/insert (writeback) │             writeback for next time
-        └─────────────────└──────────────────────────────┘
-```
-
-| Layer | Latency | Cost | What it answers |
-| ----- | ------- | ---- | --------------- |
-| **L1** Redis              | ~1 ms        | RAM bytes    | "Have we seen *this exact prompt* before?" |
-| **L2** graft semantic     | ~30–80 ms    | CPU (~free)  | "Have we seen *a question that means this* before?" |
-| **L3** graft + AI agent   | ~500 ms–N s  | LLM tokens   | "We haven't. Let me reason from related memories." |
-
-Every L3 answer is written back through `POST /v1/insert`, so the next caller hits L2 STRONG instead. **The system gets cheaper and faster over time, with zero ops effort.**
-
-Full pattern, sample code, deployment shapes, and failure modes: **[`docs/microservices/`](./docs/microservices/)**.
 
 ---
 
@@ -257,6 +237,42 @@ Full pattern, sample code, deployment shapes, and failure modes: **[`docs/micros
 Each adapter ships **skills** (telling the model *when* to search and *when* to save) and, where the harness supports them, **hooks** (running deterministically on `UserPromptSubmit` / `PostToolUse` / `Stop` so the model can't "forget").
 
 Full integration matrix and setup: **[`docs/integrations/`](./docs/integrations/)**.
+
+---
+
+## Beyond agent tooling — a microservice cache pattern *(experimental)*
+
+The same primitives that serve an agent (verified semantic cache + write-back) also slot in front of an LLM in a microservice. The pattern below is **a recommended design, not a benchmarked production stack** — share it with a back-end team that wants fewer LLM calls and is willing to validate it on their own workload:
+
+```text
+                       ┌──────────────────────────────┐
+        ┌────────────► │  L1 — Redis                  │  exact key match
+        │              │  cache:<sha256(prompt)>      │
+        │              └──────────────┬───────────────┘
+        │                  MISS       │
+        │                             ▼
+  Client                 ┌──────────────────────────────┐
+   request ─────────────►│  L2 — graft semantic cache   │  paraphrase-aware,
+        ▲                │  GET /v1/match?text=...      │  verified STRONG/WEAK/MISS
+        │                └──────────────┬───────────────┘
+        │                    MISS       │
+        │                               ▼
+        │                 ┌──────────────────────────────┐
+        │                 │  L3 — graft + LLM            │  top-k retrieve +
+        │                 │  GET /v1/search → LLM        │  LLM synthesis
+        │                 │  POST /v1/insert (writeback) │  writeback for next time
+        └─────────────────└──────────────────────────────┘
+```
+
+| Layer | What it answers | Cost shape |
+| ----- | --------------- | ---------- |
+| **L1** Redis              | "Have we seen *this exact prompt* before?"           | RAM bytes |
+| **L2** graft semantic     | "Have we seen *a question that means this* before?"  | local CPU |
+| **L3** graft + LLM        | "We haven't. Let me reason from related memories."   | LLM tokens |
+
+The idea: L3 answers get written back through `POST /v1/insert`, so the next caller hits L2 instead of regenerating with the LLM. Real savings depend entirely on your traffic — there are no published benchmarks yet.
+
+Full pattern, sample code, deployment shapes, and failure modes: **[`docs/microservices/`](./docs/microservices/)**.
 
 ---
 
@@ -352,7 +368,7 @@ The full index lives at **[`docs/`](./docs/)**.
 Plenty of agent-memory projects exist (mem0, Letta, Zep, Cognee, Graphiti, ...). They're libraries you import into a Python app, or services you self-host with a database. Graft picks a different shape:
 
 - **A binary, not a library.** The CLI is the contract. Any agent that can run a subprocess can use it — no Python runtime, no SDK version drift between client and server.
-- **Daemon + AF_UNIX socket.** State lives in one process; the CLI is a thin client. Cold start ~1–2 s the first time; subsequent calls under 100 ms warm.
+- **Daemon + AF_UNIX socket.** State lives in one process; the CLI is a thin client. The first call pays a one-off model-load cost; subsequent calls reuse the warm daemon.
 - **Multi-agent by design.** Claude Code, Codex, ChatGPT, and Claude Desktop already share the same graph on this machine — different surfaces, one memory.
 - **Local-first, no managed service.** SQLite on disk, llama.cpp for embeddings, no telemetry, no account. Backups are `cp graft.db dest/`.
 - **Cache-first, then retrieve.** Most reads are answered by a verified top-1 cache lookup, not a top-k semantic spray. Lower latency, less context noise, fewer hallucinations.
@@ -361,7 +377,7 @@ Plenty of agent-memory projects exist (mem0, Letta, Zep, Cognee, Graphiti, ...).
 
 ## Project status
 
-Graft is in **active alpha** — suitable for local agent workflows, early team integrations, and experimentation.
+Graft is in **active alpha** — suitable for local single-user agent workflows and experimentation. Team / multi-user scenarios are a future direction, not a shipped capability.
 
 The storage model, retrieval pipeline, and CLI surface are working and stable enough that the shipped integrations rely on them. APIs and internal storage format may still change before 1.0.
 
@@ -409,7 +425,7 @@ graft stats
 # 3. branch from master, keep PRs focused
 ```
 
-Builds are **fast** (under 3 minutes from clean). Tests run with `cmake --build build --target test`. Pre-commit hook for Conventional Commits is installed automatically by `scripts/install.sh`.
+Builds are kept lightweight so contributors can iterate quickly. Tests run with `cmake --build build --target test`. Pre-commit hook for Conventional Commits is installed automatically by `scripts/install.sh`.
 
 Bug reports and feature ideas: [GitHub Issues](https://github.com/AEndrix03/graft/issues). Read [CONTRIBUTING.md](./CONTRIBUTING.md) for the short version.
 
