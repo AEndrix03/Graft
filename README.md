@@ -384,7 +384,7 @@ The storage model, retrieval pipeline, and CLI surface are working and stable en
 Honest disclosures:
 - The **cross-encoder reranker** is a stub (`mg_ce_score_pair` returns `-1`). Today the verify gate uses trigram-Jaccard + cosine, which is plenty for most corpora. Wiring BGE-reranker-v2-m3 is on the roadmap.
 - **API contract**: the CLI JSON schema is the public surface. Internal C APIs may change without notice.
-- **Prebuilt releases are being introduced** — source builds remain the fallback until the first signed GitHub Release is published.
+- **Prebuilt alpha releases** are now published through GitHub Actions with test gating, SHA256 checksums, SBOM, Sigstore/cosign signatures and build provenance. Source builds remain the fallback while packaging and platform coverage stabilize.
 
 ---
 
