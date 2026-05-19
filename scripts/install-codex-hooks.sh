@@ -53,49 +53,51 @@ const targetDir = process.argv[3].replace(/\\/g, '/');
 let doc = {};
 try {
   if (fs.existsSync(hooksPath)) {
-    const raw = fs.readFileSync(hooksPath, 'utf8').trim();
+    const raw = fs.readFileSync(hooksPath, 'utf8').replace(/^\uFEFF/, '').trim();
     if (raw) doc = JSON.parse(raw);
   }
 } catch (_) {
-  doc = {};
+  console.error(`cannot parse existing hooks file: ${hooksPath}`);
+  process.exit(2);
 }
-doc.hooks = {
-  UserPromptSubmit: [
-    {
-      hooks: [
-        {
-          type: 'command',
-          command: `node "${path.posix.join(targetDir, 'query_inject.js')}"`,
-          timeout: 10,
-          statusMessage: 'graft cache lookup',
-        },
-      ],
-    },
-  ],
-  PostToolUse: [
-    {
-      matcher: 'apply_patch',
-      hooks: [
-        {
-          type: 'command',
-          command: `node "${path.posix.join(targetDir, 'mark_candidate.js')}"`,
-          timeout: 5,
-        },
-      ],
-    },
-  ],
-  Stop: [
-    {
-      hooks: [
-        {
-          type: 'command',
-          command: `node "${path.posix.join(targetDir, 'propose_memoryze.js')}"`,
-          timeout: 5,
-        },
-      ],
-    },
-  ],
-};
+if (!doc || Array.isArray(doc) || typeof doc !== 'object') doc = {};
+if (!doc.hooks || Array.isArray(doc.hooks) || typeof doc.hooks !== 'object') doc.hooks = {};
+function cmd(script, timeout, statusMessage) {
+  const hook = {
+    type: 'command',
+    command: `node "${script.replace(/"/g, '\\"')}"`,
+    timeout,
+    __script: script,
+  };
+  if (statusMessage) hook.statusMessage = statusMessage;
+  return hook;
+}
+function sameHook(hook, script) {
+  return hook && hook.type === 'command' && typeof hook.command === 'string' && hook.command.includes(script);
+}
+function upsert(event, matcher, hook) {
+  const groups = Array.isArray(doc.hooks[event]) ? doc.hooks[event] : [];
+  let placed = false;
+  doc.hooks[event] = groups.map(group => {
+    if (!group || typeof group !== 'object') return group;
+    const hooks = Array.isArray(group.hooks) ? group.hooks.filter(h => !sameHook(h, hook.__script)) : [];
+    const matches = matcher === null ? !Object.prototype.hasOwnProperty.call(group, 'matcher') : group.matcher === matcher;
+    if (!matches) return { ...group, hooks };
+    placed = true;
+    return { ...group, hooks: [...hooks, hook] };
+  });
+  if (!placed) {
+    doc.hooks[event].push(matcher === null ? { hooks: [hook] } : { matcher, hooks: [hook] });
+  }
+  for (const group of doc.hooks[event]) {
+    if (group && Array.isArray(group.hooks)) {
+      for (const h of group.hooks) delete h.__script;
+    }
+  }
+}
+upsert('UserPromptSubmit', null, cmd(path.posix.join(targetDir, 'query_inject.js'), 10, 'graft cache lookup'));
+upsert('PostToolUse', 'apply_patch', cmd(path.posix.join(targetDir, 'mark_candidate.js'), 5));
+upsert('Stop', null, cmd(path.posix.join(targetDir, 'propose_memoryze.js'), 5));
 fs.mkdirSync(path.dirname(hooksPath), { recursive: true });
 fs.writeFileSync(hooksPath, JSON.stringify(doc, null, 2) + '\n');
 NODE

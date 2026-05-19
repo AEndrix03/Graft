@@ -360,22 +360,6 @@ static int find_standard_dir(char *out, size_t cap) {
     return -1;
 }
 
-static void json_write_escaped(FILE *f, const char *s) {
-    for (; *s; s++) {
-        unsigned char c = (unsigned char)*s;
-        switch (c) {
-            case '\\': fputs("\\\\", f); break;
-            case '"':  fputs("\\\"", f); break;
-            case '\n': fputs("\\n", f); break;
-            case '\r': break;
-            case '\t': fputs("\\t", f); break;
-            default:
-                if (c < 0x20) fprintf(f, "\\u%04x", c);
-                else fputc(c, f);
-        }
-    }
-}
-
 static int write_text_file(const char *path, const char *text) {
     char dir[1024];
     if (snprintf(dir, sizeof(dir), "%s", path) >= (int)sizeof(dir)) return -1;
@@ -384,6 +368,15 @@ static int write_text_file(const char *path, const char *text) {
     if (!f) return -1;
     fputs(text, f);
     return fclose(f) == 0 ? 0 : -1;
+}
+
+static void shell_write_quoted(FILE *f, const char *s) {
+    fputc('"', f);
+    for (; *s; s++) {
+        if (*s == '"' || *s == '\\') fputc('\\', f);
+        fputc(*s, f);
+    }
+    fputc('"', f);
 }
 
 static int print_file_contents(const char *path) {
@@ -440,11 +433,6 @@ static int enable_codex_hooks_flag(const char *codex_home) {
             return -1;
         }
         fclose(f);
-        if (strstr(buf, "[features]") && strstr(buf, "hooks = true")) {
-            free(buf);
-            return 0;
-        }
-
         /* Length-tracked builder: an attacker-controlled config.toml with many
          * repeated `[features]` sections or other expansion-triggering lines
          * could overflow a fixed-size buffer. Track capacity strictly and
@@ -527,61 +515,124 @@ static int enable_codex_hooks_flag(const char *codex_home) {
     return write_text_file(path, "[features]\nhooks = true\n");
 }
 
-static void write_hook_command(FILE *f, enum mg_setup_agent agent,
-                               const char *script, int timeout,
-                               const char *status_message) {
-    if (agent == MG_SETUP_CLAUDECODE) {
-        fputs("{ \"type\": \"command\", \"command\": \"node\", \"args\": [\"", f);
-        json_write_escaped(f, script);
-        fprintf(f, "\"], \"timeout\": %d }", timeout);
-        return;
-    }
-
-    fputs("{ \"type\": \"command\", \"command\": \"node \\\"", f);
-    json_write_escaped(f, script);
-    fprintf(f, "\\\"\", \"timeout\": %d", timeout);
-    if (status_message) {
-        fputs(", \"statusMessage\": \"", f);
-        json_write_escaped(f, status_message);
-        fputc('"', f);
-    }
-    fputs(" }", f);
-}
-
 static int write_hook_config(const char *path, const char *hook_dir,
                              enum mg_setup_agent agent) {
-    FILE *f = fopen(path, "wb");
-    if (!f) {
-        char dir[1024];
-        if (snprintf(dir, sizeof(dir), "%s", path) >= (int)sizeof(dir)) return -1;
-        if (parent_dir(dir) != 0 || mkdir_p(dir) != 0) return -1;
-        f = fopen(path, "wb");
-        if (!f) return -1;
-    }
-
-    const char *post_matcher = agent == MG_SETUP_CLAUDECODE
-        ? "Edit|Write|MultiEdit|NotebookEdit"
-        : "apply_patch";
+    char dir[1024];
+    if (snprintf(dir, sizeof(dir), "%s", path) >= (int)sizeof(dir)) return -1;
+    if (parent_dir(dir) != 0 || mkdir_p(dir) != 0) return -1;
 
     char query[1024], mark[1024], propose[1024];
     if (path_join(query, sizeof(query), hook_dir, "query_inject.js") != 0
         || path_join(mark, sizeof(mark), hook_dir, "mark_candidate.js") != 0
         || path_join(propose, sizeof(propose), hook_dir, "propose_memoryze.js") != 0) {
-        fclose(f);
         return -1;
     }
 
-    fputs("{\n  \"hooks\": {\n    \"UserPromptSubmit\": [\n      {\n        \"hooks\": [\n          ", f);
-    write_hook_command(f, agent, query, 10,
-                       agent == MG_SETUP_CODEX ? "graft cache lookup" : NULL);
-    fputs("\n        ]\n      }\n    ],\n    \"PostToolUse\": [\n      {\n        \"matcher\": \"", f);
-    json_write_escaped(f, post_matcher);
-    fputs("\",\n        \"hooks\": [\n          ", f);
-    write_hook_command(f, agent, mark, 5, NULL);
-    fputs("\n        ]\n      }\n    ],\n    \"Stop\": [\n      {\n        \"hooks\": [\n          ", f);
-    write_hook_command(f, agent, propose, 5, NULL);
-    fputs("\n        ]\n      }\n    ]\n  }\n}\n", f);
-    return fclose(f) == 0 ? 0 : -1;
+    char tmp_js[1024];
+    if (path_join(tmp_js, sizeof(tmp_js), dir, ".graft-merge-hooks.js") != 0) return -1;
+    FILE *js = fopen(tmp_js, "wb");
+    if (!js) return -1;
+    fputs(
+        "const fs = require('fs');\n"
+        "const [configPath, agent, query, mark, propose] = process.argv.slice(2);\n"
+        "let doc = {};\n"
+        "try {\n"
+        "  if (fs.existsSync(configPath)) {\n"
+        "    const raw = fs.readFileSync(configPath, 'utf8').replace(/^\\uFEFF/, '').trim();\n"
+        "    if (raw) doc = JSON.parse(raw);\n"
+        "  }\n"
+        "} catch (e) {\n"
+        "  console.error(`graft setup: cannot parse ${configPath}: ${e.message}`);\n"
+        "  process.exit(2);\n"
+        "}\n"
+        "if (!doc || Array.isArray(doc) || typeof doc !== 'object') doc = {};\n"
+        "if (!doc.hooks || Array.isArray(doc.hooks) || typeof doc.hooks !== 'object') doc.hooks = {};\n"
+        "const claude = agent === 'claudecode';\n"
+        "function cmd(script, timeout, statusMessage) {\n"
+        "  const h = claude\n"
+        "    ? { type: 'command', command: 'node', args: [script], timeout }\n"
+        "    : { type: 'command', command: `node \"${script.replace(/\"/g, '\\\\\"')}\"`, timeout };\n"
+        "  if (statusMessage) h.statusMessage = statusMessage;\n"
+        "  return h;\n"
+        "}\n"
+        "function sameHook(a, script) {\n"
+        "  if (!a || a.type !== 'command') return false;\n"
+        "  if (Array.isArray(a.args) && a.args.includes(script)) return true;\n"
+        "  return typeof a.command === 'string' && a.command.includes(script);\n"
+        "}\n"
+        "function upsert(event, matcher, hook) {\n"
+        "  const groups = Array.isArray(doc.hooks[event]) ? doc.hooks[event] : [];\n"
+        "  const next = [];\n"
+        "  let placed = false;\n"
+        "  for (const group of groups) {\n"
+        "    if (!group || typeof group !== 'object') { next.push(group); continue; }\n"
+        "    const hooks = Array.isArray(group.hooks) ? group.hooks : [];\n"
+        "    const filtered = hooks.filter(h => !sameHook(h, hook.__script));\n"
+        "    const matches = matcher === null ? !Object.prototype.hasOwnProperty.call(group, 'matcher') : group.matcher === matcher;\n"
+        "    if (matches) {\n"
+        "      next.push({ ...group, hooks: [...filtered, hook] });\n"
+        "      placed = true;\n"
+        "    } else {\n"
+        "      next.push({ ...group, hooks: filtered });\n"
+        "    }\n"
+        "  }\n"
+        "  if (!placed) {\n"
+        "    const group = matcher === null ? { hooks: [hook] } : { matcher, hooks: [hook] };\n"
+        "    next.push(group);\n"
+        "  }\n"
+        "  for (const group of next) {\n"
+        "    if (group && Array.isArray(group.hooks)) for (const h of group.hooks) delete h.__script;\n"
+        "  }\n"
+        "  doc.hooks[event] = next;\n"
+        "}\n"
+        "const q = cmd(query, 10, claude ? undefined : 'graft cache lookup'); q.__script = query;\n"
+        "const m = cmd(mark, 5); m.__script = mark;\n"
+        "const p = cmd(propose, 5); p.__script = propose;\n"
+        "upsert('UserPromptSubmit', null, q);\n"
+        "upsert('PostToolUse', claude ? 'Edit|Write|MultiEdit|NotebookEdit' : 'apply_patch', m);\n"
+        "upsert('Stop', null, p);\n"
+        "fs.writeFileSync(configPath, JSON.stringify(doc, null, 2) + '\\n', { encoding: 'utf8' });\n",
+        js);
+    if (fclose(js) != 0) {
+        remove(tmp_js);
+        return -1;
+    }
+
+    char cmd[8192];
+    FILE *cmdf = tmpfile();
+    if (!cmdf) {
+        remove(tmp_js);
+        return -1;
+    }
+    fputs("node ", cmdf);
+    shell_write_quoted(cmdf, tmp_js);
+    fputc(' ', cmdf);
+    shell_write_quoted(cmdf, path);
+    fputc(' ', cmdf);
+    shell_write_quoted(cmdf, agent == MG_SETUP_CLAUDECODE ? "claudecode" : "codex");
+    fputc(' ', cmdf);
+    shell_write_quoted(cmdf, query);
+    fputc(' ', cmdf);
+    shell_write_quoted(cmdf, mark);
+    fputc(' ', cmdf);
+    shell_write_quoted(cmdf, propose);
+    long n;
+    if (fflush(cmdf) != 0 || fseek(cmdf, 0, SEEK_END) != 0 || (n = ftell(cmdf)) < 0
+        || (size_t)n >= sizeof(cmd) || fseek(cmdf, 0, SEEK_SET) != 0) {
+        fclose(cmdf);
+        remove(tmp_js);
+        return -1;
+    }
+    if (fread(cmd, 1, (size_t)n, cmdf) != (size_t)n) {
+        fclose(cmdf);
+        remove(tmp_js);
+        return -1;
+    }
+    cmd[n] = '\0';
+    fclose(cmdf);
+    int rc = system(cmd);
+    remove(tmp_js);
+    return rc == 0 ? 0 : -1;
 }
 
 static int setup_claudecode(const char *src, const char *home) {
