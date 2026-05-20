@@ -30,6 +30,9 @@ Installazione user-scoped automatica:
 graft setup claudecode
 ```
 
+Il setup automatico copia solo le skill in `~/.claude/skills`; non installa hook
+e non modifica `~/.claude/settings.json`.
+
 Copia tutta la directory standard `skills/` nella skill folder di Claude Code:
 
 ```bash

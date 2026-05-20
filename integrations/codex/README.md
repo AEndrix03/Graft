@@ -1,7 +1,8 @@
 # Codex - graft integration
 
-Codex uses two layers:
+Codex can use two layers:
 
+- Skills: user-scoped instructions loaded by Codex.
 - `AGENTS.md`: static instructions loaded as model context.
 - Hooks: deterministic `UserPromptSubmit`, `PostToolUse`, and `Stop` helpers.
 
@@ -14,9 +15,8 @@ manual-install reference for Codex.
 graft setup codex
 ```
 
-Setup installs compatible skills to `~/.codex/skills`, hooks to
-`~/.codex/hooks/graft`, writes `~/.codex/hooks.json`, enables
-`[features].hooks = true`, and prints project instructions for `AGENTS.md`.
+Setup installs compatible skills to `~/.codex/skills` only. It does not modify
+`AGENTS.md`, `~/.codex/hooks.json`, or `~/.codex/config.toml`.
 
 For repo-level instructions:
 

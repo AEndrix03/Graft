@@ -3,6 +3,12 @@
 All notable changes to **graft** are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project follows [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Changed
+
+- `graft setup claudecode`, `graft setup codex`, and `graft setup opencode` now install only the shared skills package. Hook installation and agent settings/instruction writes are disabled in code for the next version.
+
 ## [0.1.0] — Initial release
 
 First public release of graft — local-first agentic memory for AI coding agents.
@@ -40,14 +46,14 @@ A single binary + single SQLite file that gives any agent persistent memory acro
 
 ### Agent integrations
 
-Each adapter ships **skills** (when to search, when to save) and, where the harness supports them, **hooks** (deterministic execution on `UserPromptSubmit` / `PostToolUse` / `Stop` so the model can't forget):
+Each adapter ships **skills** (when to search, when to save) and, where the harness supports them, optional **hooks** (deterministic execution on `UserPromptSubmit` / `PostToolUse` / `Stop` so the model can't forget):
 
-- **Claude Code** — skills + hooks, installed via `graft setup claudecode`.
-- **Codex** — `AGENTS.md` + hooks, installed via `graft setup codex`.
+- **Claude Code** — skills + optional hooks.
+- **Codex** — skills + optional `AGENTS.md` and hooks.
 - **Claude Desktop** — MCP server (stdio).
 - **ChatGPT** — MCP server (stdio or HTTP) with optional OAuth gateway.
 - **Gemini CLI** — `GEMINI.md` memory file.
-- **Open Code** — `AGENTS.md` + skills, installed via `graft setup opencode`.
+- **Open Code** — skills + optional `AGENTS.md`.
 
 ### Microservices pattern
 

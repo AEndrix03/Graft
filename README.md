@@ -168,7 +168,7 @@ Flip a flag in `config.yaml`, get JSON endpoints and a browser-based graph explo
 <td valign="top">
 
 #### Agent integrations · *Stable*
-Claude Code (skills + hooks), Codex (`AGENTS.md` + hooks), Claude Desktop / ChatGPT (MCP), Gemini CLI, Open Code.
+Claude Code, Codex, and Open Code skills via `graft setup`; Claude Desktop / ChatGPT via MCP; Gemini CLI via `GEMINI.md`.
 
 </td>
 <td valign="top">
@@ -227,14 +227,14 @@ Full glossary → [`docs/concepts.md`](./docs/concepts.md).
 
 | Agent          | Integration               | Setup |
 | -------------- | ------------------------- | ----- |
-| Claude Code    | Skills + Hooks            | `graft setup claudecode` |
-| Codex          | `AGENTS.md` + Hooks       | `graft setup codex` |
+| Claude Code    | Skills                    | `graft setup claudecode` |
+| Codex          | Skills                    | `graft setup codex` |
 | Claude Desktop | MCP server (stdio)        | `integrations/claude-ai/claude_desktop_config.json` |
 | ChatGPT        | MCP server (stdio or HTTP)| `integrations/chatgpt/mcp_config.json` |
 | Gemini CLI     | `GEMINI.md` memory file   | `integrations/gemini-cli/` |
-| Open Code      | `AGENTS.md` + Skills      | `graft setup opencode` |
+| Open Code      | Skills                    | `graft setup opencode` |
 
-Each adapter ships **skills** (telling the model *when* to search and *when* to save) and, where the harness supports them, **hooks** (running deterministically on `UserPromptSubmit` / `PostToolUse` / `Stop` so the model can't "forget").
+Each adapter ships **skills** that tell the model *when* to search and *when* to save. Hook and agent-instruction installers are currently kept out of `graft setup`; use the integration docs for manual wiring if needed.
 
 Full integration matrix and setup: **[`docs/integrations/`](./docs/integrations/)**.
 
@@ -305,7 +305,7 @@ flowchart LR
     end
 
     subgraph Adapters["Adapters (integrations/)"]
-      S["Skills · AGENTS.md · Hooks"]
+      S["Skills · optional AGENTS.md / Hooks"]
       M["MCP server (Python)"]
     end
 

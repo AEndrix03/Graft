@@ -10,8 +10,10 @@ The shared source for instructions and skills is `integrations/standard`.
 graft setup opencode
 ```
 
-For project-local instructions, paste the snippet printed by setup into
-`AGENTS.md`, or copy it manually:
+Setup installs compatible skills to `~/.config/opencode/skills` only. It does
+not write `AGENTS.md` or agent settings.
+
+For project-local instructions, copy the snippet manually:
 
 ```bash
 cat integrations/standard/project-snippet.md >> ./AGENTS.md

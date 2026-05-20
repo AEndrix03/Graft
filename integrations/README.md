@@ -7,8 +7,8 @@ Due famiglie di integrazione:
 | Tipo     | Tool                | Meccanismo                                | Dir                          |
 | -------- | ------------------- | ----------------------------------------- | ---------------------------- |
 | **CLI**  | Claude Code         | Skill (`SKILL.md` con frontmatter)        | `claude-code/`               |
-| **CLI**  | Codex (OpenAI)      | `AGENTS.md` istruzioni di repo            | `codex/`                     |
-| **CLI**  | Open Code           | `AGENTS.md` istruzioni                    | `opencode/`                  |
+| **CLI**  | Codex (OpenAI)      | Skills; `AGENTS.md` opzionale/manuale     | `codex/`                     |
+| **CLI**  | Open Code           | Skills; `AGENTS.md` opzionale/manuale     | `opencode/`                  |
 | **CLI**  | Gemini CLI          | `GEMINI.md` memory file                   | `gemini-cli/`                |
 | **CHAT** | Claude AI (desktop) | MCP server + `claude_desktop_config.json` | `claude-ai/` + `mcp-server/` |
 | **CHAT** | ChatGPT             | MCP server + connector config             | `chatgpt/`   + `mcp-server/` |
@@ -44,13 +44,17 @@ I CLI assistant (Claude Code, Codex, …) chiamano direttamente il binario `graf
 
 ## Setup CLI assistant
 
-Per installare skill/istruzioni e hook nel profilo utente dell'assistant:
+Per installare le skill nel profilo utente dell'assistant:
 
 ```bash
 graft setup claudecode
 graft setup codex
 graft setup opencode
 ```
+
+Per ora `graft setup` non modifica file di settings/config dell'agent e non
+scrive hook o `AGENTS.md`; eventuale wiring manuale resta documentato nelle
+cartelle dei singoli adapter.
 
 ## Mapping operazioni → tool name
 

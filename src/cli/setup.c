@@ -25,6 +25,9 @@ enum mg_setup_agent {
     MG_SETUP_OPENCODE
 };
 
+#define MG_SETUP_INSTALL_HOOKS 0
+#define MG_SETUP_INSTALL_AGENT_INSTRUCTIONS 0
+
 static int path_join(char *out, size_t cap, const char *a, const char *b) {
     int n = snprintf(out, cap, "%s%c%s", a, MG_PATH_SEP, b);
     return (n > 0 && (size_t)n < cap) ? 0 : -1;
@@ -303,9 +306,11 @@ static const char *agent_display_name(enum mg_setup_agent agent) {
     return "agent";
 }
 
+#if MG_SETUP_INSTALL_AGENT_INSTRUCTIONS
 static const char *agent_project_file(enum mg_setup_agent agent) {
     return agent == MG_SETUP_CLAUDECODE ? "CLAUDE.md" : "AGENTS.md";
 }
+#endif
 
 static int candidate_standard_dir(char *out, size_t cap, const char *base) {
     char tmp[1024];
@@ -379,6 +384,7 @@ static void shell_write_quoted(FILE *f, const char *s) {
     fputc('"', f);
 }
 
+#if MG_SETUP_INSTALL_AGENT_INSTRUCTIONS
 static int print_file_contents(const char *path) {
     FILE *f = fopen(path, "rb");
     if (!f) return -1;
@@ -408,6 +414,7 @@ static void print_project_snippet(const char *src, enum mg_setup_agent agent) {
     }
     printf("\n-----END GRAFT PROJECT INSTRUCTIONS-----\n\n");
 }
+#endif
 
 static int enable_codex_hooks_flag(const char *codex_home) {
     char path[1024];
@@ -640,23 +647,26 @@ static int setup_claudecode(const char *src, const char *home) {
     char src_hooks[1024], dst_hooks_root[1024], dst_hooks[1024], settings[1024];
     if (path_join(claude_home, sizeof(claude_home), home, ".claude") != 0
         || path_join(src_skills, sizeof(src_skills), src, "skills") != 0
-        || path_join(dst_skills, sizeof(dst_skills), claude_home, "skills") != 0
-        || path_join(src_hooks, sizeof(src_hooks), src, "hooks") != 0
-        || path_join(dst_hooks_root, sizeof(dst_hooks_root), claude_home, "hooks") != 0
-        || path_join(dst_hooks, sizeof(dst_hooks), dst_hooks_root, "graft") != 0
-        || path_join(settings, sizeof(settings), claude_home, "settings.json") != 0) {
+        || path_join(dst_skills, sizeof(dst_skills), claude_home, "skills") != 0) {
         return -1;
     }
-    char src_hook_graft[1024];
-    if (path_join(src_hook_graft, sizeof(src_hook_graft), src_hooks, "graft") != 0) return -1;
     if (copy_tree(src_skills, dst_skills) != 0) return -1;
     if (normalize_codex_skill_tree(dst_skills) != 0) return -1;
-    if (copy_tree(src_hook_graft, dst_hooks) != 0) return -1;
-    if (write_hook_config(settings, dst_hooks, MG_SETUP_CLAUDECODE) != 0) return -1;
+    if (MG_SETUP_INSTALL_HOOKS) {
+        char src_hook_graft[1024];
+        if (path_join(src_hooks, sizeof(src_hooks), src, "hooks") != 0
+            || path_join(dst_hooks_root, sizeof(dst_hooks_root), claude_home, "hooks") != 0
+            || path_join(dst_hooks, sizeof(dst_hooks), dst_hooks_root, "graft") != 0
+            || path_join(settings, sizeof(settings), claude_home, "settings.json") != 0
+            || path_join(src_hook_graft, sizeof(src_hook_graft), src_hooks, "graft") != 0) {
+            return -1;
+        }
+        if (copy_tree(src_hook_graft, dst_hooks) != 0) return -1;
+        if (write_hook_config(settings, dst_hooks, MG_SETUP_CLAUDECODE) != 0) return -1;
+        printf("Installed Claude Code hooks to %s\n", dst_hooks);
+        printf("Updated %s\n", settings);
+    }
     printf("Installed Claude Code skills to %s\n", dst_skills);
-    printf("Installed Claude Code hooks to %s\n", dst_hooks);
-    printf("Updated %s\n", settings);
-    print_project_snippet(src, MG_SETUP_CLAUDECODE);
     return 0;
 }
 
@@ -664,31 +674,38 @@ static int setup_codex(const char *src, const char *home) {
     char codex_home[1024], src_hooks[1024], dst_hooks_root[1024], dst_hooks[1024], hooks_json[1024];
     char src_agents[1024], dst_agents[1024], src_skills_root[1024], dst_skills[1024];
     if (path_join(codex_home, sizeof(codex_home), home, ".codex") != 0
-        || path_join(src_hooks, sizeof(src_hooks), src, "hooks") != 0
-        || path_join(dst_hooks_root, sizeof(dst_hooks_root), codex_home, "hooks") != 0
-        || path_join(dst_hooks, sizeof(dst_hooks), dst_hooks_root, "graft") != 0
-        || path_join(hooks_json, sizeof(hooks_json), codex_home, "hooks.json") != 0
-        || path_join(src_agents, sizeof(src_agents), src, "entrypoint.md") != 0
-        || path_join(dst_agents, sizeof(dst_agents), codex_home, "AGENTS.md") != 0
         || path_join(src_skills_root, sizeof(src_skills_root), src, "skills") != 0
         || path_join(dst_skills, sizeof(dst_skills), codex_home, "skills") != 0) {
         return -1;
     }
-    char src_hook_graft[1024];
-    if (path_join(src_hook_graft, sizeof(src_hook_graft), src_hooks, "graft") != 0) return -1;
-    if (copy_tree(src_hook_graft, dst_hooks) != 0) return -1;
-    if (copy_file(src_agents, dst_agents) != 0) return -1;
     if (dir_exists(src_skills_root)) {
         if (copy_tree(src_skills_root, dst_skills) != 0) return -1;
         if (normalize_codex_skill_tree(dst_skills) != 0) return -1;
     }
-    if (write_hook_config(hooks_json, dst_hooks, MG_SETUP_CODEX) != 0) return -1;
-    if (enable_codex_hooks_flag(codex_home) != 0) return -1;
-    printf("Installed Codex hooks to %s\n", dst_hooks);
-    printf("Installed Codex instructions to %s\n", dst_agents);
+    if (MG_SETUP_INSTALL_HOOKS) {
+        char src_hook_graft[1024];
+        if (path_join(src_hooks, sizeof(src_hooks), src, "hooks") != 0
+            || path_join(dst_hooks_root, sizeof(dst_hooks_root), codex_home, "hooks") != 0
+            || path_join(dst_hooks, sizeof(dst_hooks), dst_hooks_root, "graft") != 0
+            || path_join(hooks_json, sizeof(hooks_json), codex_home, "hooks.json") != 0
+            || path_join(src_hook_graft, sizeof(src_hook_graft), src_hooks, "graft") != 0) {
+            return -1;
+        }
+        if (copy_tree(src_hook_graft, dst_hooks) != 0) return -1;
+        if (write_hook_config(hooks_json, dst_hooks, MG_SETUP_CODEX) != 0) return -1;
+        if (enable_codex_hooks_flag(codex_home) != 0) return -1;
+        printf("Installed Codex hooks to %s\n", dst_hooks);
+        printf("Updated %s\n", hooks_json);
+    }
+    if (MG_SETUP_INSTALL_AGENT_INSTRUCTIONS) {
+        if (path_join(src_agents, sizeof(src_agents), src, "entrypoint.md") != 0
+            || path_join(dst_agents, sizeof(dst_agents), codex_home, "AGENTS.md") != 0) {
+            return -1;
+        }
+        if (copy_file(src_agents, dst_agents) != 0) return -1;
+        printf("Installed Codex instructions to %s\n", dst_agents);
+    }
     if (dir_exists(src_skills_root)) printf("Installed Codex skills to %s\n", dst_skills);
-    printf("Updated %s\n", hooks_json);
-    print_project_snippet(src, MG_SETUP_CODEX);
     return 0;
 }
 
@@ -699,18 +716,20 @@ static int setup_opencode(const char *src, const char *home) {
 
     if (path_join(opencode_home, sizeof(opencode_home), config_home, "opencode") != 0
         || path_join(src_skills, sizeof(src_skills), src, "skills") != 0
-        || path_join(dst_skills, sizeof(dst_skills), opencode_home, "skills") != 0
-        || path_join(src_agents, sizeof(src_agents), src, "entrypoint.md") != 0
-        || path_join(dst_agents, sizeof(dst_agents), opencode_home, "AGENTS.md") != 0) {
+        || path_join(dst_skills, sizeof(dst_skills), opencode_home, "skills") != 0) {
         return -1;
     }
     if (copy_tree(src_skills, dst_skills) != 0) return -1;
     if (normalize_codex_skill_tree(dst_skills) != 0) return -1;
-    if (copy_file(src_agents, dst_agents) != 0) return -1;
+    if (MG_SETUP_INSTALL_AGENT_INSTRUCTIONS) {
+        if (path_join(src_agents, sizeof(src_agents), src, "entrypoint.md") != 0
+            || path_join(dst_agents, sizeof(dst_agents), opencode_home, "AGENTS.md") != 0) {
+            return -1;
+        }
+        if (copy_file(src_agents, dst_agents) != 0) return -1;
+        printf("Installed OpenCode instructions to %s\n", dst_agents);
+    }
     printf("Installed OpenCode skills to %s\n", dst_skills);
-    printf("Installed OpenCode instructions to %s\n", dst_agents);
-    printf("OpenCode hooks are not installed by graft setup yet.\n");
-    print_project_snippet(src, MG_SETUP_OPENCODE);
     return 0;
 }
 
@@ -761,7 +780,7 @@ int mg_setup_cmd(int argc, char **argv) {
         fprintf(stderr, "setup failed: %s\n", strerror(errno ? errno : EINVAL));
         return 1;
     }
-    printf("Restart %s so it reloads the installed integration.\n",
+    printf("Restart %s so it reloads the installed skills.\n",
            agent_display_name(agent));
     return 0;
 }

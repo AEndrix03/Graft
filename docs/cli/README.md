@@ -291,7 +291,9 @@ graft setup codex
 graft setup opencode
 ```
 
-Copies the skill / hook / `AGENTS.md` files from `integrations/standard/` into the agent's user config directory. Re-running overwrites in place — safe and idempotent.
+Copies the shared skills package from `integrations/standard/skills/` into the agent's user config directory. Re-running overwrites in place - safe and idempotent.
+
+`graft setup` does not install hooks and does not modify agent settings or `AGENTS.md`. Hook and project-instruction wiring remains manual in the per-agent integration docs.
 
 ---
 

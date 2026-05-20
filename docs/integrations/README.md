@@ -26,19 +26,19 @@ Two families:
 
 | Family | Mechanism | Where it lives |
 | ------ | --------- | -------------- |
-| **CLI assistants** (Claude Code, Codex, Open Code, Gemini CLI) | The harness already spawns subprocesses. We ship skills / `AGENTS.md` / `GEMINI.md` files that instruct the model when to call `graft`, plus hooks that fire **deterministically** so the model can't "forget". | `integrations/claude-code/`, `integrations/codex/`, `integrations/opencode/`, `integrations/gemini-cli/` |
+| **CLI assistants** (Claude Code, Codex, Open Code, Gemini CLI) | The harness already spawns subprocesses. We ship skills / `AGENTS.md` / `GEMINI.md` files that instruct the model when to call `graft`, plus optional hooks for harnesses that support deterministic events. `graft setup` currently installs only the skills package. | `integrations/claude-code/`, `integrations/codex/`, `integrations/opencode/`, `integrations/gemini-cli/` |
 | **Chat clients** (Claude Desktop, ChatGPT) | No subprocess in the client. We expose graft as an **MCP server** (the [Model Context Protocol](https://modelcontextprotocol.io)). | `integrations/claude-ai/`, `integrations/chatgpt/`, both backed by `integrations/mcp-server/` |
 
 ## Matrix
 
 | Agent          | Integration type             | Where it lives                                       |
 | -------------- | ---------------------------- | ---------------------------------------------------- |
-| Claude Code    | Skills + Hooks               | `integrations/claude-code/`                          |
-| Codex          | `AGENTS.md` + Hooks          | `integrations/codex/`                                |
+| Claude Code    | Skills; optional hooks       | `integrations/claude-code/`                          |
+| Codex          | Skills; optional `AGENTS.md` + hooks | `integrations/codex/`                         |
 | Claude Desktop | MCP server (stdio)           | `integrations/claude-ai/` + `integrations/mcp-server/` |
 | ChatGPT        | MCP server (stdio or HTTP)   | `integrations/chatgpt/` + `integrations/mcp-server/` |
 | Gemini CLI     | `GEMINI.md` memory file      | `integrations/gemini-cli/`                           |
-| Open Code      | `AGENTS.md` + Skills         | `integrations/opencode/`                             |
+| Open Code      | Skills; optional `AGENTS.md` | `integrations/opencode/`                             |
 
 Each adapter has its own README with install steps.
 
@@ -83,7 +83,7 @@ For Claude Code and Codex we ship three hooks under `hooks/graft/`:
 | `mark_candidate.js`     | `PostToolUse` (Edit / Write / Bash) | Records the edited content as a save-candidate. |
 | `propose_memoryze.js`   | `Stop`                | At end-of-turn, proposes `/memoryze` if the conversation has accumulated unsaved learnings. |
 
-Hooks are what take "the model usually does the right thing" to "the harness guarantees it". Skill + hook is the recommended setup; just-skill is acceptable; just-hook is wasteful (you save without context).
+Hooks are what take "the model usually does the right thing" to "the harness guarantees it". They are optional manual wiring for now; `graft setup` intentionally leaves hook and settings files untouched.
 
 ---
 
@@ -182,11 +182,11 @@ If you're writing your own skill / `AGENTS.md`, the rule of thumb is:
 
 ### Claude Code
 
-`graft setup claudecode` copies skills + hooks into `~/.claude/skills/` and `~/.claude/hooks/`. Re-running is safe — it overwrites in place. Read [`../../integrations/claude-code/README.md`](../../integrations/claude-code/README.md) for the full setup, including the recommended `permissions.allow` entries to reduce permission prompts.
+`graft setup claudecode` copies skills into `~/.claude/skills/`. It does not install hooks or modify `~/.claude/settings.json`. Read [`../../integrations/claude-code/README.md`](../../integrations/claude-code/README.md) for manual hook wiring and recommended `permissions.allow` entries.
 
 ### Codex
 
-`AGENTS.md` (the OpenAI Codex equivalent of `CLAUDE.md`) is shipped with graft instructions. Hooks are identical to Claude Code's — same Node scripts, different harness names.
+`graft setup codex` copies skills into `~/.codex/skills/`. It does not write `AGENTS.md`, `~/.codex/hooks.json`, or `~/.codex/config.toml`; those remain manual options. Hooks are identical to Claude Code's - same Node scripts, different harness names.
 
 ### Claude Desktop / ChatGPT
 
@@ -203,7 +203,7 @@ Both wire the stdio MCP server (`integrations/mcp-server/server.py`) so the chat
 
 ### Open Code
 
-`graft setup opencode` copies the shared `AGENTS.md` instructions and native skills into `~/.config/opencode/`. The Open Code harness reads `AGENTS.md` on launch and loads skills from `~/.config/opencode/skills/`.
+`graft setup opencode` copies native skills into `~/.config/opencode/skills/`. It does not write `AGENTS.md` or agent settings; copy `integrations/standard/project-snippet.md` manually if you want project instructions.
 
 ---
 
