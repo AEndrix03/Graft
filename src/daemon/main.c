@@ -180,7 +180,8 @@ int main(int argc, char **argv) {
         goto cleanup;
     }
     err = mg_embed_init(cfg.embed_model_path, cfg.embed_threads,
-                         cfg.embed_ctx_size, cfg.hardware_accel, &embed);
+                         cfg.embed_ctx_size, cfg.hardware_accel,
+                         cfg.embed_instances, &embed);
     if (err != MG_OK) {
         fprintf(stderr, "embed init failed: %s\n", mg_strerror(err));
         goto cleanup;

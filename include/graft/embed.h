@@ -12,7 +12,7 @@ typedef struct mg_embed_ctx mg_embed_ctx_t;
  * NVIDIA, HIP on ROCm 6/7). Requires llama.cpp to have been built with the
  * matching backend; otherwise init returns MG_ERR_CONFIG with a clear log. */
 mg_err_t mg_embed_init(const char *model_path, int threads, int ctx_size,
-                       bool hardware_accel, mg_embed_ctx_t **out);
+                       bool hardware_accel, int instances, mg_embed_ctx_t **out);
 void     mg_embed_shutdown(mg_embed_ctx_t *ctx);
 
 /* Calcola embedding di testo. out e' L2-normalized. Thread-safe. */

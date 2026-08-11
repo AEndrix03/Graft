@@ -61,6 +61,11 @@ embedding:
   # native context. Reducing below ~1024 will mangle multi-paragraph notes.
   ctx_size: 8192
 
+  # [perf] Independent llama contexts sharing one model. >1 lets concurrent
+  # requests (thread-per-connection) embed in parallel; each instance costs
+  # ~ctx memory + one decode slot. 2-4 typical on multi-core hosts.
+  instances: 1
+
   # [perf] Offload all layers to the GPU. Requires llama.cpp built with
   # -DGGML_CUDA=ON (NVIDIA) or -DGGML_HIP=ON (ROCm 6/7). 5-30x speedup on
   # embed-heavy workloads; falls back to CPU if no compatible GPU is found.
