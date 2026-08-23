@@ -7,6 +7,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdatomic.h>
 #include <string.h>
 
 #if defined(_WIN32) && !defined(__MINGW32__) && !defined(__MINGW64__)
@@ -54,25 +55,38 @@ static int mg_mutex_unlock(mg_mutex_t *lock) {
 }
 #endif
 
-struct mg_embed_ctx {
-  struct llama_model   *model;
+struct mg_embed_instance {
   struct llama_context *ctx;
   mg_mutex_t            lock;
   int                   n_ctx;
+};
+
+struct mg_embed_ctx {
+  struct llama_model       *model;
+  struct mg_embed_instance *inst;
+  int                       n_inst;
+  int                       locks_init;
+  atomic_uint               pick;
 };
 
 static void mg_embed_ctx_free_partial(mg_embed_ctx_t *ctx, int lock_initialized) {
   if (!ctx) {
     return;
   }
-  if (ctx->ctx) {
-    llama_free(ctx->ctx);
+  if (ctx->inst) {
+    for (int i = 0; i < ctx->n_inst; i++) {
+      struct mg_embed_instance *it = &ctx->inst[i];
+      if (it->ctx) {
+        llama_free(it->ctx);
+      }
+      if (lock_initialized && i < ctx->locks_init) {
+        (void)mg_mutex_destroy(&it->lock);
+      }
+    }
+    free(ctx->inst);
   }
   if (ctx->model) {
     llama_model_free(ctx->model);
-  }
-  if (lock_initialized) {
-    (void)mg_mutex_destroy(&ctx->lock);
   }
   free(ctx);
 }
@@ -101,14 +115,14 @@ static mg_err_t mg_normalize(const float *src, int dim, mg_embedding_t out) {
 }
 
 mg_err_t mg_embed_init(const char *model_path, int threads, int ctx_size,
-                       bool hardware_accel, mg_embed_ctx_t **out) {
+                       bool hardware_accel, int instances, mg_embed_ctx_t **out) {
   mg_err_t err;
   mg_embed_ctx_t *ctx;
   struct llama_model_params model_params;
   struct llama_context_params ctx_params;
   int n_embd;
 
-  if (!model_path || !out || threads <= 0 || ctx_size <= 0) {
+  if (!model_path || !out || threads <= 0 || ctx_size <= 0 || instances <= 0) {
     return MG_ERR_INVALID_ARG;
   }
 
@@ -153,11 +167,13 @@ mg_err_t mg_embed_init(const char *model_path, int threads, int ctx_size,
     mg_llama_backend_release();
     return MG_ERR_OOM;
   }
-
-  if (mg_mutex_init(&ctx->lock) != 0) {
+  ctx->n_inst = instances;
+  ctx->inst = (struct mg_embed_instance *)calloc((size_t)instances,
+                                                 sizeof(*ctx->inst));
+  if (!ctx->inst) {
     free(ctx);
     mg_llama_backend_release();
-    return MG_ERR_INTERNAL;
+    return MG_ERR_OOM;
   }
 
   model_params = llama_model_default_params();
@@ -192,14 +208,26 @@ mg_err_t mg_embed_init(const char *model_path, int threads, int ctx_size,
   ctx_params.n_threads = threads;
   ctx_params.n_threads_batch = threads;
 
-  ctx->ctx = llama_init_from_model(ctx->model, ctx_params);
-  if (!ctx->ctx) {
-    mg_embed_ctx_free_partial(ctx, 1);
-    mg_llama_backend_release();
-    return MG_ERR_EMBED;
+  /* Pool: N independent contexts sharing one model — concurrent decode is
+   * safe (weights are read-only); each instance serializes its own decode. */
+  for (int i = 0; i < ctx->n_inst; i++) {
+    struct mg_embed_instance *it = &ctx->inst[i];
+    it->n_ctx = ctx_size;
+    if (mg_mutex_init(&it->lock) != 0) {
+      mg_embed_ctx_free_partial(ctx, 1);
+      mg_llama_backend_release();
+      return MG_ERR_INTERNAL;
+    }
+    ctx->locks_init++;
+    it->ctx = llama_init_from_model(ctx->model, ctx_params);
+    if (!it->ctx) {
+      mg_embed_ctx_free_partial(ctx, 1);
+      mg_llama_backend_release();
+      return MG_ERR_EMBED;
+    }
   }
 
-  ctx->n_ctx = ctx_size;
+  atomic_init(&ctx->pick, 0u);
   *out = ctx;
   return MG_OK;
 }
@@ -213,7 +241,9 @@ void mg_embed_shutdown(mg_embed_ctx_t *ctx) {
   mg_llama_backend_release();
 }
 
-mg_err_t mg_embed_text(mg_embed_ctx_t *ctx, const char *text, mg_embedding_t out) {
+static mg_err_t embed_instance_text(struct mg_embed_instance *inst,
+                                    struct llama_model *model,
+                                    const char *text, mg_embedding_t out) {
   const struct llama_vocab *vocab;
   llama_token *tokens;
   int32_t text_len;
@@ -222,7 +252,7 @@ mg_err_t mg_embed_text(mg_embed_ctx_t *ctx, const char *text, mg_embedding_t out
   float *embedding;
   mg_err_t err = MG_OK;
 
-  if (!ctx || !text || !out) {
+  if (!inst || !model || !text || !out) {
     return MG_ERR_INVALID_ARG;
   }
 
@@ -231,21 +261,21 @@ mg_err_t mg_embed_text(mg_embed_ctx_t *ctx, const char *text, mg_embedding_t out
   }
   text_len = (int32_t)strlen(text);
 
-  tokens = (llama_token *)calloc((size_t)ctx->n_ctx, sizeof(*tokens));
+  tokens = (llama_token *)calloc((size_t)inst->n_ctx, sizeof(*tokens));
   if (!tokens) {
     return MG_ERR_OOM;
   }
 
-  if (mg_mutex_lock(&ctx->lock) != 0) {
+  if (mg_mutex_lock(&inst->lock) != 0) {
     free(tokens);
     return MG_ERR_INTERNAL;
   }
 
-  llama_memory_clear(llama_get_memory(ctx->ctx), true);
+  llama_memory_clear(llama_get_memory(inst->ctx), true);
 
-  vocab = llama_model_get_vocab(ctx->model);
-  n_tokens = llama_tokenize(vocab, text, text_len, tokens, ctx->n_ctx, true, false);
-  if (n_tokens < 0 || n_tokens > ctx->n_ctx) {
+  vocab = llama_model_get_vocab(model);
+  n_tokens = llama_tokenize(vocab, text, text_len, tokens, inst->n_ctx, true, false);
+  if (n_tokens < 0 || n_tokens > inst->n_ctx) {
     err = MG_ERR_EMBED;
     goto done;
   }
@@ -255,17 +285,17 @@ mg_err_t mg_embed_text(mg_embed_ctx_t *ctx, const char *text, mg_embedding_t out
   }
 
   batch = llama_batch_get_one(tokens, n_tokens);
-  if (llama_model_has_encoder(ctx->model)) {
-    if (llama_encode(ctx->ctx, batch) != 0) {
+  if (llama_model_has_encoder(model)) {
+    if (llama_encode(inst->ctx, batch) != 0) {
       err = MG_ERR_EMBED;
       goto done;
     }
-  } else if (llama_decode(ctx->ctx, batch) != 0) {
+  } else if (llama_decode(inst->ctx, batch) != 0) {
     err = MG_ERR_EMBED;
     goto done;
   }
 
-  embedding = llama_get_embeddings_seq(ctx->ctx, 0);
+  embedding = llama_get_embeddings_seq(inst->ctx, 0);
   if (!embedding) {
     err = MG_ERR_EMBED;
     goto done;
@@ -274,11 +304,22 @@ mg_err_t mg_embed_text(mg_embed_ctx_t *ctx, const char *text, mg_embedding_t out
   err = mg_normalize(embedding, MG_EMBEDDING_DIM, out);
 
 done:
-  if (mg_mutex_unlock(&ctx->lock) != 0 && err == MG_OK) {
+  if (mg_mutex_unlock(&inst->lock) != 0 && err == MG_OK) {
     err = MG_ERR_INTERNAL;
   }
   free(tokens);
   return err;
+}
+
+/* Round-robin over the instance pool. Each instance owns its llama context
+ * and lock, so concurrent callers embed in parallel. */
+mg_err_t mg_embed_text(mg_embed_ctx_t *ctx, const char *text, mg_embedding_t out) {
+  if (!ctx || !ctx->inst || !text || !out || ctx->n_inst <= 0) {
+    return MG_ERR_INVALID_ARG;
+  }
+  unsigned idx = atomic_fetch_add_explicit(&ctx->pick, 1u, memory_order_relaxed);
+  struct mg_embed_instance *it = &ctx->inst[idx % (unsigned)ctx->n_inst];
+  return embed_instance_text(it, ctx->model, text, out);
 }
 
 float mg_cosine(const mg_embedding_t a, const mg_embedding_t b) {

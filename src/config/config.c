@@ -45,6 +45,7 @@ void mg_config_defaults(mg_config_t *cfg) {
   cfg->embed_model_path = mg_config_strdup("./models/bge-m3.gguf");
   cfg->embed_threads = 4;
   cfg->embed_ctx_size = 8192;
+  cfg->embed_instances = 1;
   cfg->hardware_accel = false;
   cfg->cross_encoder_enabled = false;
   cfg->cross_encoder_model_path = NULL;
@@ -187,6 +188,9 @@ static mg_err_t mg_config_apply(mg_config_t *cfg,
       return MG_OK;
     }
     if (strcmp(key, "ctx_size") == 0 && mg_parse_int(value, &cfg->embed_ctx_size)) {
+      return MG_OK;
+    }
+    if (strcmp(key, "instances") == 0 && mg_parse_int(value, &cfg->embed_instances)) {
       return MG_OK;
     }
     if (strcmp(key, "hardware_accel") == 0 && mg_parse_bool(value, &b)) {
