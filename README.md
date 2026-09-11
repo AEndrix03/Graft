@@ -1,186 +1,230 @@
 <div align="center">
 
-<img src="./assets/graft.png" alt="graft logo" width="180"/>
+<img src="./assets/graft.png" alt="Graft logo" width="180"/>
 
-<h1>graft</h1>
+# graft
 
-<p><strong>Local-first agentic memory for AI coding agents.</strong><br/>
-Stop solving the same problems twice. Give Claude Code, Codex and any other agent a persistent memory<br/>
-that survives sessions, context resets and machine switches — locally, with no cloud and no API key.</p>
+### Your coding agent already learned this. Graft makes sure it doesn't forget.
 
-<sub>C11 · SQLite + sqlite-vec + FTS5 · llama.cpp + BGE-M3 · MessagePack · AF_UNIX socket · optional REST + 3D viewer</sub>
+**Persistent local memory for AI coding agents.**  
+Graft brings back useful fixes, decisions, gotchas and project knowledge when they become relevant again.
 
-<br/><br/>
-
-[![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg?style=flat-square)](./LICENSE)
-[![Status: alpha](https://img.shields.io/badge/status-alpha-orange.svg?style=flat-square)](#project-status)
-[![Platforms](https://img.shields.io/badge/platforms-linux%20%7C%20macOS%20%7C%20windows-lightgrey.svg?style=flat-square)](./docs/install/)
-[![Install: 2 minutes](https://img.shields.io/badge/install-2%20min%20with%20brew-success.svg?style=flat-square)](./docs/install/)
-[![Multi-tenant](https://img.shields.io/badge/multi--tenant-profiles-blueviolet.svg?style=flat-square)](./docs/profiles/)
-[![Docs](https://img.shields.io/badge/docs-by%20feature-informational.svg?style=flat-square)](./docs/)
+The agent still reasons. **Graft gives it a head start.**
 
 <br/>
 
-<sub>Made for Claude Code · Codex · ChatGPT · Claude Desktop · Gemini CLI · Open Code · and your own microservices.</sub>
+[![GitHub Stars](https://img.shields.io/github/stars/AEndrix03/Graft?style=flat-square)](https://github.com/AEndrix03/Graft/stargazers)
+[![Release](https://img.shields.io/github/v/release/AEndrix03/Graft?style=flat-square)](https://github.com/AEndrix03/Graft/releases)
+[![License: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-blue.svg?style=flat-square)](./LICENSE)
+[![Platforms](https://img.shields.io/badge/Linux%20%7C%20macOS%20%7C%20Windows-supported-lightgrey.svg?style=flat-square)](./docs/install/)
+[![Local first](https://img.shields.io/badge/local--first-no%20SaaS-success.svg?style=flat-square)](#local-by-default)
+
+<br/>
+
+**Claude Code · Codex · ChatGPT · Claude Desktop · Gemini CLI · Open Code · custom agents**
+
+<sub>C11 · SQLite · sqlite-vec · FTS5 · BGE-M3 · llama.cpp · MCP · MessagePack</sub>
 
 </div>
 
 ---
 
-## Why Graft?
+## Graft in 20 seconds
 
-AI coding agents are productive — but they forget everything when the session ends.
+Your agent solves something difficult.
 
-They forget:
-- the root cause of that bug you debugged for three hours last week
-- the architectural decision you made and _why_ you made it
-- the Spring / Angular / Docker gotcha that bit you twice
-- project-specific conventions that aren't in any README
-- the dependency constraint that rules out a whole class of solutions
+**Graft remembers the useful part.**
 
-Every session starts from zero. Every fixed bug risks being re-debugged. Every decision risks being re-debated.
+Later, another session hits a similar problem.
 
-**Graft turns hard-won agent reasoning into reusable agentic memory.**
+**Graft surfaces the old learning before the agent wastes time rediscovering it.**
 
-It is not a vector database, a RAG framework, or a chatbot platform. It is the smallest useful thing that makes your agent's knowledge survive its session — local-first, no SaaS, no API key, one binary, one SQLite file.
+```text
+solve something
+      │
+      ▼
+ remember what mattered
+      │
+      ▼
+     Graft
+      │
+      ├── likely same problem ──► verified recall
+      ├── related knowledge ────► hybrid retrieval
+      └── broader context ──────► graph exploration
+                                  │
+                                  ▼
+                              your agent
+```
 
----
+**No SaaS. No external embedding API. No account. No API key.**
 
-## Agentic memory, not a vector DB
-
-Graft is shaped around how an **agent** writes and reads notes about its own work — not around how an application indexes a document corpus.
-
-| Vector DB / RAG store          | Graft (agentic memory)                                     |
-| ------------------------------ | ---------------------------------------------------------- |
-| Index documents you already have | Capture decisions, gotchas, and root causes as an agent solves them |
-| Query → top-k chunks            | Query → verified `STRONG` / `WEAK` / `MISS` with a single best answer |
-| You decide what to ingest       | The agent decides what is worth remembering, in-loop       |
-| Stateless reads                 | Edges + supersession track how knowledge evolves           |
-| Library / managed service       | Local binary, single SQLite file, no SDK to bind to        |
-
-If you need a vector DB, use a vector DB. Graft is for the layer above: **persistent reasoning the agent can build on**, not a search index over your files.
+Graft does not replace the agent's reasoning. It gives the agent relevant prior knowledge and lets the agent decide what to do with it.
 
 ---
 
-## Install in 30 seconds
+## Stop solving the same problem twice
+
+Without persistent memory:
+
+```text
+session 1
+bug → investigate → understand → fix → context disappears
+
+session 27
+similar bug → investigate → understand → fix → context disappears
+```
+
+With Graft:
+
+```text
+session 1
+bug → investigate → fix → remember
+
+session 27
+similar bug → recall → decide → continue
+```
+
+Graft is useful for knowledge that is expensive to rediscover:
+
+- root causes that took hours to find
+- architectural decisions and why they were made
+- framework and infrastructure gotchas
+- project-specific conventions
+- dependency constraints
+- failed approaches worth avoiding
+- fixes that may apply again
+
+This is **agent memory**, not document storage.
+
+---
+
+## Install
+
+### Homebrew
 
 ```bash
 brew tap AEndrix03/graft https://github.com/AEndrix03/Graft.git
 brew install graft
+
 graft stats
 ```
 
-That's it. No daemon to start. No model to download by hand. No config to write.
+No database server. No model download by hand. No config required for the first run.
 
-> Not on macOS / Linux Homebrew? Run the cross-platform installer:
->
-> ```bash
-> git clone https://github.com/AEndrix03/graft.git && cd graft
-> bash scripts/install.sh         # Linux, macOS, Windows MSYS2
-> pwsh scripts/install.ps1        # Windows (auto-installs MSYS2 if needed)
-> ```
->
-> Optional GPU acceleration: `GRAFT_GPU=cuda bash scripts/install.sh` (NVIDIA CUDA) or `GRAFT_GPU=hip bash scripts/install.sh` (AMD ROCm 6 / 7). Builds are kept lightweight so contributors can iterate without long compile cycles.
+### Cross-platform
 
-Full installation reference: [`docs/install/`](./docs/install/).
+```bash
+git clone https://github.com/AEndrix03/Graft.git
+cd Graft
+bash scripts/install.sh
+```
+
+Windows:
+
+```powershell
+pwsh scripts/install.ps1
+```
+
+Optional GPU acceleration:
+
+```bash
+GRAFT_GPU=cuda bash scripts/install.sh
+GRAFT_GPU=hip  bash scripts/install.sh
+```
+
+Full installation reference → **[`docs/install/`](./docs/install/)**
 
 ---
 
-## See it in action — 60 seconds
+## See it work
+
+First, the memory is empty:
 
 ```console
-$ graft query "spring boot validation cascade nested DTO"
-{ "status": 0, "result": { "hit": "MISS" } }
+$ graft query "spring validation nested dto not working"
+{
+  "status": 0,
+  "result": { "hit": "MISS" }
+}
+```
 
-# ... you debug the issue, find the answer ...
+The agent investigates and solves the issue. Save the useful part:
 
-$ graft insert \
-    --title "Spring Boot @Valid cascade on nested DTOs needs @Valid on the field plus @Validated on the controller" \
-    --body  "Without @Valid on the nested field, constraints inside it are silently ignored. Tested on Spring Boot 3.2; matches the Jakarta Validation spec." \
-    --keyword spring-boot --keyword validation --keyword gotcha
-{ "status": 0, "result": { "id_hex": "019e09a95e7a...", "duplicate": false } }
+```bash
+graft insert \
+  --title "Spring @Valid must also be applied to nested DTO fields" \
+  --body "Without @Valid on the nested field, validation does not cascade into it." \
+  --keyword spring-boot \
+  --keyword validation \
+  --keyword gotcha
+```
 
-# ... weeks later, on another machine, in another agent ...
+Weeks later, with different wording:
 
-$ graft query "why is my @Valid annotation not cascading on a nested DTO field"
+```console
+$ graft query "why are constraints inside my nested request object ignored?"
 {
   "status": 0,
   "result": {
-    "hit":   "STRONG",
-    "title": "Spring Boot @Valid cascade on nested DTOs needs @Valid on the field plus @Validated on the controller",
-    "body":  "Without @Valid on the nested field, constraints inside it are silently ignored. ..."
+    "hit": "STRONG",
+    "title": "Spring @Valid must also be applied to nested DTO fields",
+    "body": "Without @Valid on the nested field, validation does not cascade into it."
   }
 }
 ```
 
-The two queries used **different phrasing**. The match is semantic plus lexical, gated by a verify step that **refuses to claim a hit when the signals are weak** — so your agent never quotes confidently-wrong answers.
+Different prompt. Same underlying problem.
+
+**Graft surfaces the prior learning. The agent decides whether it is useful.**
 
 ---
 
-## What you get
-
-Each capability is labelled by maturity: **Stable** = shipped and used by the integrations; **Experimental** = wired up but rough edges or no benchmarks; **Vision** = a future direction, partially scaffolded at most.
+## One memory layer, several ways to use it
 
 <table>
 <tr>
 <td width="33%" valign="top">
 
-#### Cache-first retrieval · *Stable*
-`graft query <text>` returns `STRONG` / `WEAK` / `MISS`. STRONG injects title + body straight into the agent's context, so the agent does not have to choose between a list of candidates.
+### Verified recall
+
+`graft query`
+
+Fast top-1 lookup with confidence gating:
+
+`STRONG` · `WEAK` · `MISS`
+
+Use it when the agent wants to know:
+
+> Have I seen this before?
 
 </td>
 <td width="33%" valign="top">
 
-#### Hybrid search · *Stable*
-`graft retrieve` fuses dense (BGE-M3 cosine) and lexical (BM25 over title and body) via Reciprocal Rank Fusion.
+### Hybrid retrieval
+
+`graft retrieve`
+
+Combines:
+
+- BGE-M3 vectors
+- BM25 title search
+- BM25 body search
+- Reciprocal Rank Fusion
+
+Use it when several memories may help.
 
 </td>
 <td width="33%" valign="top">
 
-#### Graph walks · *Stable*
-`graft explore` follows keyword and semantic edges with beam search and MMR diversity, decay `gamma^step`.
+### Graph exploration
 
-</td>
-</tr>
-<tr>
-<td valign="top">
+`graft explore`
 
-#### Multi-tenant profiles · *Stable*
-Isolated DBs and sockets per profile (`work`, `personal`, project-scoped).
-Import / export / merge as plain SQLite files.
+Walks semantic and keyword relationships with beam search, score decay and MMR diversity.
 
-</td>
-<td valign="top">
+Use it when the agent wants to know:
 
-#### Local-first · *Stable*
-Single binary, single DB file, no network.
-Models run on CPU out of the box; opt-in to CUDA or ROCm 6 / 7 with a build flag.
-
-</td>
-<td valign="top">
-
-#### Optional REST + 3D viewer · *Experimental*
-Flip a flag in `config.yaml`, get JSON endpoints and a browser-based graph explorer with click-to-edit (atomic supersession). API surface still evolving.
-
-</td>
-</tr>
-<tr>
-<td valign="top">
-
-#### Agent integrations · *Stable*
-Claude Code, Codex, and Open Code skills via `graft setup`; Claude Desktop / ChatGPT via MCP; Gemini CLI via `GEMINI.md`.
-
-</td>
-<td valign="top">
-
-#### Microservice cache pattern · *Experimental*
-Design pattern: <b>L1 Redis</b> + <b>L2 graft semantic cache</b> + <b>L3 graft + LLM</b>. Reference docs, no published benchmarks. [See the pattern](./docs/microservices/).
-
-</td>
-<td valign="top">
-
-#### Remote / team memory · *Vision*
-A shared memory store across machines or teammates is a planned direction, not a shipped feature. Today: per-machine local profiles, plus export / import / merge as SQLite files.
+> What else is connected to this?
 
 </td>
 </tr>
@@ -188,258 +232,407 @@ A shared memory store across machines or teammates is a planned direction, not a
 
 ---
 
-## Core concepts
+## Why not just a vector database?
 
-| Term | What it means |
-| ---- | ------------- |
-| **Memory node** | A `title` (retrieval anchor) + `body` (full context) + keywords. The unit graft stores and retrieves. |
-| **Profile** | An isolated memory space with its own DB and daemon. Switch with `GRAFT_PROFILE=name`. |
-| **Semantic cache** | `graft query` — verified top-1 lookup. Returns STRONG, WEAK or MISS. No hallucinated hits. |
-| **Graph edge** | Keyword or semantic link between nodes. Enables `graft explore` to walk connected knowledge. |
-| **Supersession** | Replacing an outdated node while keeping the old one visible as `SUPERSEDED`. History stays, mistakes don't propagate. |
-| **Confidence** | STRONG = both semantic similarity and lexical overlap pass the verify gate. WEAK = semantic signal only. |
+Because Graft is shaped around **what an agent learns while working**, not around bulk document ingestion.
 
-Full glossary → [`docs/concepts.md`](./docs/concepts.md).
+| | Vector DB / traditional RAG | Graft |
+|---|---|---|
+| Primary data | Documents | Agent learnings |
+| Typical write | Bulk ingestion | Remember something useful |
+| Typical read | Top-k chunks | Recall / retrieve / explore |
+| Consumer | Application | AI agent |
+| Confidence | Similarity ranking | `STRONG` / `WEAK` / `MISS` |
+| Relationships | Usually external | Semantic + keyword graph |
+| Knowledge changes | Replace/update documents | Supersession |
+| Deployment | Database/service | Local binary + SQLite |
+
+If you need to index millions of documents, use a vector database.
+
+If you want your agent to remember **what it discovered while solving real problems**, Graft is built for that.
 
 ---
 
-## Built for AI development tools
+## Agent-native by design
+
+Graft is a binary with a CLI contract. Any agent that can run a subprocess can use it.
+
+| Agent | Integration | Setup |
+|---|---|---|
+| **Claude Code** | Skills + optional hooks | `graft setup claudecode` |
+| **Codex** | Skills + optional hooks / `AGENTS.md` | `graft setup codex` |
+| **Open Code** | Native skills | `graft setup opencode` |
+| **Gemini CLI** | `GEMINI.md` workflow | [`integrations/gemini-cli/`](./integrations/gemini-cli/) |
+| **Claude Desktop** | MCP | [`integrations/claude-ai/`](./integrations/claude-ai/) |
+| **ChatGPT** | MCP stdio / HTTP | [`integrations/chatgpt/`](./integrations/chatgpt/) |
+| **Your agent** | CLI, subprocess, REST or MCP | [`docs/integrations/`](./docs/integrations/) |
+
+The shipped integrations teach agents a simple pattern:
 
 ```text
-┌─────────────────────────────┐    ┌─────────────────────────────┐
-│ LLM chat clients            │    │ Coding agents (CLI-based)   │
-│ Claude Desktop · ChatGPT    │    │ Claude Code · Codex · ...   │
-└──────────────┬──────────────┘    └──────────────┬──────────────┘
-               │ MCP (stdio or HTTPS)             │ subprocess
-               ▼                                  ▼
-┌─────────────────────────────┐    ┌─────────────────────────────┐
-│ integrations/mcp-server/    │    │ graft CLI                   │
-│  · server.py  (stdio)       │───▶│  → unix socket              │
-│  · oauth_gateway.py (HTTP)  │    │                             │
-└─────────────────────────────┘    └──────────────┬──────────────┘
-                                                  ▼
-                                     ┌─────────────────────────────┐
-                                     │ graftd (daemon)             │
-                                     │  SQLite + sqlite-vec + FTS5 │
-                                     │  + BGE-M3 (llama.cpp)       │
-                                     └─────────────────────────────┘
+non-trivial task
+      │
+      ▼
+ search memory
+      │
+      ├── useful memory ───────► consider it
+      │
+      └── nothing useful ──────► solve normally
+                                      │
+                                      ▼
+                              worth remembering?
+                                      │
+                                      ▼
+                                   save it
 ```
 
-| Agent          | Integration               | Setup |
-| -------------- | ------------------------- | ----- |
-| Claude Code    | Skills                    | `graft setup claudecode` |
-| Codex          | Skills                    | `graft setup codex` |
-| Claude Desktop | MCP server (stdio)        | `integrations/claude-ai/claude_desktop_config.json` |
-| ChatGPT        | MCP server (stdio or HTTP)| `integrations/chatgpt/mcp_config.json` |
-| Gemini CLI     | `GEMINI.md` memory file   | `integrations/gemini-cli/` |
-| Open Code      | Skills                    | `graft setup opencode` |
+For Claude Code, Graft includes skills such as:
 
-Each adapter ships **skills** that tell the model *when* to search and *when* to save. Hook and agent-instruction installers are currently kept out of `graft setup`; use the integration docs for manual wiring if needed.
+- `recall` — smart search that escalates only when needed
+- `memoryze` — distill useful learnings into reusable memories
+- `learn` — intentionally ingest useful knowledge
+- `memory-audit` — inspect memory quality and reuse
 
-Full integration matrix and setup: **[`docs/integrations/`](./docs/integrations/)**.
+Optional hooks can make recall deterministic at supported harness events. Hook wiring is currently manual.
 
 ---
 
-## Beyond agent tooling — a microservice cache pattern *(experimental)*
+## Local by default
 
-The same primitives that serve an agent (verified semantic cache + write-back) also slot in front of an LLM in a microservice. The pattern below is **a recommended design, not a benchmarked production stack** — share it with a back-end team that wants fewer LLM calls and is willing to validate it on their own workload:
+Graft keeps its core runtime on your machine:
 
 ```text
-                       ┌──────────────────────────────┐
-        ┌────────────► │  L1 — Redis                  │  exact key match
-        │              │  cache:<sha256(prompt)>      │
-        │              └──────────────┬───────────────┘
-        │                  MISS       │
-        │                             ▼
-  Client                 ┌──────────────────────────────┐
-   request ─────────────►│  L2 — graft semantic cache   │  paraphrase-aware,
-        ▲                │  GET /v1/match?text=...      │  verified STRONG/WEAK/MISS
-        │                └──────────────┬───────────────┘
-        │                    MISS       │
-        │                               ▼
-        │                 ┌──────────────────────────────┐
-        │                 │  L3 — graft + LLM            │  top-k retrieve +
-        │                 │  GET /v1/search → LLM        │  LLM synthesis
-        │                 │  POST /v1/insert (writeback) │  writeback for next time
-        └─────────────────└──────────────────────────────┘
+agent
+  │
+  ▼
+graft CLI
+  │
+  │ MessagePack / AF_UNIX
+  ▼
+graftd
+  │
+  ├── SQLite + FTS5 + sqlite-vec
+  │
+  └── llama.cpp + BGE-M3
 ```
 
-| Layer | What it answers | Cost shape |
-| ----- | --------------- | ---------- |
-| **L1** Redis              | "Have we seen *this exact prompt* before?"           | RAM bytes |
-| **L2** graft semantic     | "Have we seen *a question that means this* before?"  | local CPU |
-| **L3** graft + LLM        | "We haven't. Let me reason from related memories."   | LLM tokens |
+That means:
 
-The idea: L3 answers get written back through `POST /v1/insert`, so the next caller hits L2 instead of regenerating with the LLM. Real savings depend entirely on your traffic — there are no published benchmarks yet.
+- one local database
+- local embeddings
+- no managed memory service
+- no telemetry requirement
+- no external API key
+- CPU works out of the box
+- CUDA / ROCm are optional
 
-Full pattern, sample code, deployment shapes, and failure modes: **[`docs/microservices/`](./docs/microservices/)**.
+Chat clients can reach the same core through MCP.
+
+```text
+ChatGPT / Claude Desktop
+          │
+         MCP
+          │
+          ▼
+    MCP adapter
+          │
+          ▼
+      graft CLI
+          │
+          ▼
+        graftd
+```
 
 ---
 
-## Try it now — a real round-trip
+## Three commands cover most workflows
+
+### `query` — Do I already know this?
 
 ```bash
-graft insert \
-  --title "First memory" \
-  --body  "If this is retrievable below, graft is wired correctly." \
-  --keyword smoke-test
-
-graft query "the very first thing I saved"
-# → "hit": "STRONG" + the body you just inserted
+graft query "docker container exits after healthcheck"
 ```
 
-If you see `"hit": "STRONG"`, your pipeline is healthy: BGE-M3 embedding ↔ `sqlite-vec` vector index ↔ FTS5 lexical ↔ multi-signal verifier are all talking to each other.
+Returns one confidence-gated result.
 
----
+### `retrieve` — What relevant knowledge do I have?
 
-## Architecture in one diagram
-
-```mermaid
-flowchart LR
-    subgraph Clients["AI clients"]
-      A1["Claude Code"]
-      A2["Codex"]
-      A3["ChatGPT / Claude Desktop"]
-      A4["Gemini CLI / Open Code"]
-      A5["Your microservice"]
-    end
-
-    subgraph Adapters["Adapters (integrations/)"]
-      S["Skills · optional AGENTS.md / Hooks"]
-      M["MCP server (Python)"]
-    end
-
-    Browser["3D Viewer (browser)"]
-
-    A1 --> S
-    A2 --> S
-    A4 --> S
-    A3 --> M
-    A5 -->|HTTPS / OAuth| M
-    S --> CLI["graft (CLI)"]
-    M --> CLI
-    Browser -->|HTTP/JSON| Daemon
-    CLI -->|AF_UNIX socket<br/>MessagePack| Daemon["graftd"]
-    Daemon --> Storage[("SQLite + sqlite-vec + FTS5<br/>nodes · edges · keywords · vectors")]
-    Daemon --> Embed["llama.cpp + BGE-M3<br/>1024-dim embeddings"]
+```bash
+graft retrieve "docker healthcheck networking"
 ```
 
-Pipelines:
+Returns ranked memories using dense + lexical retrieval.
 
-- **insert** — `embed(title)` → upsert keywords → `vector_topk` per keyword (KEYWORD edges) → `vector_topk + MMR` (SEMANTIC edges) → **one atomic SQLite transaction**.
-- **query** — `embed(text)` → `vector_topk(10)` → trigram-Jaccard + cosine (+ optional cross-encoder) verify → STRONG / WEAK / MISS gating.
-- **retrieve** — three lists (vec, BM25 title, BM25 body) → RRF fusion → top-k.
-- **explore** — seed via `vector_topk` filtered by keyword → beam search with MMR + decay `gamma^step`.
+### `explore` — What is connected to this?
 
-Full architecture: [`docs/architecture/`](./docs/architecture/).
+```bash
+graft explore "deployment failures" --keyword docker
+```
 
----
-
-## Documentation
-
-Everything is broken down by feature. Each page ends with a **"What's missing and how to improve it"** section — pick one and open a PR.
-
-| Folder | What's inside |
-| ------ | ------------- |
-| [`concepts.md`](./docs/concepts.md)             | Glossary: node, profile, semantic cache, edge, supersession, confidence. |
-| [`use-cases.md`](./docs/use-cases.md)           | Concrete scenarios: coding agent memory, bug fix reuse, project decisions, team memory. |
-| [`install/`](./docs/install/)                   | Homebrew, install scripts, manual build, GPU builds, first-run check. |
-| [`release/`](./docs/release/)                   | Versioning, GitHub Releases, signed assets, SBOM, `graft upgrade`. |
-| [`architecture/`](./docs/architecture/)         | CLI ↔ daemon split, wire protocol, request lifecycle. |
-| [`cli/`](./docs/cli/)                           | Every `graft` / `graftd` subcommand and flag. |
-| [`storage/`](./docs/storage/)                   | SQLite schema, sqlite-vec, FTS5, atomic supersession, idempotency, WAL. |
-| [`embeddings/`](./docs/embeddings/)             | BGE-M3 (1024-dim), llama.cpp, CPU vs CUDA vs ROCm. |
-| [`retrieval/`](./docs/retrieval/)               | `query` (cache), `retrieve` (RRF), `explore` (beam + MMR), the verify pipeline. |
-| [`insert/`](./docs/insert/)                     | Insert pipeline, keyword / semantic edges, MMR diversity, content hashing, `classify`. |
-| [`profiles/`](./docs/profiles/)                 | Multi-tenancy, per-profile DB + socket + daemon, export / import / merge / remote sync. |
-| [`http-api/`](./docs/http-api/)                 | Optional REST layer, per-endpoint flags, examples. |
-| [`viewer/`](./docs/viewer/)                     | Browser 3D viewer (Vue + three.js + CodeMirror), modes, edit-with-supersession. |
-| [`integrations/`](./docs/integrations/)         | Per-agent adapters + MCP gateway. |
-| [`microservices/`](./docs/microservices/)       | The L1 Redis + L2 graft + L3 graft + AI stack. |
-| [`maintenance/`](./docs/maintenance/)           | `stats`, `consolidate`, usage log, `analytics`. |
-| [`configuration/`](./docs/configuration/)       | Every key in `config.yaml`, every recognised environment variable. |
-
-The full index lives at **[`docs/`](./docs/)**.
+Walks the memory graph for broader context.
 
 ---
 
-## Why graft, not _other-thing_?
+## Under the hood
 
-Plenty of agent-memory projects exist (mem0, Letta, Zep, Cognee, Graphiti, ...). They're libraries you import into a Python app, or services you self-host with a database. Graft picks a different shape:
+### Recall
 
-- **A binary, not a library.** The CLI is the contract. Any agent that can run a subprocess can use it — no Python runtime, no SDK version drift between client and server.
-- **Daemon + AF_UNIX socket.** State lives in one process; the CLI is a thin client. The first call pays a one-off model-load cost; subsequent calls reuse the warm daemon.
-- **Multi-agent by design.** Claude Code, Codex, ChatGPT, and Claude Desktop already share the same graph on this machine — different surfaces, one memory.
-- **Local-first, no managed service.** SQLite on disk, llama.cpp for embeddings, no telemetry, no account. Backups are `cp graft.db dest/`.
-- **Cache-first, then retrieve.** Most reads are answered by a verified top-1 cache lookup, not a top-k semantic spray. Lower latency, less context noise, fewer hallucinations.
+```text
+query
+  → BGE-M3 embedding
+  → vector candidates
+  → lexical verification
+  → confidence gating
+  → STRONG / WEAK / MISS
+```
+
+### Retrieval
+
+```text
+vector search ─┐
+BM25 title ────┼─→ RRF → ranked memories
+BM25 body ─────┘
+```
+
+### Explore
+
+```text
+semantic seed
+  → graph edges
+  → beam search
+  → score decay
+  → MMR diversity
+```
+
+The core is written in C11. Embeddings run locally through llama.cpp using BGE-M3. Storage is SQLite with FTS5 and sqlite-vec.
+
+Graft itself does not require an external LLM call to store or retrieve memory.
+
+---
+
+## Memory that can evolve
+
+A memory node contains:
+
+```text
+title
+body
+keywords
+vector
+relationships
+status
+```
+
+Nodes can be connected through keyword and semantic edges.
+
+When knowledge becomes outdated, Graft supports **supersession** rather than silently pretending the old knowledge never existed:
+
+```text
+old decision
+     │
+     └── SUPERSEDED BY ──► new decision
+```
+
+History stays inspectable while the newer memory becomes the useful one.
+
+---
+
+## Profiles
+
+Separate memory spaces without running separate products:
+
+```bash
+GRAFT_PROFILE=work graft query "deployment rule"
+GRAFT_PROFILE=personal graft query "docker workaround"
+```
+
+Profiles can be created, switched, exported, imported and merged.
+
+```bash
+graft profile list
+graft profile add project-x
+graft profile set project-x
+```
+
+This also gives you a straightforward way to move or combine local memory stores when needed.
+
+---
+
+## Inspect everything
+
+The memory is not hidden behind a hosted platform.
+
+```bash
+graft stats
+graft analytics
+graft get <id>
+graft delete <id>
+```
+
+Optional tooling includes:
+
+- REST API
+- MCP access
+- browser graph viewer
+- profile management
+- usage analytics
+
+---
+
+## What Graft is not
+
+**Not an LLM.**  
+Your agent still reasons.
+
+**Not a chatbot.**  
+Bring your own agent.
+
+**Not a hosted memory SaaS.**  
+The default runtime is local.
+
+**Not a vector database replacement.**  
+It is opinionated around agent memory.
+
+**Not just a semantic cache.**  
+Verified reuse is one primitive. Graft also provides ranked retrieval, graph exploration, evolving memories and agent workflows.
+
+---
+
+## A secondary use case: semantic reuse in services
+
+The same primitives can sit in front of an LLM-backed service:
+
+```text
+request
+   │
+   ▼
+exact cache
+   │ MISS
+   ▼
+Graft
+   │ no useful memory
+   ▼
+LLM
+   │
+   └──► remember result
+```
+
+This is an **experimental design pattern**, not Graft's primary positioning.
+
+See [`docs/microservices/`](./docs/microservices/).
 
 ---
 
 ## Project status
 
-Graft is in **active alpha** — suitable for local single-user agent workflows and experimentation. Team / multi-user scenarios are a future direction, not a shipped capability.
+> **Active alpha — v0.1.x**
 
-The storage model, retrieval pipeline, and CLI surface are working and stable enough that the shipped integrations rely on them. APIs and internal storage format may still change before 1.0.
+Working today:
 
-Honest disclosures:
-- The **cross-encoder reranker** is a stub (`mg_ce_score_pair` returns `-1`). Today the verify gate uses trigram-Jaccard + cosine, which is plenty for most corpora. Wiring BGE-reranker-v2-m3 is on the roadmap.
-- **API contract**: the CLI JSON schema is the public surface. Internal C APIs may change without notice.
-- **Prebuilt alpha releases** are now published through GitHub Actions with test gating, SHA256 checksums, SBOM, Sigstore/cosign signatures and build provenance. Source builds remain the fallback while packaging and platform coverage stabilize.
+- local daemon + CLI
+- SQLite storage
+- BGE-M3 embeddings
+- verified recall
+- hybrid retrieval
+- graph exploration
+- profiles
+- Claude Code / Codex / Open Code skills
+- MCP bridge
+- optional REST API and graph viewer
+
+Still evolving:
+
+- API surface before 1.0
+- packaging and platform coverage
+- remote / shared memory
+- team workflows
+- neural reranking
+
+The cross-encoder reranker is currently scaffolded but not active; verification currently relies on vector similarity plus lexical signals.
 
 ---
 
 ## Roadmap
 
-### Now
-- Stabilise CLI commands and JSON output schema
-- Improve local agent memory workflows (Claude Code, Codex)
-- Publish first signed GitHub Release with SBOM, checksums, and platform archives
-- Add richer usage examples and benchmarks
+**Now**
 
-### Next
-- Cross-encoder neural reranker (BGE-reranker-v2-m3) via `verification.cross_encoder_enabled`
-- NLI for contradiction detection → `MG_EDGE_CONTRADICTS` edges
-- Adaptive threshold calibration driven by `stats`
-- Remote read-only profiles (share a memory store across machines)
-- Importable thematic memory packs (postmortems, decision frameworks, ...)
+- harden CLI and JSON contracts
+- improve coding-agent integrations
+- improve memory quality and observability
+- publish better benchmarks
 
-### Later
-- Real content `consolidate` (dedup similar nodes, supersede stale ones by similarity)
-- Team / shared memory server
-- Distributed profile sync
-- Observability and admin tooling
+**Next**
+
+- BGE reranker
+- contradiction detection
+- adaptive thresholds
+- richer hooks
+- remote read-only profiles
+
+**Later**
+
+- shared team memory
+- distributed profile sync
+- automatic consolidation
+- richer admin tooling
+
+---
+
+## Documentation
+
+| | |
+|---|---|
+| **Getting started** | [`docs/install/`](./docs/install/) |
+| **Use cases** | [`docs/use-cases.md`](./docs/use-cases.md) |
+| **Concepts** | [`docs/concepts.md`](./docs/concepts.md) |
+| **Integrations** | [`docs/integrations/`](./docs/integrations/) |
+| **Architecture** | [`docs/architecture/`](./docs/architecture/) |
+| **CLI** | [`docs/cli/`](./docs/cli/) |
+| **Retrieval** | [`docs/retrieval/`](./docs/retrieval/) |
+| **Storage** | [`docs/storage/`](./docs/storage/) |
+| **Embeddings** | [`docs/embeddings/`](./docs/embeddings/) |
+| **Profiles** | [`docs/profiles/`](./docs/profiles/) |
+| **HTTP API** | [`docs/http-api/`](./docs/http-api/) |
+
+Full documentation → **[`docs/`](./docs/)**
 
 ---
 
 ## Contributing
 
 ```bash
-# 1. clone, install, smoke-test
-git clone https://github.com/AEndrix03/graft.git && cd graft
+git clone https://github.com/AEndrix03/Graft.git
+cd Graft
 bash scripts/install.sh
 graft stats
-
-# 2. find something to do
-#    every docs page ends with "What's missing and how to improve it"
-
-# 3. branch from master, keep PRs focused
 ```
 
-Builds are kept lightweight so contributors can iterate quickly. Tests run with `cmake --build build --target test`. Pre-commit hook for Conventional Commits is installed automatically by `scripts/install.sh`.
+Run tests with:
 
-Bug reports and feature ideas: [GitHub Issues](https://github.com/AEndrix03/graft/issues). Read [CONTRIBUTING.md](./CONTRIBUTING.md) for the short version.
+```bash
+cmake --build build --target test
+```
+
+See [`CONTRIBUTING.md`](./CONTRIBUTING.md).
 
 ---
 
 ## License
 
-[Apache License 2.0](./LICENSE). You can use, modify, distribute, and embed graft in proprietary projects, including commercially, provided you keep the copyright and licence notices and document any changes you make to the source files.
+[Apache License 2.0](./LICENSE).
+
+You can use, modify, distribute and embed Graft in proprietary projects subject to the license terms.
+
+---
 
 <div align="center">
 
-<br/>
-<sub>Built in C11. Local-first. No SaaS. No API key.<br/>
-<a href="./docs/">docs</a> · <a href="./docs/install/">install</a> · <a href="./docs/use-cases.md">use cases</a> · <a href="./docs/concepts.md">concepts</a> · <a href="./docs/microservices/">microservices pattern</a> · <a href="https://github.com/AEndrix03/graft/issues">issues</a></sub>
-<br/><br/>
+<img src="./assets/graft.png" alt="Graft" width="72"/>
+
+### Let your agents keep what they learn.
+
+**Local-first · Agent-native · No SaaS · No API key**
+
+[`docs`](./docs/) · [`install`](./docs/install/) · [`integrations`](./docs/integrations/) · [`releases`](https://github.com/AEndrix03/Graft/releases) · [`issues`](https://github.com/AEndrix03/Graft/issues)
 
 </div>
