@@ -583,7 +583,7 @@ The cross-encoder reranker is currently scaffolded but not active; verification 
 | | |
 |---|---|
 | **Getting started** | [`docs/install/`](./docs/install/) |
-| **Use cases** | [`docs/use-cases.md`](./docs/use-cases.md) |
+| **Use cases** | [`docs/use-cases.md`](./docs/use-cases.md) |\n| **Guide: persistent coding-agent memory** | [`docs/use-cases/persistent-memory-for-coding-agents.md`](./docs/use-cases/persistent-memory-for-coding-agents.md) |
 | **Concepts** | [`docs/concepts.md`](./docs/concepts.md) |
 | **Integrations** | [`docs/integrations/`](./docs/integrations/) |
 | **Architecture** | [`docs/architecture/`](./docs/architecture/) |
