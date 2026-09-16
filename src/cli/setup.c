@@ -25,8 +25,6 @@ enum mg_setup_agent {
     MG_SETUP_OPENCODE
 };
 
-#define MG_SETUP_INSTALL_HOOKS 0
-#define MG_SETUP_INSTALL_AGENT_INSTRUCTIONS 0
 
 static int path_join(char *out, size_t cap, const char *a, const char *b) {
     int n = snprintf(out, cap, "%s%c%s", a, MG_PATH_SEP, b);
@@ -306,11 +304,6 @@ static const char *agent_display_name(enum mg_setup_agent agent) {
     return "agent";
 }
 
-#if MG_SETUP_INSTALL_AGENT_INSTRUCTIONS
-static const char *agent_project_file(enum mg_setup_agent agent) {
-    return agent == MG_SETUP_CLAUDECODE ? "CLAUDE.md" : "AGENTS.md";
-}
-#endif
 
 static int candidate_standard_dir(char *out, size_t cap, const char *base) {
     char tmp[1024];
@@ -324,7 +317,7 @@ static int find_standard_dir(char *out, size_t cap) {
         if (path_join(out, cap, env, "standard") == 0 && dir_exists(out)) return 0;
         if (dir_exists(env)) {
             char entry[1024];
-            if (path_join(entry, sizeof(entry), env, "entrypoint.md") == 0 && file_exists(entry)) {
+            if (path_join(entry, sizeof(entry), env, "skills") == 0 && dir_exists(entry)) {
                 snprintf(out, cap, "%s", env);
                 return 0;
             }
@@ -365,372 +358,52 @@ static int find_standard_dir(char *out, size_t cap) {
     return -1;
 }
 
-static int write_text_file(const char *path, const char *text) {
-    char dir[1024];
-    if (snprintf(dir, sizeof(dir), "%s", path) >= (int)sizeof(dir)) return -1;
-    if (parent_dir(dir) != 0 || mkdir_p(dir) != 0) return -1;
-    FILE *f = fopen(path, "wb");
-    if (!f) return -1;
-    fputs(text, f);
-    return fclose(f) == 0 ? 0 : -1;
-}
 
-static void shell_write_quoted(FILE *f, const char *s) {
-    fputc('"', f);
-    for (; *s; s++) {
-        if (*s == '"' || *s == '\\') fputc('\\', f);
-        fputc(*s, f);
-    }
-    fputc('"', f);
-}
 
-#if MG_SETUP_INSTALL_AGENT_INSTRUCTIONS
-static int print_file_contents(const char *path) {
-    FILE *f = fopen(path, "rb");
-    if (!f) return -1;
-    char buf[4096];
-    size_t n;
-    while ((n = fread(buf, 1, sizeof(buf), f)) > 0) {
-        if (fwrite(buf, 1, n, stdout) != n) {
-            fclose(f);
-            return -1;
-        }
-    }
-    int rc = ferror(f) ? -1 : 0;
-    fclose(f);
-    return rc;
-}
+/* Installing an agent integration means one thing: copying the skills into the
+ * agent's skill directory. No hooks, no settings.json surgery, no instruction
+ * files - `/graft-init`, itself one of the installed skills, does the wiring
+ * from inside the agent where it can ask the user what it needs. */
 
-static void print_project_snippet(const char *src, enum mg_setup_agent agent) {
-    char snippet[1024];
-    printf("\nProject instructions to paste into %s:\n\n", agent_project_file(agent));
-    printf("-----BEGIN GRAFT PROJECT INSTRUCTIONS-----\n");
-    if (path_join(snippet, sizeof(snippet), src, "project-snippet.md") == 0
-        && print_file_contents(snippet) == 0) {
-        /* ok */
-    } else {
-        printf("Use `graft query \"<problem restated>\"` before non-trivial technical work.\n");
-        printf("After solving a non-obvious reusable problem, run `graft classify --title \"<title>\"`, then `graft insert` with a Markdown body and 2-5 keywords.\n");
-    }
-    printf("\n-----END GRAFT PROJECT INSTRUCTIONS-----\n\n");
-}
-#endif
-
-static int enable_codex_hooks_flag(const char *codex_home) {
-    char path[1024];
-    if (path_join(path, sizeof(path), codex_home, "config.toml") != 0) return -1;
-    if (file_exists(path)) {
-        FILE *f = fopen(path, "rb");
-        if (!f) return -1;
-        fseek(f, 0, SEEK_END);
-        long len = ftell(f);
-        fseek(f, 0, SEEK_SET);
-        if (len < 0 || len > 1024 * 1024) {
-            fclose(f);
-            return -1;
-        }
-        char *buf = (char *)calloc((size_t)len + 64, 1);
-        if (!buf) {
-            fclose(f);
-            return -1;
-        }
-        if (fread(buf, 1, (size_t)len, f) != (size_t)len) {
-            fclose(f);
-            free(buf);
-            return -1;
-        }
-        fclose(f);
-        /* Length-tracked builder: an attacker-controlled config.toml with many
-         * repeated `[features]` sections or other expansion-triggering lines
-         * could overflow a fixed-size buffer. Track capacity strictly and
-         * abort cleanly if a write would not fit. */
-        size_t cap = (size_t)len * 2u + 256u;
-        char *out = (char *)calloc(cap, 1);
-        if (!out) {
-            free(buf);
-            return -1;
-        }
-        size_t pos = 0;
-
-        #define MG_APPEND_LIT(s) do {                                  \
-            size_t _slen = strlen(s);                                  \
-            if (_slen + 1 > cap - pos) {                               \
-                free(out); free(buf); return -1;                       \
-            }                                                          \
-            memcpy(out + pos, (s), _slen);                             \
-            pos += _slen;                                              \
-            out[pos] = '\0';                                           \
-        } while (0)
-
-        #define MG_APPEND_BYTES(p, n) do {                             \
-            size_t _n = (n);                                           \
-            if (_n + 1 > cap - pos) {                                  \
-                free(out); free(buf); return -1;                       \
-            }                                                          \
-            memcpy(out + pos, (p), _n);                                \
-            pos += _n;                                                 \
-            out[pos] = '\0';                                           \
-        } while (0)
-
-        int saw_features = 0, inserted = 0, replaced = 0;
-        char *p = buf;
-        while (*p) {
-            char *line = p;
-            char *nl = strchr(p, '\n');
-            size_t line_len = nl ? (size_t)(nl - line + 1) : strlen(line);
-            p = nl ? nl + 1 : line + line_len;
-
-            while (line_len > 0 && (line[line_len - 1] == '\n' || line[line_len - 1] == '\r')) line_len--;
-            char tmp[512];
-            size_t copy_len = line_len < sizeof(tmp) - 1 ? line_len : sizeof(tmp) - 1;
-            memcpy(tmp, line, copy_len);
-            tmp[copy_len] = '\0';
-            char *trim = tmp;
-            while (*trim == ' ' || *trim == '\t') trim++;
-
-            if (!strncmp(trim, "codex_hooks", 11)) continue;
-            if (saw_features && !strncmp(trim, "hooks", 5)) {
-                if (!inserted && !replaced) MG_APPEND_LIT("hooks = true\n");
-                replaced = 1;
-                continue;
-            }
-            MG_APPEND_BYTES(line, line_len);
-            MG_APPEND_LIT("\n");
-            if (!strcmp(trim, "[features]")) {
-                saw_features = 1;
-                if (!replaced) {
-                    MG_APPEND_LIT("hooks = true\n");
-                    inserted = 1;
-                }
-            } else if (trim[0] == '[') {
-                saw_features = 0;
-            }
-        }
-        if (!inserted && !replaced) MG_APPEND_LIT("\n[features]\nhooks = true\n");
-
-        #undef MG_APPEND_LIT
-        #undef MG_APPEND_BYTES
-
-        f = fopen(path, "wb");
-        free(buf);
-        if (!f) { free(out); return -1; }
-        size_t wrote = fwrite(out, 1, pos, f);
-        free(out);
-        if (wrote != pos) { fclose(f); return -1; }
-        return fclose(f) == 0 ? 0 : -1;
-    }
-    return write_text_file(path, "[features]\nhooks = true\n");
-}
-
-static int write_hook_config(const char *path, const char *hook_dir,
-                             enum mg_setup_agent agent) {
-    char dir[1024];
-    if (snprintf(dir, sizeof(dir), "%s", path) >= (int)sizeof(dir)) return -1;
-    if (parent_dir(dir) != 0 || mkdir_p(dir) != 0) return -1;
-
-    char query[1024], mark[1024], propose[1024];
-    if (path_join(query, sizeof(query), hook_dir, "query_inject.js") != 0
-        || path_join(mark, sizeof(mark), hook_dir, "mark_candidate.js") != 0
-        || path_join(propose, sizeof(propose), hook_dir, "propose_memoryze.js") != 0) {
-        return -1;
-    }
-
-    char tmp_js[1024];
-    if (path_join(tmp_js, sizeof(tmp_js), dir, ".graft-merge-hooks.js") != 0) return -1;
-    FILE *js = fopen(tmp_js, "wb");
-    if (!js) return -1;
-    fputs(
-        "const fs = require('fs');\n"
-        "const [configPath, agent, query, mark, propose] = process.argv.slice(2);\n"
-        "let doc = {};\n"
-        "try {\n"
-        "  if (fs.existsSync(configPath)) {\n"
-        "    const raw = fs.readFileSync(configPath, 'utf8').replace(/^\\uFEFF/, '').trim();\n"
-        "    if (raw) doc = JSON.parse(raw);\n"
-        "  }\n"
-        "} catch (e) {\n"
-        "  console.error(`graft setup: cannot parse ${configPath}: ${e.message}`);\n"
-        "  process.exit(2);\n"
-        "}\n"
-        "if (!doc || Array.isArray(doc) || typeof doc !== 'object') doc = {};\n"
-        "if (!doc.hooks || Array.isArray(doc.hooks) || typeof doc.hooks !== 'object') doc.hooks = {};\n"
-        "const claude = agent === 'claudecode';\n"
-        "function cmd(script, timeout, statusMessage) {\n"
-        "  const h = claude\n"
-        "    ? { type: 'command', command: 'node', args: [script], timeout }\n"
-        "    : { type: 'command', command: `node \"${script.replace(/\"/g, '\\\\\"')}\"`, timeout };\n"
-        "  if (statusMessage) h.statusMessage = statusMessage;\n"
-        "  return h;\n"
-        "}\n"
-        "function sameHook(a, script) {\n"
-        "  if (!a || a.type !== 'command') return false;\n"
-        "  if (Array.isArray(a.args) && a.args.includes(script)) return true;\n"
-        "  return typeof a.command === 'string' && a.command.includes(script);\n"
-        "}\n"
-        "function upsert(event, matcher, hook) {\n"
-        "  const groups = Array.isArray(doc.hooks[event]) ? doc.hooks[event] : [];\n"
-        "  const next = [];\n"
-        "  let placed = false;\n"
-        "  for (const group of groups) {\n"
-        "    if (!group || typeof group !== 'object') { next.push(group); continue; }\n"
-        "    const hooks = Array.isArray(group.hooks) ? group.hooks : [];\n"
-        "    const filtered = hooks.filter(h => !sameHook(h, hook.__script));\n"
-        "    const matches = matcher === null ? !Object.prototype.hasOwnProperty.call(group, 'matcher') : group.matcher === matcher;\n"
-        "    if (matches) {\n"
-        "      next.push({ ...group, hooks: [...filtered, hook] });\n"
-        "      placed = true;\n"
-        "    } else {\n"
-        "      next.push({ ...group, hooks: filtered });\n"
-        "    }\n"
-        "  }\n"
-        "  if (!placed) {\n"
-        "    const group = matcher === null ? { hooks: [hook] } : { matcher, hooks: [hook] };\n"
-        "    next.push(group);\n"
-        "  }\n"
-        "  for (const group of next) {\n"
-        "    if (group && Array.isArray(group.hooks)) for (const h of group.hooks) delete h.__script;\n"
-        "  }\n"
-        "  doc.hooks[event] = next;\n"
-        "}\n"
-        "const q = cmd(query, 10, claude ? undefined : 'graft cache lookup'); q.__script = query;\n"
-        "const m = cmd(mark, 5); m.__script = mark;\n"
-        "const p = cmd(propose, 5); p.__script = propose;\n"
-        "upsert('UserPromptSubmit', null, q);\n"
-        "upsert('PostToolUse', claude ? 'Edit|Write|MultiEdit|NotebookEdit' : 'apply_patch', m);\n"
-        "upsert('Stop', null, p);\n"
-        "fs.writeFileSync(configPath, JSON.stringify(doc, null, 2) + '\\n', { encoding: 'utf8' });\n",
-        js);
-    if (fclose(js) != 0) {
-        remove(tmp_js);
-        return -1;
-    }
-
-    char cmd[8192];
-    FILE *cmdf = tmpfile();
-    if (!cmdf) {
-        remove(tmp_js);
-        return -1;
-    }
-    fputs("node ", cmdf);
-    shell_write_quoted(cmdf, tmp_js);
-    fputc(' ', cmdf);
-    shell_write_quoted(cmdf, path);
-    fputc(' ', cmdf);
-    shell_write_quoted(cmdf, agent == MG_SETUP_CLAUDECODE ? "claudecode" : "codex");
-    fputc(' ', cmdf);
-    shell_write_quoted(cmdf, query);
-    fputc(' ', cmdf);
-    shell_write_quoted(cmdf, mark);
-    fputc(' ', cmdf);
-    shell_write_quoted(cmdf, propose);
-    long n;
-    if (fflush(cmdf) != 0 || fseek(cmdf, 0, SEEK_END) != 0 || (n = ftell(cmdf)) < 0
-        || (size_t)n >= sizeof(cmd) || fseek(cmdf, 0, SEEK_SET) != 0) {
-        fclose(cmdf);
-        remove(tmp_js);
-        return -1;
-    }
-    if (fread(cmd, 1, (size_t)n, cmdf) != (size_t)n) {
-        fclose(cmdf);
-        remove(tmp_js);
-        return -1;
-    }
-    cmd[n] = '\0';
-    fclose(cmdf);
-    int rc = system(cmd);
-    remove(tmp_js);
-    return rc == 0 ? 0 : -1;
-}
-
-static int setup_claudecode(const char *src, const char *home) {
-    char claude_home[1024], src_skills[1024], dst_skills[1024];
-    char src_hooks[1024], dst_hooks_root[1024], dst_hooks[1024], settings[1024];
-    if (path_join(claude_home, sizeof(claude_home), home, ".claude") != 0
-        || path_join(src_skills, sizeof(src_skills), src, "skills") != 0
-        || path_join(dst_skills, sizeof(dst_skills), claude_home, "skills") != 0) {
-        return -1;
-    }
+static int install_skills(const char *src, const char *dst_skills, const char *display) {
+    char src_skills[1024];
+    if (path_join(src_skills, sizeof(src_skills), src, "skills") != 0) return -1;
+    if (!dir_exists(src_skills)) return -1;
     if (copy_tree(src_skills, dst_skills) != 0) return -1;
     if (normalize_codex_skill_tree(dst_skills) != 0) return -1;
-    if (MG_SETUP_INSTALL_HOOKS) {
-        char src_hook_graft[1024];
-        if (path_join(src_hooks, sizeof(src_hooks), src, "hooks") != 0
-            || path_join(dst_hooks_root, sizeof(dst_hooks_root), claude_home, "hooks") != 0
-            || path_join(dst_hooks, sizeof(dst_hooks), dst_hooks_root, "graft") != 0
-            || path_join(settings, sizeof(settings), claude_home, "settings.json") != 0
-            || path_join(src_hook_graft, sizeof(src_hook_graft), src_hooks, "graft") != 0) {
-            return -1;
-        }
-        if (copy_tree(src_hook_graft, dst_hooks) != 0) return -1;
-        if (write_hook_config(settings, dst_hooks, MG_SETUP_CLAUDECODE) != 0) return -1;
-        printf("Installed Claude Code hooks to %s\n", dst_hooks);
-        printf("Updated %s\n", settings);
-    }
-    printf("Installed Claude Code skills to %s\n", dst_skills);
+    printf("  %-12s skills installed to %s\n", display, dst_skills);
     return 0;
 }
 
-static int setup_codex(const char *src, const char *home) {
-    char codex_home[1024], src_hooks[1024], dst_hooks_root[1024], dst_hooks[1024], hooks_json[1024];
-    char src_agents[1024], dst_agents[1024], src_skills_root[1024], dst_skills[1024];
-    if (path_join(codex_home, sizeof(codex_home), home, ".codex") != 0
-        || path_join(src_skills_root, sizeof(src_skills_root), src, "skills") != 0
-        || path_join(dst_skills, sizeof(dst_skills), codex_home, "skills") != 0) {
-        return -1;
-    }
-    if (dir_exists(src_skills_root)) {
-        if (copy_tree(src_skills_root, dst_skills) != 0) return -1;
-        if (normalize_codex_skill_tree(dst_skills) != 0) return -1;
-    }
-    if (MG_SETUP_INSTALL_HOOKS) {
-        char src_hook_graft[1024];
-        if (path_join(src_hooks, sizeof(src_hooks), src, "hooks") != 0
-            || path_join(dst_hooks_root, sizeof(dst_hooks_root), codex_home, "hooks") != 0
-            || path_join(dst_hooks, sizeof(dst_hooks), dst_hooks_root, "graft") != 0
-            || path_join(hooks_json, sizeof(hooks_json), codex_home, "hooks.json") != 0
-            || path_join(src_hook_graft, sizeof(src_hook_graft), src_hooks, "graft") != 0) {
+/* Where each agent keeps its user-level skills, and the directory whose
+ * presence means "this agent is installed on this machine". */
+static int agent_paths(enum mg_setup_agent agent, const char *home,
+                       char *agent_home, size_t home_cap,
+                       char *skills, size_t skills_cap) {
+    char base[1024];
+    switch (agent) {
+        case MG_SETUP_CLAUDECODE:
+            if (path_join(agent_home, home_cap, home, ".claude") != 0) return -1;
+            break;
+        case MG_SETUP_CODEX:
+            if (path_join(agent_home, home_cap, home, ".codex") != 0) return -1;
+            break;
+        case MG_SETUP_OPENCODE:
+            if (path_join(base, sizeof(base), home, ".config") != 0) return -1;
+            if (path_join(agent_home, home_cap, base, "opencode") != 0) return -1;
+            break;
+        default:
             return -1;
-        }
-        if (copy_tree(src_hook_graft, dst_hooks) != 0) return -1;
-        if (write_hook_config(hooks_json, dst_hooks, MG_SETUP_CODEX) != 0) return -1;
-        if (enable_codex_hooks_flag(codex_home) != 0) return -1;
-        printf("Installed Codex hooks to %s\n", dst_hooks);
-        printf("Updated %s\n", hooks_json);
     }
-    if (MG_SETUP_INSTALL_AGENT_INSTRUCTIONS) {
-        if (path_join(src_agents, sizeof(src_agents), src, "entrypoint.md") != 0
-            || path_join(dst_agents, sizeof(dst_agents), codex_home, "AGENTS.md") != 0) {
-            return -1;
-        }
-        if (copy_file(src_agents, dst_agents) != 0) return -1;
-        printf("Installed Codex instructions to %s\n", dst_agents);
-    }
-    if (dir_exists(src_skills_root)) printf("Installed Codex skills to %s\n", dst_skills);
-    return 0;
+    return path_join(skills, skills_cap, agent_home, "skills");
 }
 
-static int setup_opencode(const char *src, const char *home) {
-    char config_home[1024], opencode_home[1024], src_skills[1024], dst_skills[1024];
-    char src_agents[1024], dst_agents[1024];
-    if (path_join(config_home, sizeof(config_home), home, ".config") != 0) return -1;
-
-    if (path_join(opencode_home, sizeof(opencode_home), config_home, "opencode") != 0
-        || path_join(src_skills, sizeof(src_skills), src, "skills") != 0
-        || path_join(dst_skills, sizeof(dst_skills), opencode_home, "skills") != 0) {
+static int setup_agent(enum mg_setup_agent agent, const char *src, const char *home) {
+    char agent_home[1024], skills[1024];
+    if (agent_paths(agent, home, agent_home, sizeof(agent_home), skills, sizeof(skills)) != 0) {
         return -1;
     }
-    if (copy_tree(src_skills, dst_skills) != 0) return -1;
-    if (normalize_codex_skill_tree(dst_skills) != 0) return -1;
-    if (MG_SETUP_INSTALL_AGENT_INSTRUCTIONS) {
-        if (path_join(src_agents, sizeof(src_agents), src, "entrypoint.md") != 0
-            || path_join(dst_agents, sizeof(dst_agents), opencode_home, "AGENTS.md") != 0) {
-            return -1;
-        }
-        if (copy_file(src_agents, dst_agents) != 0) return -1;
-        printf("Installed OpenCode instructions to %s\n", dst_agents);
-    }
-    printf("Installed OpenCode skills to %s\n", dst_skills);
-    return 0;
+    return install_skills(src, skills, agent_display_name(agent));
 }
 
 static int parse_agent(const char *s, enum mg_setup_agent *agent) {
@@ -749,15 +422,27 @@ static int parse_agent(const char *s, enum mg_setup_agent *agent) {
     return -1;
 }
 
+static const enum mg_setup_agent MG_SETUP_ALL[] = {
+    MG_SETUP_CLAUDECODE, MG_SETUP_CODEX, MG_SETUP_OPENCODE
+};
+#define MG_SETUP_N_AGENTS (sizeof(MG_SETUP_ALL) / sizeof(MG_SETUP_ALL[0]))
+
+static void print_usage(FILE *f) {
+    fprintf(f, "usage: graft setup [claudecode|codex|opencode]\n");
+    fprintf(f, "       with no argument, every agent found on this machine is set up\n");
+}
+
 int mg_setup_cmd(int argc, char **argv) {
-    if (argc != 3) {
-        fprintf(stderr, "usage: graft setup <claudecode|codex|opencode>\n");
+    if (argc > 3) {
+        print_usage(stderr);
         return 2;
     }
-    enum mg_setup_agent agent;
-    if (parse_agent(argv[2], &agent) != 0) {
+
+    enum mg_setup_agent one;
+    int explicit_target = (argc == 3);
+    if (explicit_target && parse_agent(argv[2], &one) != 0) {
         fprintf(stderr, "unknown setup target: %s\n", argv[2]);
-        fprintf(stderr, "usage: graft setup <claudecode|codex|opencode>\n");
+        print_usage(stderr);
         return 2;
     }
 
@@ -772,15 +457,40 @@ int mg_setup_cmd(int argc, char **argv) {
         return 1;
     }
 
-    int rc;
-    if (agent == MG_SETUP_CLAUDECODE) rc = setup_claudecode(src, home);
-    else if (agent == MG_SETUP_CODEX) rc = setup_codex(src, home);
-    else rc = setup_opencode(src, home);
-    if (rc != 0) {
-        fprintf(stderr, "setup failed: %s\n", strerror(errno ? errno : EINVAL));
+    if (explicit_target) {
+        if (setup_agent(one, src, home) != 0) {
+            fprintf(stderr, "setup failed: %s\n", strerror(errno ? errno : EINVAL));
+            return 1;
+        }
+        printf("\nRestart %s, then run /graft-init inside it.\n", agent_display_name(one));
+        return 0;
+    }
+
+    /* No target given: set up every agent that is actually installed here. */
+    int done = 0;
+    for (size_t i = 0; i < MG_SETUP_N_AGENTS; i++) {
+        enum mg_setup_agent a = MG_SETUP_ALL[i];
+        char agent_home[1024], skills[1024];
+        if (agent_paths(a, home, agent_home, sizeof(agent_home), skills, sizeof(skills)) != 0) {
+            continue;
+        }
+        if (!dir_exists(agent_home)) continue;
+        if (install_skills(src, skills, agent_display_name(a)) != 0) {
+            fprintf(stderr, "  %-12s FAILED: %s\n", agent_display_name(a),
+                    strerror(errno ? errno : EINVAL));
+            continue;
+        }
+        done++;
+    }
+
+    if (done == 0) {
+        fprintf(stderr,
+                "setup found no agent on this machine.\n"
+                "Expected one of ~/.claude, ~/.codex or ~/.config/opencode.\n"
+                "Install your agent first, or name it: graft setup claudecode\n");
         return 1;
     }
-    printf("Restart %s so it reloads the installed skills.\n",
-           agent_display_name(agent));
+
+    printf("\nRestart your agent, then run /graft-init inside it.\n");
     return 0;
 }

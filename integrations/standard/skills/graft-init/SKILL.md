@@ -1,126 +1,134 @@
 ---
 name: graft-init
 description: >-
-  One-shot configurator that wires graft into a CLAUDE.md (global or project-local) so the agent uses the persistent memory consistently in every session. Asks the user 4 short questions (scope, caching, retrieve strategy, save strategy), then writes a `<!-- graft:start -->` … `<!-- graft:end -->` block into the chosen CLAUDE.md. Triggered by `/graft-init`, "configura graft", "set up graft for this project", "enable graft globally". Idempotent — re-running it replaces the previous block in place.
+  One-shot wiring of graft into this agent. Asks a single question - global or project - then writes the graft usage rule into the right instruction file (CLAUDE.md or AGENTS.md) and, on Claude Code, a rule file under .claude/rules/graft.md that the instruction file imports. Triggered by `/graft-init`, "configura graft", "set up graft here", "enable graft globally". Idempotent: re-running replaces the previous block in place, it never duplicates or strips anything else.
 ---
 
-# graft-init — Configure graft behavior in CLAUDE.md
+# graft-init - wire graft into this agent
 
-This skill writes a short, opinionated instruction block into a CLAUDE.md so future sessions automatically use the graft skills (`recall`, `memoryze`, `learn`, `memory-audit`) according to the user's preferences. The block is fenced with HTML markers so re-running the skill cleanly replaces it.
+`graft setup` copied the skills onto the machine. This skill does the remaining
+step: it tells the agent to actually *use* them, every session, without being
+asked. One question, then it writes the files.
 
-## Flow
+## Step 1 - ask the one question that matters
 
-Run the four `AskUserQuestion` calls **in order**. Stop immediately if the user picks `exit` on Q1. Pass `multiSelect: false` for all four. Defaults are marked **(recommended)** in the option labels — do not auto-pick, the user must choose.
-
-### Q1 — Scope
+Use `AskUserQuestion`, `multiSelect: false`:
 
 ```
-question: "Where should the graft configuration live?"
+question: "Where should the graft rule live?"
 header:   "Scope"
 options:
-  - { label: "Global (recommended)", description: "Write to ~/.claude/CLAUDE.md — applies to every project on this machine." }
-  - { label: "Local",                description: "Write to ./CLAUDE.md in the current repo — applies only here, takes precedence over global." }
-  - { label: "Exit",                 description: "Cancel without changing anything." }
+  - { label: "Global (recommended)", description: "Every project on this machine. The graph is shared anyway, so this is normally what you want." }
+  - { label: "This project only",    description: "Only this repo. Use it when the team should get the rule from version control, or when you are trying graft out." }
+  - { label: "Cancel",               description: "Change nothing." }
 ```
 
-If the user picks **Exit**, reply with one short line ("Cancelled, nothing changed.") and stop.
+On **Cancel**: reply `Cancelled, nothing changed.` and stop.
 
-### Q2 — Caching
+Ask nothing else. Do not ask about caching, retrieval frequency or save policy -
+the rule below is the answer to all three, and asking makes the user choose
+between options they have no basis to choose between yet.
 
-```
-question: "Enable cache-first lookups?"
-header:   "Caching"
-options:
-  - { label: "Enable (recommended)", description: "Use `graft query` first (fast, exact-match cache) before escalating to retrieve. Cuts latency on repeat questions." }
-  - { label: "Disable",              description: "Always go straight to retrieve. Slower but always semantic." }
-```
+## Step 2 - resolve the targets
 
-### Q3 — Retrieve strategy
+Detect the agent from the directories that exist, and pick the paths:
 
-```
-question: "When should the agent search the graph during a conversation?"
-header:   "Retrieve"
-options:
-  - { label: "Every interaction on cache miss (recommended)", description: "Run `/recall` on any non-trivial turn whenever the cache lookup misses. Maximum coverage." }
-  - { label: "Only at conversation start",                    description: "One opening recall to load context, then rely on conversation memory." }
-  - { label: "Never",                                         description: "Do not retrieve automatically — only when the user explicitly asks." }
-```
+| Agent | Global | Project |
+| ----- | ------ | ------- |
+| Claude Code (`~/.claude`) | `~/.claude/CLAUDE.md` + `~/.claude/rules/graft.md` | `./CLAUDE.md` + `./.claude/rules/graft.md` |
+| Codex (`~/.codex`) | `~/.codex/AGENTS.md` | `./AGENTS.md` |
+| OpenCode (`~/.config/opencode`) | `~/.config/opencode/AGENTS.md` | `./AGENTS.md` |
+| anything else | `~/AGENTS.md` | `./AGENTS.md` |
 
-### Q4 — Save strategy
+On Windows, `~` is `$env:USERPROFILE`. Create parent directories and missing
+files as needed. If several agents are present, write for all of them - it costs
+nothing and the user does not have to remember which one they are in today.
 
-```
-question: "When should the agent persist new knowledge with /memoryze?"
-header:   "Save"
-options:
-  - { label: "Per task milestone (recommended)", description: "Save as soon as a non-obvious sub-problem is solved. Highest recall later, no end-of-session loss." }
-  - { label: "End of conversation only",         description: "Bundle everything into a single save when the work wraps up." }
-  - { label: "Never",                            description: "Do not save automatically — only when the user asks." }
-```
+## Step 3 - write the rule
 
-## Writing the block
-
-Resolve the target file:
-
-- Global: `$env:USERPROFILE\.claude\CLAUDE.md` (Windows) or `~/.claude/CLAUDE.md` (POSIX). Create the parent dir if missing. Create the file if missing.
-- Local: `./CLAUDE.md` in the cwd. Create if missing.
-
-Build the block from the chosen options. Use these exact markers so future runs can find and replace it:
+**Claude Code**: write the full rule to the `rules/graft.md` path, and put this
+in the CLAUDE.md so it is loaded even where the rules directory is not scanned
+automatically:
 
 ```markdown
 <!-- graft:start -->
-## graft — persistent memory (auto-configured by /graft-init)
+## graft - persistent memory (configured by /graft-init)
 
-You have a persistent memory graph (`graft`) shared across sessions. Use it actively — it is your first stop on non-trivial work and the place where hard-won knowledge accumulates.
-
-**Retrieve:** {{retrieve_clause}}
-**Cache:** {{cache_clause}}
-**Save:** {{save_clause}}
-
-Companion skills: `/recall <q>` (search), `/memoryze <hints>` (save from conversation), `/learn <prompt>` (bulk-ingest external sources), `/memory-audit` (health check). Prefer these slash commands over raw `graft` CLI calls.
-
-Skip retrieval/save only for purely mechanical edits (rename, typo, format) or questions fully answered by code already on screen.
+@.claude/rules/graft.md
 <!-- graft:end -->
 ```
 
-Substitute the clauses based on Q2/Q3/Q4 answers:
+Use the path that matches the scope you resolved in step 2 (`~/.claude/rules/graft.md`
+for global, `.claude/rules/graft.md` for project-local).
 
-| Choice | `retrieve_clause` |
-| ------ | ----------------- |
-| Every interaction on cache miss | "On every non-trivial user turn, attempt a cache lookup; if it misses, run `/recall` before answering." |
-| Only at conversation start | "At the start of each conversation, run one `/recall` pass to load relevant context. Re-run only if the topic shifts substantially." |
-| Never | "Do not retrieve automatically. Use `/recall` only when the user explicitly asks." |
+**Every other agent**: write the full rule text directly between the markers in
+the AGENTS.md, with no import line.
 
-| Choice | `cache_clause` |
-| ------ | -------------- |
-| Enable | "Use `graft query` first for fast exact-match lookups; escalate to `retrieve` / `explore` only on miss." |
-| Disable | "Skip the cache layer; go straight to semantic `retrieve`." |
+The rule text, verbatim:
 
-| Choice | `save_clause` |
-| ------ | ------------- |
-| Per task milestone | "Save with `/memoryze` as soon as a non-obvious sub-problem is solved — do not wait for end of session." |
-| End of conversation only | "At the end of the conversation, run `/memoryze` once to persist what was learned." |
-| Never | "Do not save automatically. Use `/memoryze` only when the user explicitly asks." |
+```markdown
+# graft - use the memory graph
 
-## Idempotency
+You have a persistent memory graph (`graft`) shared across every session. It is a
+prompter, not a cache: it hands you notes that may be close to the problem, and a
+close note is already a win - it shortens the reasoning and tells you what was
+decided before. You are also the one who maintains it.
 
-Read the target file first.
+**Before non-trivial work** - a bug, an error, a design decision, a "how do I",
+anything the user says you have seen before, any substantial piece of code you
+are about to write - search the graph first. Use `/recall <short query>`, or the
+raw loop: `graft classify --title "<short query>"` to find the vocabulary, then
+`graft query`, then `graft retrieve --top-k 5` or `graft explore --beam 5`, then
+`graft get <id>` on whatever looks relevant.
 
-- If it contains `<!-- graft:start -->` … `<!-- graft:end -->`, replace **exactly that span** (markers included) with the new block. Do not touch anything else in the file.
-- Otherwise, append the block to the end of the file with a single blank line separating it from the previous content. If the file is empty/just-created, write the block as-is.
+**Query it like a search engine**: 3-8 words, nouns and technologies, no
+sentences. Long questions produce false misses.
 
-Never duplicate the block. Never strip user content outside the markers.
+**`STRONG` means "something close exists", not "this is correct"**. Read the node
+and check it against the code in front of you before you rely on it.
 
-## After writing
+**When a note is contradicted by current reality**, fix the graph:
+`graft get <id>`, `graft delete <id>`, then `graft insert` the corrected note.
+Never leave two contradicting notes about the same thing.
 
-Reply in **two short lines**:
+**At the end of the work, close the gap.** If what you just figured out was not
+in the graph, insert it - often more than one node: the fix, the gotcha, the
+decision and its reason. A miss today is only a waste if you leave it a miss.
+Use `/memoryze` for notes from the conversation, `/learn` for bulk ingestion
+from files. Never save secrets, tokens, or anything derivable from the code.
 
-1. `Wrote graft config to <absolute path>.` (one line)
-2. A one-sentence recap of the chosen retrieve + save strategy so the user can confirm at a glance.
+**End every turn in which you touched graft with a one-line recap** of how you
+used it - hits, what you took from them, what you added. One line, not a section.
 
-Do not paste the block back. Do not add explanations beyond those two lines unless the user asks.
+Skip all of this only for mechanical edits (rename, typo, format) and questions
+fully answered by code already on screen.
+```
+
+## Step 4 - idempotency
+
+Read each target file first.
+
+- If it already contains `<!-- graft:start -->` ... `<!-- graft:end -->`, replace
+  exactly that span, markers included. Touch nothing else.
+- Otherwise append the block, separated from the existing content by one blank line.
+- Overwrite `rules/graft.md` wholesale - it is entirely ours.
+
+Never duplicate the block, never remove content outside the markers.
+
+## Step 5 - report
+
+Two lines, no more:
+
+1. `Wired graft into <path>` (one line per file written).
+2. One sentence: search before non-trivial work, insert what was missing at the
+   end, recap in one line per turn.
+
+Do not paste the rule back to the user.
 
 ## Failure modes
 
-- User picks Exit on Q1 → stop, no file touched.
-- Target dir cannot be created (permissions) → report the path and the error verbatim, do not retry blindly.
-- File exists but is read-only → report and stop; do not chmod without asking.
+- Cancel on the question - stop, nothing written.
+- A directory cannot be created - report the path and the error verbatim, do not retry blindly.
+- A target file is read-only - report it and stop; do not change permissions without asking.
+- `graft` is not on PATH - say so and point at the installer; the rule is useless
+  until the CLI answers.

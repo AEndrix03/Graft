@@ -5,9 +5,22 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Added
+
+- **One-line installers** at the repo root: `install.sh` (Linux/macOS) and `install.ps1` (Windows). They download the prebuilt release archive for the platform, verify it against the published `SHA256SUMS` and refuse to continue on a mismatch, extract into `~/.graft`, fetch the BGE-M3 model once, write `config.yaml` with absolute paths without overwriting an existing one, put `~/.graft/bin` on `PATH`, and run a smoke check. No compiler, no submodules, no MSYS2.
+- `graft setup` with no argument now sets up every agent whose config directory exists on the machine.
+
 ### Changed
 
-- `graft setup claudecode`, `graft setup codex`, and `graft setup opencode` now install only the shared skills package. Hook installation and agent settings/instruction writes are disabled in code for the next version.
+- `graft setup` installs skills and nothing else. All hook installation, `settings.json` / `hooks.json` / `config.toml` merging and instruction-file writing were removed from the binary (~290 lines, plus the shipped hook scripts). Agent wiring is done by `/graft-init` from inside the agent.
+- `/graft-init` asks one question (global or project) instead of four, and writes the rule to `CLAUDE.md` + `.claude/rules/graft.md` on Claude Code, or `AGENTS.md` elsewhere.
+- The `graft` skill was rewritten around the prompter model: a near hit is useful, a miss is a gap to fill, short search-engine-style queries, `classify` for keywords, verify before trusting a `STRONG`, delete + re-insert for stale nodes, and a one-line end-of-turn recap.
+- `scripts/install.sh` / `scripts/install.ps1` are now `scripts/build-from-source.sh` / `scripts/build-from-source.ps1` - they build from source and are for contributors, GPU builds and platforms without a prebuilt archive.
+
+### Removed
+
+- The three harness hook scripts (`query_inject.js`, `mark_candidate.js`, `propose_memoryze.js`) and `scripts/install-codex-hooks.*`.
+- The duplicated per-agent skill copies under `integrations/claude-code/skills/`; `integrations/standard/skills/` is the single source.
 
 ## [0.1.0] — Initial release
 

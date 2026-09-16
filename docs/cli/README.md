@@ -286,14 +286,20 @@ See [`profiles/`](../profiles/) for the full multi-tenancy story.
 ## setup
 
 ```bash
-graft setup claudecode
+graft setup                 # every agent found on this machine
+graft setup claudecode      # or name one explicitly
 graft setup codex
 graft setup opencode
 ```
 
-Copies the shared skills package from `integrations/standard/skills/` into the agent's user config directory. Re-running overwrites in place - safe and idempotent.
+Copies the shared skills package from `integrations/standard/skills/` into the agent's
+user config directory (`~/.claude/skills`, `~/.codex/skills`, `~/.config/opencode/skills`).
+With no argument it sets up every agent whose config directory exists. Re-running
+overwrites in place - safe and idempotent.
 
-`graft setup` does not install hooks and does not modify agent settings or `AGENTS.md`. Hook and project-instruction wiring remains manual in the per-agent integration docs.
+That is all it does. It installs **no hooks**, and it does not touch `settings.json`,
+`config.toml`, `CLAUDE.md` or `AGENTS.md`. The instruction wiring is done from inside
+the agent by `/graft-init`, which is one of the skills this command installs.
 
 ---
 

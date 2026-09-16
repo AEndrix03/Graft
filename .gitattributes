@@ -1,0 +1,8 @@
+# The installers are fetched raw and piped straight into a shell; CRLF would
+# break the shebang and every heredoc. Keep them LF whatever the platform.
+*.sh    text eol=lf
+install.sh text eol=lf
+scripts/git-hooks/* text eol=lf
+
+# PowerShell is fine with either, but keep the repo consistent.
+*.ps1   text eol=lf

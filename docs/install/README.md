@@ -1,16 +1,58 @@
 # Installation
 
-Graft is intentionally easy to install. You pick one of three paths depending on how much you want to tweak.
+## One line
 
-| Path | Time | When to pick it |
-| ---- | ---- | --------------- |
-| **Homebrew tap** (macOS / Linux)  | ~2 minutes | You want it to just work. |
-| **GitHub Release archive**        | ~1 minute  | You want a signed prebuilt binary archive. |
-| **One-shot installer**            | ~3 minutes | You want a managed build from source with sane defaults. |
-| **Manual build**                  | ~5 minutes | You want full control (custom flags, custom prefix, distro packaging). |
+```bash
+curl -fsSL https://raw.githubusercontent.com/AEndrix03/Graft/master/install.sh | sh
+```
 
-All three paths end up at the same binaries: `graft` (CLI) and `graftd` (daemon).
-The daemon auto-starts on the first CLI call, so you don't manage process lifecycle.
+```powershell
+irm https://raw.githubusercontent.com/AEndrix03/Graft/master/install.ps1 | iex
+```
+
+The shell installer covers Linux today; **macOS has no prebuilt release archive
+yet**, so on macOS use the Homebrew tap below - the script will tell you the same
+thing rather than installing something wrong.
+
+That is the whole installation. The script downloads the prebuilt release archive
+for your platform, **verifies it against the published `SHA256SUMS` and refuses to
+continue on a mismatch**, extracts it into `~/.graft`, downloads the BGE-M3 model
+(~600 MB) once, writes `~/.graft/config.yaml` with absolute paths, puts
+`~/.graft/bin` on your `PATH`, and runs `graft stats` as a smoke check.
+
+No compiler, no submodules, no MSYS2, no config to copy by hand. Re-running it is
+safe: an existing `config.yaml` is kept, an existing model is not re-downloaded.
+
+Knobs, all optional:
+
+| Variable | Effect |
+| -------- | ------ |
+| `GRAFT_HOME` | install prefix (default `~/.graft`) |
+| `GRAFT_VERSION` | install a specific release tag instead of the latest |
+| `GRAFT_REPO` | install from a fork |
+| `GRAFT_MODEL_URL` | alternative GGUF source |
+| `GRAFT_NO_MODEL=1` | skip the model download (the daemon cannot embed until you supply one) |
+| `GRAFT_NO_PATH=1` | do not touch shell rc files / the user `PATH` |
+
+Then wire it into your agent:
+
+```bash
+graft setup     # copies the skills into every agent found on this machine
+/graft-init     # inside the agent: one question, then it writes the rule
+```
+
+## The other paths
+
+| Path | When to pick it |
+| ---- | --------------- |
+| **One-line installer** (above) | Default. Prebuilt, verified, ~1 minute. |
+| **Homebrew tap** | You already manage everything with brew. |
+| **Scoop** | Same, on Windows. |
+| **Release archive by hand** | You want to inspect or mirror the artifacts yourself. |
+| **Build from source** | Contributors, GPU builds, platforms with no prebuilt archive. |
+
+They all end at the same two binaries: `graft` (CLI) and `graftd` (daemon). The
+daemon auto-starts on the first CLI call, so you never manage a process.
 
 ---
 
@@ -68,13 +110,15 @@ graft upgrade --check
 
 ---
 
-## One-shot installer
+## Build from source
+
+Only needed for contributors, GPU builds, and platforms without a prebuilt archive.
 
 ```bash
 git clone https://github.com/AEndrix03/graft.git
 cd graft
-bash scripts/install.sh          # Linux, macOS, MSYS2 on Windows
-pwsh scripts/install.ps1         # Native Windows PowerShell — auto-installs MSYS2 if needed
+bash scripts/build-from-source.sh          # Linux, macOS, MSYS2 on Windows
+pwsh scripts/build-from-source.ps1         # Native Windows PowerShell — auto-installs MSYS2 if needed
 ```
 
 The installer is **idempotent** — rerun it freely; it does not double-write anything.
@@ -98,9 +142,9 @@ If any step fails the installer prints the actual command that failed, so you ca
 Default is CPU. To build llama.cpp with GPU offload, pass `GRAFT_GPU`:
 
 ```bash
-GRAFT_GPU=cuda  bash scripts/install.sh        # NVIDIA CUDA
-GRAFT_GPU=hip   bash scripts/install.sh        # AMD ROCm 6 or 7
-pwsh scripts/install.ps1 -Gpu cuda             # Windows PowerShell equivalent
+GRAFT_GPU=cuda  bash scripts/build-from-source.sh        # NVIDIA CUDA
+GRAFT_GPU=hip   bash scripts/build-from-source.sh        # AMD ROCm 6 or 7
+pwsh scripts/build-from-source.ps1 -Gpu cuda             # Windows PowerShell equivalent
 ```
 
 Then opt in to GPU offload in `config.yaml`:
@@ -220,4 +264,4 @@ You can override any of these with environment variables. See [`configuration/`]
 - **Container image**. A `Dockerfile` that builds graft + the viewer + the OAuth gateway in one image would unlock easy deployment behind any reverse proxy.
 - **Windows MSI / `winget`**. Today the only Windows path is the PowerShell installer or a manual build under MSYS2 / MinGW.
 - **Model download integrity**. The Homebrew formula pins the SHA256; the shell installer does not. Adding a checksum check after `curl` would close that gap.
-- **A genuine `--check` mode for `scripts/install.sh`** that prints what would be installed without writing anything. Useful for CI and for reviewers.
+- **A genuine `--check` mode for `scripts/build-from-source.sh`** that prints what would be installed without writing anything. Useful for CI and for reviewers.

@@ -3,11 +3,11 @@
 #
 # graft builds with MinGW64 from MSYS2. This script:
 #   1. checks for an MSYS2 install (offers to install it via winget)
-#   2. invokes scripts/install.sh inside the MSYS2 MINGW64 shell - which
+#   2. invokes scripts/build-from-source.sh inside the MSYS2 MINGW64 shell - which
 #      handles every other step (deps, llama.cpp, model, build, smoke test).
 #
 # If you already have MSYS2 set up, you can skip this entirely and just run:
-#   bash scripts/install.sh    (from MSYS2 MinGW64 shell)
+#   bash scripts/build-from-source.sh    (from MSYS2 MinGW64 shell)
 
 [CmdletBinding()]
 param(
@@ -60,7 +60,7 @@ if (-not $found) {
     Write-Ok "MSYS2 found at $found"
 }
 
-# ---------- run install.sh inside MINGW64 ----------
+# ---------- run build-from-source.sh inside MINGW64 ----------
 
 $repo = (Resolve-Path "$PSScriptRoot\..").Path
 # Convert C:\foo\bar to /c/foo/bar for MSYS
@@ -68,16 +68,16 @@ $drive = $repo.Substring(0, 1).ToLower()
 $rest  = $repo.Substring(2) -replace '\\', '/'
 $repoMsys = "/$drive$rest"
 
-Write-Step "Launching MSYS2 MINGW64 shell to run install.sh..."
+Write-Step "Launching MSYS2 MINGW64 shell to run build-from-source.sh..."
 if ($Gpu -ne "none") { Write-Host "  GPU backend: $Gpu" -ForegroundColor Cyan }
 $bash = "$found\usr\bin\bash.exe"
 $env:CHERE_INVOKING = "1"
 $env:MSYSTEM        = "MINGW64"
 $env:GRAFT_GPU   = $Gpu
 
-& $bash -lc "cd '$repoMsys'; GRAFT_GPU='$Gpu' bash scripts/install.sh --yes"
+& $bash -lc "cd '$repoMsys'; GRAFT_GPU='$Gpu' bash scripts/build-from-source.sh --yes"
 
-if ($LASTEXITCODE -ne 0) { Write-Err "install.sh exited with code $LASTEXITCODE" }
+if ($LASTEXITCODE -ne 0) { Write-Err "build-from-source.sh exited with code $LASTEXITCODE" }
 
 $installDir = Join-Path $env:USERPROFILE ".graft"
 

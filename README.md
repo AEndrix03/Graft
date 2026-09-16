@@ -100,36 +100,47 @@ This is **agent memory**, not document storage.
 
 ## Install
 
-### Homebrew
+**Linux**
 
 ```bash
-brew tap AEndrix03/graft https://github.com/AEndrix03/Graft.git
-brew install graft
-
-graft stats
+curl -fsSL https://raw.githubusercontent.com/AEndrix03/Graft/master/install.sh | sh
 ```
 
-No database server. No model download by hand. No config required for the first run.
-
-### Cross-platform
-
-```bash
-git clone https://github.com/AEndrix03/Graft.git
-cd Graft
-bash scripts/install.sh
-```
-
-Windows:
+**Windows**
 
 ```powershell
-pwsh scripts/install.ps1
+irm https://raw.githubusercontent.com/AEndrix03/Graft/master/install.ps1 | iex
 ```
 
-Optional GPU acceleration:
+**macOS** — prebuilt archives aren't published yet, so use the tap:
 
 ```bash
-GRAFT_GPU=cuda bash scripts/install.sh
-GRAFT_GPU=hip  bash scripts/install.sh
+brew tap AEndrix03/graft https://github.com/AEndrix03/Graft.git && brew install graft
+```
+
+The one-liners drop prebuilt, checksum-verified binaries into `~/.graft` — no
+compiler, no submodules, no MSYS2. The embedding model (~600 MB) is downloaded
+once. Nothing else to configure.
+
+Then wire it into your coding agent, which is two commands:
+
+```bash
+graft setup     # copies the skills into every agent found on this machine
+/graft-init     # run this inside the agent; it asks one question and writes the rule
+```
+
+Prefer Scoop on Windows?
+
+```powershell
+scoop install https://raw.githubusercontent.com/AEndrix03/Graft/master/bucket/graft.json
+```
+
+Building from source (contributors, GPU builds, unsupported platforms):
+
+```bash
+git clone https://github.com/AEndrix03/Graft.git && cd Graft
+bash scripts/build-from-source.sh          # pwsh scripts/build-from-source.ps1 on Windows
+GRAFT_GPU=cuda bash scripts/build-from-source.sh   # or GRAFT_GPU=hip
 ```
 
 Full installation reference → **[`docs/install/`](./docs/install/)**
@@ -259,9 +270,9 @@ Graft is a binary with a CLI contract. Any agent that can run a subprocess can u
 
 | Agent | Integration | Setup |
 |---|---|---|
-| **Claude Code** | Skills + optional hooks | `graft setup claudecode` |
-| **Codex** | Skills + optional hooks / `AGENTS.md` | `graft setup codex` |
-| **Open Code** | Native skills | `graft setup opencode` |
+| **Claude Code** | Skills | `graft setup` then `/graft-init` |
+| **Codex** | Skills | `graft setup` then `/graft-init` |
+| **Open Code** | Native skills | `graft setup` then `/graft-init` |
 | **Gemini CLI** | `GEMINI.md` workflow | [`integrations/gemini-cli/`](./integrations/gemini-cli/) |
 | **Claude Desktop** | MCP | [`integrations/claude-ai/`](./integrations/claude-ai/) |
 | **ChatGPT** | MCP stdio / HTTP | [`integrations/chatgpt/`](./integrations/chatgpt/) |
@@ -293,7 +304,7 @@ For Claude Code, Graft includes skills such as:
 - `learn` — intentionally ingest useful knowledge
 - `memory-audit` — inspect memory quality and reuse
 
-Optional hooks can make recall deterministic at supported harness events. Hook wiring is currently manual.
+`/graft-init` writes the usage rule into your CLAUDE.md or AGENTS.md (and, on Claude Code, a rule file under `.claude/rules/`). It never touches hooks or agent settings files.
 
 ---
 
@@ -603,7 +614,7 @@ Full documentation → **[`docs/`](./docs/)**
 ```bash
 git clone https://github.com/AEndrix03/Graft.git
 cd Graft
-bash scripts/install.sh
+bash scripts/build-from-source.sh
 graft stats
 ```
 

@@ -16,12 +16,12 @@ graft setup codex
 ```
 
 Setup installs compatible skills to `~/.codex/skills` only. It does not modify
-`AGENTS.md`, `~/.codex/hooks.json`, or `~/.codex/config.toml`.
+`AGENTS.md`, `~/.codex/hooks.json`, or `~/.codex/config.toml`. Run `/graft-init` inside Codex to write the usage rule into `AGENTS.md`.
 
 For repo-level instructions:
 
 ```bash
-cat integrations/standard/project-snippet.md >> ./AGENTS.md
+# then, inside Codex:  /graft-init
 ```
 
 ## Allow-listing

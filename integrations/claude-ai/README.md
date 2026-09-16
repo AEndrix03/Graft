@@ -6,8 +6,8 @@ Connects the Claude Desktop app to the local `graft` daemon via the MCP server i
 
 1. **Install graft end-to-end** (one command, idempotent):
    ```bash
-   pwsh scripts/install.ps1     # Windows (auto-bootstraps MSYS2 if needed)
-   bash  scripts/install.sh     # Linux / macOS / inside MSYS2
+   pwsh scripts/build-from-source.ps1     # Windows (auto-bootstraps MSYS2 if needed)
+   bash  scripts/build-from-source.sh     # Linux / macOS / inside MSYS2
    ```
    This puts `graft[.exe]` at `~/.graft/bin/` and adds it to user PATH. The daemon auto-starts on first command, no manual launch needed.
 

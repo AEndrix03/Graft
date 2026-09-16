@@ -37,8 +37,8 @@ stable version so users on `scoop update` are not pushed to an unstable build.
 
 ## Local build (without Scoop)
 
-If you want a Windows build outside CI, run `scripts/install.ps1`. It
-delegates to `scripts/install.sh` inside an MSYS2 MinGW64 shell and installs
+If you want a Windows build outside CI, run `scripts/build-from-source.ps1`. It
+delegates to `scripts/build-from-source.sh` inside an MSYS2 MinGW64 shell and installs
 to `~/.graft/bin`.
 
 ## Why a personal bucket and not the official one

@@ -171,7 +171,7 @@ static int usage(void) {
         "  graft consolidate\n"
         "  graft analytics [--since 7d|24h] [--seconds-per-hit 60]\n"
         "  graft profile <list|current|add|remove|set|import|export> ...\n"
-        "  graft setup <claudecode|codex|opencode>\n"
+        "  graft setup [claudecode|codex|opencode]   (default: every agent found)\n"
         "  graft upgrade [--check] [--yes]\n"
         "  graft --version\n"
         "  graft view [--port 9977]   (opens 3D viewer in browser; needs http.enabled)\n");

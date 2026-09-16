@@ -1,9 +1,8 @@
 # Claude Code — graft skill suite
 
-Due livelli di integrazione:
-
-- **Skill** (`skills/`) — slash command + auto-invocation in base al contesto. L'agent decide quando usarli.
-- **Hooks** (`hooks/`) — eseguiti dal harness in modo deterministico su `UserPromptSubmit` / `PostToolUse` / `Stop`. Non dipendono dal modello che si ricorda di usarli. Vedi [`hooks/README.md`](./hooks/README.md) per il setup.
+Un solo livello di integrazione: **skill**. `graft setup` le copia, `/graft-init`
+scrive la regola d'uso nel CLAUDE.md e in `.claude/rules/graft.md`. Nessun hook,
+nessuna modifica a `settings.json`.
 
 ## Skill
 
@@ -12,7 +11,7 @@ Sei skill collaborano:
 | Skill              | Trigger                                           | Cosa fa                                                                  |
 | ------------------ | ------------------------------------------------- | ------------------------------------------------------------------------ |
 | `graft`         | Auto su qualunque problema tecnico non banale     | Master: orchestrazione, profili, reference CLI, troubleshooting.         |
-| `graft-init`    | `/graft-init`, "configura graft"            | Configuratore one-shot: scrive il blocco istruzioni in CLAUDE.md (global o local). |
+| `graft-init`    | `/graft-init`, "configura graft"            | Wiring one-shot: una domanda (globale o progetto), poi scrive la regola in CLAUDE.md e `.claude/rules/graft.md`. |
 | `recall`           | `/recall …`, "do we have X?", "ricordi se..."     | Cerca con strategia smart: query → retrieve → explore in cascata.        |
 | `memoryze`         | `/memoryze …`, "save this", "ricorda questo"      | Distilla la conversazione in 1-5 nodi ben formati e li inserisce.        |
 | `learn`            | `/learn …`, "ingest this folder", "porting"       | Batch-ingestion da fonti esterne (codebase, docs): plan + conferma + ingest. |
@@ -20,18 +19,13 @@ Sei skill collaborano:
 
 ## Installazione
 
-La sorgente autorevole e condivisa per skill, hook e istruzioni e'
-`integrations/standard`; questa cartella resta un adapter/documentazione per
-Claude Code.
-
-Installazione user-scoped automatica:
+La sorgente unica delle skill e' `integrations/standard/skills`; questa cartella
+e' solo documentazione per Claude Code.
 
 ```bash
-graft setup claudecode
+graft setup        # copia le skill in ~/.claude/skills
+/graft-init        # dentro Claude Code: una domanda, poi scrive la regola
 ```
-
-Il setup automatico copia solo le skill in `~/.claude/skills`; non installa hook
-e non modifica `~/.claude/settings.json`.
 
 Copia tutta la directory standard `skills/` nella skill folder di Claude Code:
 
@@ -91,6 +85,6 @@ Per ridurre i prompt di permesso, in `~/.claude/settings.json` (o project-scoped
 
 ## Note tecniche
 
-- Le skill assumono che `graft` sia in PATH (`scripts/install.sh` lo aggiunge automaticamente).
+- Le skill assumono che `graft` sia in PATH (`scripts/build-from-source.sh` lo aggiunge automaticamente).
 - Il daemon si auto-avvia al primo comando del CLI; non serve avviarlo manualmente.
 - I prompt di tutte le skill sono in inglese per coerenza con la lingua di Claude Code.

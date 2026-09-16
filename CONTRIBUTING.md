@@ -6,8 +6,8 @@ Thanks for considering a contribution. graft is a small C / CMake project and th
 
 ```bash
 git clone https://github.com/AEndrix03/graft.git && cd graft
-bash scripts/install.sh        # Linux, macOS, Windows MSYS2
-pwsh scripts/install.ps1       # Windows (auto-installs MSYS2 if needed)
+bash scripts/build-from-source.sh        # Linux, macOS, Windows MSYS2
+pwsh scripts/build-from-source.ps1       # Windows (auto-installs MSYS2 if needed)
 ```
 
 The installer pulls submodules, builds llama.cpp (CPU by default; pass `GRAFT_GPU=cuda|hip` for GPU), downloads BGE-M3 (~600 MB), builds `graft` + `graftd`, and activates the commit-msg hook described below. See the [README](./README.md#install) for manual steps.

@@ -53,7 +53,7 @@ graft setup opencode
 ```
 
 Per ora `graft setup` non modifica file di settings/config dell'agent e non
-scrive hook o `AGENTS.md`; eventuale wiring manuale resta documentato nelle
+scrive hook o `AGENTS.md`; il wiring lo fa `/graft-init` dall'interno dell'agent, come documentato nelle
 cartelle dei singoli adapter.
 
 ## Mapping operazioni → tool name

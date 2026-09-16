@@ -1,189 +1,186 @@
 ---
 name: graft
 description: >-
-  Persistent graph memory across conversations. The master skill — search BEFORE answering non-trivial questions, save AFTER solving non-obvious ones. Three companion skills handle the heavy lifting: `/memoryze` (save with smart granularity), `/recall` (escalating search query→retrieve→explore), `/memory-audit` (read-only health check). The daemon auto-starts on first command. Multi-tenant via profiles. Use this skill ALWAYS for any non-trivial technical question, framework quirk, design decision, or learned-the-hard-way fix.
+  Persistent graph memory shared across conversations and agents. Graft is a prompter, not a cache: it hands you notes that may be close to the problem in front of you, and a close note is already a win - it gives you a starting point and reminds you what was decided before. Search it before non-trivial work, and write to it whenever the answer you just produced was not already there. Companion skills: `/recall` (search), `/memoryze` (save), `/learn` (bulk ingest), `/memory-audit` (health check). The daemon auto-starts on the first command.
 ---
 
-# graft — Persistent agent memory
+# graft - the prompter in your pocket
 
-You have a long-term memory graph that persists across conversations and across agents. Treat it as your **first stop** for anything non-trivial: another past-you (or another agent on the team) may have already solved it, and the answer lives there.
+Picture yourself sitting an exam with a stack of small notes. Graft is that stack.
+Some notes answer the question exactly. Many are merely *near* it - and those are
+still worth reading: they cut the reasoning short and they remind you which
+decisions were already made and why.
 
-## When to engage — be aggressive
+Two consequences, and everything else in this skill follows from them:
 
-**ALWAYS check the graph (no permission needed) when ANY of these holds:**
+1. **A similar hit is a hit.** Do not demand an exact match before you use
+   something. Take the near note as a starting point, then verify it.
+2. **A miss is not a dead end, it is a gap.** You are the one who maintains this
+   graph. When graft had nothing and you solved the problem anyway, write the
+   note - so that next time the stack answers. The more notes, the more hits.
 
-- The user describes a technical problem, bug, error, or design decision.
-- The user asks "how do I…", "why does…", "what's the right way to…".
-- The user says "ricordi", "we did this before", "abbiamo già fatto".
-- You're about to write more than ~30 lines of code or make an architectural choice.
-- You hit a library/framework/CLI quirk (Spring, Angular, Docker, git, npm, …).
-- You finish solving a non-obvious problem (search-then-save loop closes).
+Nobody else is going to fill it. If you do not write, the graph does not grow.
 
-**Skip only when:**
+## How much to trust a hit
 
-- Pure mechanical edits (rename a variable, fix a typo, format).
-- File listings, "what's in this folder", trivial reads.
-- The question is fully answered by code already on screen.
+`query` reports `STRONG` / `WEAK` / `MISS`. **`STRONG` means "something close to
+your question exists" - it does not mean "this is true today".** Notes were
+written against a codebase and a world that may have moved.
 
-When in doubt: **search**. A `graft query` is cheap (tens of ms warm, ~100-300ms cold). The cost of NOT checking and re-doing past work is much higher.
+So: read the node, then check it against what is in front of you (the code, the
+config, the error). If it holds, use it and say where it came from. If it does
+not, see *Fixing stale evidence* below.
 
-## Companion skills — what to invoke when
+## Asking well
 
-Use the right skill for the action; don't reinvent inside this one.
+Query graft the way you query a search engine, not the way you talk to a person.
 
-| Slash command       | When to use                                                                                       |
-| ------------------- | ------------------------------------------------------------------------------------------------- |
-| `/recall <query>`   | Looking something up. Picks query/retrieve/explore for you and escalates on weak hits.            |
-| `/memoryze <hints>` | Saving knowledge **from the current conversation** (1-5 atomic nodes, smart granularity).          |
-| `/learn <prompt>`   | Bulk ingestion **from external sources** (folders, codebases, doc trees). Plan-first, 10-200 nodes. |
-| `/memory-audit`     | Periodic health check. Read-only; produces a report and an action menu.                           |
+- **Short.** 3-8 words. `angular signal untracked reactivity`, not
+  "why doesn't my Angular component refresh when I change the document?"
+- **Nouns over sentences.** Technology, symptom, subject. Drop articles, drop
+  "how do I", drop the project's own names unless they are the point.
+- **Let `classify` choose the keywords.** `graft classify --title "<your short
+  query>"` returns the vocabulary the graph actually uses; feed those back into
+  `explore --keyword`. Guessing keywords yourself is how you produce false misses.
 
-`/memoryze` vs `/learn` rule of thumb: source is the conversation → `/memoryze`; source is files outside the conversation → `/learn`.
-
-This skill (`graft`) covers everything else: the raw CLI, profile management, troubleshooting, and the underlying conceptual model.
-
-## Setup
-
-Nothing to configure. The CLI auto-starts `graftd` if it isn't running — first command pays ~1-2s for cold-start, subsequent calls are fast.
-
-Standard install layout (created by `scripts/install.sh` / `scripts/install.ps1`):
-
-```
-~/.graft/
-├── bin/         graft + graftd + DLLs/so
-├── models/      bge-m3.gguf (~600 MB)
-├── config.yaml  daemon config (absolute model path)
-├── profiles/<name>/graft.db   one DB per profile
-├── sockets/     per-profile UNIX socket (Windows; POSIX uses /tmp)
-└── graftd.log
-```
-
-If the CLI errors with `connect failed: …` AND `auto-start failed: …`, the second line tells you why (binary missing, model missing, port conflict). Surface it verbatim to the user.
-
-## Profiles — multi-tenant memory
-
-A profile = its own DB + its own daemon. Default profile is `default` (auto-created, not removable).
+## The search loop
 
 ```bash
-graft profile list                              # show all + active
-graft profile current                           # quick check
-graft profile add work                          # create new
-graft profile remove work                       # delete (asks confirmation; pass --yes to skip)
-graft profile export work --path work.graftprofile # backup (file is a valid SQLite DB)
-graft profile import --name work2 --file work.graftprofile [--force]
+graft classify --title "angular signal reactivity"          # which keywords exist
+graft query    "angular signal reactivity"                  # STRONG / WEAK / MISS
+graft retrieve "angular signal reactivity" --top-k 5        # 5 ranked candidates
+graft explore  "angular signal reactivity" --keyword angular --depth 2 --beam 5
+graft get      <hex_id>                                     # full body of a node
 ```
 
-**Active profile resolution**: `$GRAFT_PROFILE` env, else `default`. There is no global state file.
+Run it in that order and stop as soon as you have something usable:
 
-To switch profile in the current shell:
+1. `classify` when you are unsure what the graph calls this subject.
+2. `query` for the fast yes/no.
+3. On `WEAK` or `MISS` that still smells like a hit, `retrieve --top-k 5` or
+   `explore ... --beam 5` - five candidates is the sweet spot; more is noise.
+4. `get` the ids that look relevant. Titles lie a little; bodies do not.
+
+`/recall <question>` runs this escalation for you and is the normal entry point.
+
+## When to search
+
+Search before: a technical problem, bug or error; a design decision; "how do I /
+why does / what's the right way"; anything the user phrases as "we did this
+before"; any non-trivial chunk of code or architecture you are about to commit to.
+
+Skip only for mechanical edits (rename, typo, format), file listings, and
+questions already answered by code on screen.
+
+## Writing back - the part that is easy to skip
+
+At the end of a piece of work, ask one question: **was everything I just figured
+out already in the graph?** If not, insert the missing notes. More than one is
+normal - a session that produced a fix, a gotcha and a decision produces three.
+
+Write a note when you have:
+
+- a bug and a non-obvious fix,
+- a library / framework / CLI quirk,
+- an architectural decision **and the reason it won**,
+- a working incantation that was hard to find,
+- a standing convention ("from now on we always X").
+
+Do not write: trivia, secrets or tokens, chit-chat, or anything a reader could
+derive from the current code or git history.
 
 ```bash
-eval "$(graft profile set work)"        # bash/zsh/fish — auto-detects
-graft profile set work | iex            # PowerShell
+graft classify --title "short searchable title"
+graft insert --title "short searchable title" \
+             --body "what it is, why it matters, what it cost to learn" \
+             --keyword k1 --keyword k2
 ```
 
-To make it persistent: copy the printed export line into your shell rc (`.bashrc`, `.zshrc`, `profile.ps1`).
+The title is the retrieval anchor: phrase it the way you would *search* for it
+later, not the way you solved it. `insert` is idempotent - the same
+title+body+keywords returns the existing id with `"duplicate": true`.
 
-For one-off cross-profile operations:
+Use `/memoryze` for 1-5 notes out of the conversation, `/learn` for bulk ingestion
+from files outside it.
+
+## Fixing stale evidence
+
+When a note is contradicted by what you can see now, the graph must be corrected -
+a wrong note is worse than a missing one, because it will be retrieved with
+confidence.
 
 ```bash
-GRAFT_PROFILE=work graft query "deployment workflow"
+graft get    <hex_id>     # 1. read what is there
+graft delete <hex_id>     # 2. remove the outdated node
+graft insert --title ... --body ... --keyword ...   # 3. insert the current truth
 ```
 
-## CLI reference (advanced)
+Delete + insert, not "leave it and add another": two contradicting notes about the
+same thing is the worst state the graph can be in. If the note is merely
+suspicious and you cannot verify it, re-save it with an `unsure` keyword and a
+body that says what you could not confirm, rather than deleting.
 
-| Goal                                  | Command                                                              |
-| ------------------------------------- | -------------------------------------------------------------------- |
-| Cache lookup with STRONG/WEAK/MISS    | `graft query "<text>"`                                            |
-| Top-k hybrid (lex + vec via RRF)      | `graft retrieve "<text>" --top-k 10`                              |
-| Graph walk from keywords              | `graft explore "<text>" --keyword foo --depth 3`                  |
-| Save knowledge                        | `graft insert --title S --body D --keyword K`                 |
-| Suggest keywords for a title        | `graft classify --title "<text>"`                               |
-| Fetch node by id                      | `graft get <hex_id>`                                              |
-| Delete node by id                     | `graft delete <hex_id>`                                           |
-| Distribution percentiles              | `graft stats`                                                     |
-| Usage report (hit-rate, est. saved)   | `graft analytics [--since 7d] [--seconds-per-hit 60]`             |
-| Profile management                    | `graft profile <list\|current\|add\|remove\|set\|export\|import>` |
+## End-of-turn recap
 
-`insert` is idempotent: same `title+body+keywords` returns `"duplicate": true` with the existing id.
+Every turn in which you touched graft, close with one short line saying how you
+used it. Not a section, not a table - a line:
 
-## Output schema (envelope)
+> graft: STRONG hit on "sqlite wal checkpoint" (used), 1 node added for the
+> retry-backoff decision.
 
-Every command prints JSON-ish:
+or, when it gave you nothing:
 
-```json
-{ "status": 0, "result": { ... } }                    // ok
-{ "status": <n>, "error": "...", "result": null }     // err
+> graft: MISS on "msgpack nested map"; added 2 nodes so it will not miss again.
+
+This is what makes the memory visible and keeps you honest about maintaining it.
+
+## Profiles - separate graphs
+
+A profile is its own DB and its own daemon. Default is `default`.
+
+```bash
+graft profile list | current | add <name> | remove <name>
+graft profile export <name> --path <file>
+graft profile import --name <name> --file <file> [--force]
+eval "$(graft profile set work)"     # bash/zsh/fish
+graft profile set work | iex         # PowerShell
+GRAFT_PROFILE=work graft query "deployment"   # one-off
 ```
 
-Exit codes: `0` ok, `1` transport/encode failure, `3` handler returned non-zero status. Operation-specific schemas are documented in the project's `plans/sub_task_*.md` files.
+Resolution: `$GRAFT_PROFILE`, else `default`. No global state file.
 
-## Failure modes — what to tell the user
+## CLI reference
 
-| Symptom                                 | Cause                              | Action                                                                |
-| --------------------------------------- | ---------------------------------- | --------------------------------------------------------------------- |
-| `connect failed` + `auto-start failed`  | Binary/model missing               | Run `bash scripts/install.sh` or `pwsh scripts/install.ps1`.          |
-| `status: 5` (MG_ERR_EMBED)              | Model file unreadable              | Re-check `~/.graft/models/bge-m3.gguf`.                        |
-| Empty `nodes` / `results`               | Graph empty for this query         | Don't fabricate — proceed and consider `/memoryze` of the solution.   |
-| `daemon spawned but socket not ready`   | Daemon crashed silently            | On Windows, MSYS2 DLLs may be missing — re-run install.sh.            |
-| `profile X is currently in use`         | Daemon for that profile is up      | `pkill graftd` (POSIX) / `Stop-Process graftd` (Win), then retry. |
+| Goal | Command |
+| ---- | ------- |
+| Fast STRONG/WEAK/MISS check | `graft query "<text>"` |
+| Ranked hybrid results | `graft retrieve "<text>" --top-k 5` |
+| Graph walk from keywords | `graft explore "<text>" --keyword K --depth 2 --beam 5` |
+| Suggested keywords for a title | `graft classify --title "<text>"` |
+| Full node by id | `graft get <hex_id>` |
+| Save a note | `graft insert --title T --body B --keyword K` |
+| Remove a node | `graft delete <hex_id>` |
+| Graph statistics | `graft stats` |
+| Hit-rate / usage report | `graft analytics [--since 7d]` |
+| Install the skills into your agents | `graft setup` |
 
-## Save / search ground rules
+Every command prints `{ "status": 0, "result": { ... } }` on success, or
+`{ "status": <n>, "error": "...", "result": null }` on failure. Exit codes:
+`0` ok, `1` transport failure, `3` handler error.
 
-The companion skills enforce these, but they bear repeating:
+## When something breaks
 
-**Save when**:
-- Bug + non-obvious fix.
-- Library/framework/CLI quirk or gotcha.
-- Architectural decision and **why** it won.
-- Working incantation for a hard-to-Google command.
-- "From now on we always X" standards.
+| Symptom | Cause | What to do |
+| ------- | ----- | ---------- |
+| `connect failed` + `auto-start failed` | binary or model missing | re-run the installer; the second line names the cause - surface it verbatim |
+| `status: 5` | model file unreadable | check `~/.graft/models/bge-m3.gguf` |
+| empty results | the graph has nothing yet | do not invent one - solve, then insert |
+| `daemon spawned but socket not ready` | daemon died at startup | read `~/.graft/graftd.log` |
+| `profile X is currently in use` | its daemon is running | stop `graftd`, then retry |
 
-**DO NOT save**:
-- Trivial / one-shot / obvious answers.
-- User secrets, tokens, internal URLs.
-- Conversation chit-chat or planning notes.
-- Anything derivable from current code/git.
+## Is it paying off
 
-**Search before answering**: any non-trivial problem gets a `/recall` first. Cite the result if STRONG. Don't re-derive what's already there.
-
-## Measuring usefulness
-
-Run `/memory-audit` periodically (or after a long session). The graph is paying off when:
-
-- `hit_rate >= 0.30` (mature graph).
-- `insert_to_query_ratio < 1.0` (more reads than writes).
-- A small number of nodes account for most STRONG hits (Pareto = good; means high-leverage knowledge is concentrated).
-
-If those signals look bad, the typical fix is **better summaries** (the retrieval anchor) — re-save with phrasing that matches how you'd search, not how you solved it.
-
-## When you find a wrong / obsolete node
-
-If a `/recall` or a `get` surfaces a node whose content you can verify is **wrong** (stale, contradicted by current code, factually incorrect), you have two paths:
-
-1. **Remove only** — the node is just noise, no replacement needed:
-   ```bash
-   graft delete <hex_id>
-   ```
-
-2. **Modify (= delete + re-insert)** — the underlying knowledge is real but the saved node is broken:
-   ```
-   1. fetch:    graft get <hex_id>
-   2. redesign: write new title / body / keywords
-   3. delete:   graft delete <hex_id>
-   4. re-save:  graft insert --title S --body D --keyword K1 --keyword K2 …
-   ```
-   The insert pipeline rebuilds embedding + edges automatically. Content-hash dedup means re-running the same insert is safe (returns the existing id).
-
-**Don't** silently leave wrong nodes in the graph hoping they won't get retrieved — they will, and they'll mislead future-you. Trust the agent's verdict when it says "this is contradicted by current code".
-
-When in doubt (the node looks suspicious but you're not sure), **demote** rather than delete: re-save with a `wip` or `unsure` keyword and a body that flags the uncertainty.
-
-## Skill chain in a typical session
-
-1. User asks a non-trivial question → you invoke `/recall`.
-2. STRONG hit found → cite and apply.
-3. MISS → solve normally; once converged, invoke `/memoryze` to save the result.
-4. Periodically (start of a long session, end of a sprint) → `/memory-audit` to spot drift.
-
-Don't sprinkle these skills inside one another's bodies; they're meant to be invoked at the right level. This master skill is the coordinator.
+Run `/memory-audit` now and then. Healthy looks like: `hit_rate >= 0.30` on a
+mature graph, more reads than writes, and a small set of nodes carrying most of
+the STRONG hits. A bad hit rate usually means bad titles, not bad content -
+re-save with the phrasing you would have searched for.

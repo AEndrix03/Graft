@@ -16,7 +16,7 @@ not write `AGENTS.md` or agent settings.
 For project-local instructions, copy the snippet manually:
 
 ```bash
-cat integrations/standard/project-snippet.md >> ./AGENTS.md
+# then, inside OpenCode:  /graft-init
 ```
 
 ## Permission
