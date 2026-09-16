@@ -154,11 +154,34 @@ target_link_libraries(graft graft_core)
 option(GRAFT_BUILD_TESTS "Build the test executables" ON)
 if(GRAFT_BUILD_TESTS)
   enable_testing()
+  # On Windows the test binaries import llama/ggml and the MinGW runtime
+  # directly (the CLI does not - the linker drops the unused imports, which is
+  # why `graft.exe` runs while the tests die with 0xc0000139
+  # STATUS_ENTRYPOINT_NOT_FOUND). Neither directory is on PATH under a plain
+  # shell, so put them there for ctest instead of asking humans to do it.
+  set(MG_TEST_PATHS "")
+  if(WIN32 AND CMAKE_VERSION VERSION_GREATER_EQUAL 3.22)
+    get_filename_component(MG_TOOLCHAIN_BIN "${CMAKE_C_COMPILER}" DIRECTORY)
+    foreach(DIR
+        ${LLAMA_DIR}/build/bin
+        ${LLAMA_DIR}/build/src
+        ${LLAMA_DIR}/build/ggml/src
+        ${MG_TOOLCHAIN_BIN})
+      if(IS_DIRECTORY "${DIR}")
+        file(TO_NATIVE_PATH "${DIR}" NATIVE_DIR)
+        list(APPEND MG_TEST_PATHS "PATH=path_list_prepend:${NATIVE_DIR}")
+      endif()
+    endforeach()
+  endif()
+
   file(GLOB TEST_SRC tests/test_*.c)
   foreach(TFILE ${TEST_SRC})
     get_filename_component(TNAME ${TFILE} NAME_WE)
     add_executable(${TNAME} ${TFILE})
     target_link_libraries(${TNAME} graft_core)
     add_test(NAME ${TNAME} COMMAND ${TNAME})
+    if(MG_TEST_PATHS)
+      set_tests_properties(${TNAME} PROPERTIES ENVIRONMENT_MODIFICATION "${MG_TEST_PATHS}")
+    endif()
   endforeach()
 endif()

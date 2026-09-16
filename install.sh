@@ -18,6 +18,7 @@
 #   GRAFT_MODEL_URL  override the GGUF download URL
 #   GRAFT_NO_MODEL   =1 to skip the model download
 #   GRAFT_NO_PATH    =1 to skip editing shell rc files
+#   GRAFT_NO_SETUP   =1 to skip installing the agent skills
 #
 # To build from source instead, see scripts/build-from-source.sh.
 
@@ -194,7 +195,25 @@ else
   note "the first call cold-starts the daemon and loads the model; run '$BIN/graft stats' again"
 fi
 
+# ---------- 9. agent skills ----------
+
+SETUP_OK=0
+if [ "${GRAFT_NO_SETUP:-0}" != "1" ]; then
+  step "Installing the agent skills"
+  if "$BIN/graft" setup 2>&1; then
+    SETUP_OK=1
+  else
+    note "no agent set up yet - run 'graft setup' once your agent is installed"
+  fi
+fi
+
 printf '\ngraft %s installed.\n\n' "$TAG"
-printf '  Next: wire it into your coding agent -\n'
-printf '    graft setup      installs the skills into Claude Code / Codex / OpenCode\n'
-printf '    /graft-init      run that inside the agent; it does the rest\n\n'
+if [ "$SETUP_OK" = "1" ]; then
+  printf '  One step left: run /graft-init inside your agent.\n\n'
+else
+  printf '  Next: graft setup      installs the skills into Claude Code / Codex / OpenCode\n'
+  printf '        /graft-init      run that inside the agent; it does the rest\n\n'
+fi
+
+# The installer succeeded; do not inherit a status from the last helper call.
+exit 0

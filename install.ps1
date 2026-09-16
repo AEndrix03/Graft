@@ -12,7 +12,7 @@
     6. puts ~\.graft\bin on the user PATH and runs a smoke check
 
   Env knobs: GRAFT_HOME, GRAFT_VERSION, GRAFT_REPO, GRAFT_MODEL_URL,
-             GRAFT_NO_MODEL=1, GRAFT_NO_PATH=1
+             GRAFT_NO_MODEL=1, GRAFT_NO_PATH=1, GRAFT_NO_SETUP=1
 
   To build from source instead, see scripts\build-from-source.ps1.
 #>
@@ -191,18 +191,54 @@ try {
     # ---------- 7. smoke check ----------
 
     Step "Smoke check"
-    & (Join-Path $bin "graft.exe") stats *> $null
-    if ($LASTEXITCODE -eq 0) {
+    # A native command writing to stderr becomes a terminating NativeCommandError
+    # while ErrorActionPreference is Stop, which would abort the installer on its
+    # very last step. The smoke check is informational: never let it fail the run.
+    $smokeOk = $false
+    try {
+        $ErrorActionPreference = "Continue"
+        & (Join-Path $bin "graft.exe") stats 2>&1 | Out-Null
+        $smokeOk = ($LASTEXITCODE -eq 0)
+    } catch {
+        $smokeOk = $false
+    } finally {
+        $ErrorActionPreference = "Stop"
+    }
+    if ($smokeOk) {
         Ok "daemon answered - graft is ready"
     } else {
-        Warn "'graft stats' did not answer on the first try"
+        Warn "'graft stats' did not answer yet"
         Note "the first call cold-starts the daemon and loads the model; run 'graft stats' again"
     }
 
+    # ---------- 8. agent skills ----------
+
+    $setupOk = $false
+    if ($env:GRAFT_NO_SETUP -ne "1") {
+        Step "Installing the agent skills"
+        try {
+            $ErrorActionPreference = "Continue"
+            & (Join-Path $bin "graft.exe") setup 2>&1 | ForEach-Object { Note $_ }
+            $setupOk = ($LASTEXITCODE -eq 0)
+        } catch {
+            $setupOk = $false
+        } finally {
+            $ErrorActionPreference = "Stop"
+        }
+        if (-not $setupOk) { Note "no agent set up yet - run 'graft setup' once your agent is installed" }
+    }
+
     Write-Host "`ngraft $tag installed.`n"
-    Write-Host "  Next: wire it into your coding agent -"
-    Write-Host "    graft setup      installs the skills into Claude Code / Codex / OpenCode"
-    Write-Host "    /graft-init      run that inside the agent; it does the rest`n"
+    if ($setupOk) {
+        Write-Host "  One step left: run /graft-init inside your agent.`n"
+    } else {
+        Write-Host "  Next: graft setup      installs the skills into Claude Code / Codex / OpenCode"
+        Write-Host "        /graft-init      run that inside the agent; it does the rest`n"
+    }
+
+    # The installer succeeded. Without this, the script inherits $LASTEXITCODE
+    # from the last native call (smoke check / setup) and reports failure.
+    exit 0
 }
 finally {
     Remove-Item -Recurse -Force $tmp -ErrorAction SilentlyContinue

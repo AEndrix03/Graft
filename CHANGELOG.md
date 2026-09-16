@@ -8,7 +8,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 ### Added
 
 - **One-line installers** at the repo root: `install.sh` (Linux/macOS) and `install.ps1` (Windows). They download the prebuilt release archive for the platform, verify it against the published `SHA256SUMS` and refuse to continue on a mismatch, extract into `~/.graft`, fetch the BGE-M3 model once, write `config.yaml` with absolute paths without overwriting an existing one, put `~/.graft/bin` on `PATH`, and run a smoke check. No compiler, no submodules, no MSYS2.
-- `graft setup` with no argument now sets up every agent whose config directory exists on the machine.
+- `graft setup` with no argument now sets up every agent whose config directory exists on the machine, and the installers run it for you, so the only manual step left is `/graft-init` inside the agent.
 
 ### Changed
 
@@ -16,6 +16,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 - `/graft-init` asks one question (global or project) instead of four, and writes the rule to `CLAUDE.md` + `.claude/rules/graft.md` on Claude Code, or `AGENTS.md` elsewhere.
 - The `graft` skill was rewritten around the prompter model: a near hit is useful, a miss is a gap to fill, short search-engine-style queries, `classify` for keywords, verify before trusting a `STRONG`, delete + re-insert for stale nodes, and a one-line end-of-turn recap.
 - `scripts/install.sh` / `scripts/install.ps1` are now `scripts/build-from-source.sh` / `scripts/build-from-source.ps1` - they build from source and are for contributors, GPU builds and platforms without a prebuilt archive.
+
+### Fixed
+
+- `ctest` on Windows no longer fails with `0xc0000139` (STATUS_ENTRYPOINT_NOT_FOUND) for the six tests that import llama/ggml directly: CMake now prepends the llama.cpp build directories and the toolchain runtime directory to the test PATH. The CLI was unaffected because the linker drops its unused llama imports, which is what made the failure look like a code problem. 11/11 tests pass.
 
 ### Removed
 
