@@ -146,18 +146,27 @@ if [ -d "$GRAFT_HOME/share/graft/viewer" ]; then VIEWER="$GRAFT_HOME/share/graft
 
 if [ -f "$CONFIG" ]; then
   ok "keeping your existing $CONFIG"
-elif [ -n "$EXAMPLE" ]; then
-  awk -v model="$MODEL" -v viewer="$VIEWER" '
-    /^embedding:/ { in_embed = 1; in_http = 0; print; next }
-    /^http:/      { in_http = 1; in_embed = 0; print; next }
-    /^[a-z]/      { in_embed = 0; in_http = 0 }
-    in_embed && /^[ \t]+model_path:/  { print "  model_path: \"" model "\""; next }
-    in_http  && /^[ \t]+viewer_path:/ { print "  viewer_path: \"" viewer "\""; next }
-    { print }
-  ' "$EXAMPLE" > "$CONFIG" || fail "could not write $CONFIG"
-  ok "wrote $CONFIG"
 else
-  warn "no config.example.yaml in the archive - graft falls back to its built-in defaults"
+  # Only the two paths the daemon cannot guess. Everything else stays on the
+  # built-in defaults, so later releases can improve them for existing installs
+  # too - copying the 400-line example here would freeze today's tuning forever.
+  {
+    printf '# graft configuration.\n'
+    printf '#\n'
+    printf '# Only the paths that depend on where you installed are set here;\n'
+    printf '# every other setting uses the built-in default.\n'
+    if [ -n "$EXAMPLE" ]; then
+      printf '# Every available knob, documented: %s\n' "$EXAMPLE"
+    fi
+    printf '\n'
+    printf 'embedding:\n'
+    printf '  model_path: "%s"\n' "$MODEL"
+    if [ -d "$VIEWER" ]; then
+      printf '\nhttp:\n'
+      printf '  viewer_path: "%s"\n' "$VIEWER"
+    fi
+  } > "$CONFIG" || fail "could not write $CONFIG"
+  ok "wrote $CONFIG"
 fi
 
 # ---------- 7. PATH ----------

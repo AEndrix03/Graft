@@ -36,6 +36,8 @@
 #  define MG_PATH_SEP    '\\'
 #  define MG_PATH_LIST_SEP ';'
 #  define MG_EXE_SUFFIX  ".exe"
+typedef HANDLE mg_proc_t;
+#  define MG_PROC_NONE NULL
 #else
 #  include <unistd.h>
 #  include <sys/types.h>
@@ -51,6 +53,8 @@
 #  define MG_PATH_SEP    '/'
 #  define MG_PATH_LIST_SEP ':'
 #  define MG_EXE_SUFFIX  ""
+typedef int mg_proc_t;
+#  define MG_PROC_NONE 0
 #endif
 
 #define MG_AUTOSTART_TIMEOUT_MS 20000
@@ -163,12 +167,71 @@ static int mg_resolve_config(const char *cli_dir, char *out, size_t cap) {
     return -1;
 }
 
+/* ----- daemon log -----
+ *
+ * The daemon prints the real reason it refused to start ("embed init failed",
+ * "storage open failed", "socket listen failed") on stderr. Those lines are the
+ * whole diagnosis, so they must land in a file the user can be pointed at:
+ * $GRAFT_HOME/graftd.log, which is what the docs promise, falling back to the
+ * binary's own directory for dev trees. */
+
+static int mg_log_path(const char *cli_dir, char *out, size_t cap) {
+    const char *mh = getenv("GRAFT_HOME");
+    if (mh && *mh) {
+        return snprintf(out, cap, "%s%cgraftd.log", mh, MG_PATH_SEP) < (int)cap ? 0 : -1;
+    }
+#ifdef _WIN32
+    const char *base = getenv("USERPROFILE");
+    if (!base || !*base) base = getenv("LOCALAPPDATA");
+#else
+    const char *base = getenv("HOME");
+#endif
+    if (base && *base) {
+        return snprintf(out, cap,
+#ifdef _WIN32
+                        "%s\\.graft\\graftd.log",
+#else
+                        "%s/.graft/graftd.log",
+#endif
+                        base) < (int)cap ? 0 : -1;
+    }
+    return snprintf(out, cap, "%s%cgraftd.log", cli_dir, MG_PATH_SEP) < (int)cap ? 0 : -1;
+}
+
+/* Last few lines of the daemon log, for appending to an error message. */
+static void mg_log_tail(const char *log_path, char *out, size_t cap) {
+    if (cap == 0) return;
+    out[0] = '\0';
+    FILE *f = fopen(log_path, "rb");
+    if (!f) return;
+    if (fseek(f, 0, SEEK_END) != 0) { fclose(f); return; }
+    long end = ftell(f);
+    if (end <= 0) { fclose(f); return; }
+    long want = (long)cap - 1;
+    if (want > 800) want = 800;
+    long start = end > want ? end - want : 0;
+    if (fseek(f, start, SEEK_SET) != 0) { fclose(f); return; }
+    size_t n = fread(out, 1, (size_t)(end - start), f);
+    fclose(f);
+    out[n] = '\0';
+    /* Drop a partial first line when we cut into the middle of one. */
+    if (start > 0) {
+        char *nl = strchr(out, '\n');
+        if (nl && *(nl + 1)) memmove(out, nl + 1, strlen(nl + 1) + 1);
+    }
+    while (n > 0 && (out[strlen(out) - 1] == '\n' || out[strlen(out) - 1] == '\r')) {
+        out[strlen(out) - 1] = '\0';
+    }
+}
+
 /* ----- spawn ----- */
 
 #ifdef _WIN32
 static int mg_spawn_daemon(const char *daemon_path,
                            const char *cli_dir,
                            const char *config_path,
+                           const char *log_path,
+                           mg_proc_t *out_proc,
                            char *err, size_t err_cap) {
     /* Augment PATH with third_party/llama.cpp/build/bin (relative to cli_dir's
      * parent). The exe layout is <repo>/build/graft.exe, so llama.cpp dlls
@@ -214,21 +277,53 @@ static int mg_spawn_daemon(const char *daemon_path,
     si.cb = sizeof(si);
     PROCESS_INFORMATION pi = { 0 };
 
+    /* Hand the detached daemon an inheritable handle to the log file, so its
+     * stderr is preserved instead of being dropped on the floor. Without this
+     * a failed start on Windows leaves the user with a bare "socket did not
+     * become ready" and nothing to read. */
+    SECURITY_ATTRIBUTES sa = { 0 };
+    sa.nLength = sizeof(sa);
+    sa.bInheritHandle = TRUE;
+    HANDLE hlog = CreateFileA(log_path, FILE_APPEND_DATA,
+                              FILE_SHARE_READ | FILE_SHARE_WRITE, &sa,
+                              OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+    BOOL inherit = FALSE;
+    if (hlog != INVALID_HANDLE_VALUE) {
+        si.dwFlags    = STARTF_USESTDHANDLES;
+        si.hStdInput  = NULL;
+        si.hStdOutput = hlog;
+        si.hStdError  = hlog;
+        inherit = TRUE;
+    }
+
     BOOL ok = CreateProcessA(
         daemon_path,
         cmdline,
-        NULL, NULL, FALSE,
+        NULL, NULL, inherit,
         DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP,
         envbuf, cli_dir,
         &si, &pi);
+    if (hlog != INVALID_HANDLE_VALUE) CloseHandle(hlog);
     if (!ok) {
         DWORD e = GetLastError();
         snprintf(err, err_cap, "CreateProcess failed (err=%lu)", (unsigned long)e);
         return -1;
     }
     CloseHandle(pi.hThread);
-    CloseHandle(pi.hProcess);
+    /* Handed to the caller so it can notice a daemon that died on startup
+     * instead of waiting out the full timeout. */
+    *out_proc = pi.hProcess;
     return 0;
+}
+
+/* Non-zero once the spawned daemon has exited. */
+static int mg_daemon_exited(mg_proc_t proc) {
+    if (proc == NULL) return 0;
+    return WaitForSingleObject(proc, 0) == WAIT_OBJECT_0 ? 1 : 0;
+}
+
+static void mg_proc_release(mg_proc_t proc) {
+    if (proc) CloseHandle(proc);
 }
 
 static void mg_sleep_ms(int ms) { Sleep((DWORD)ms); }
@@ -238,7 +333,9 @@ static void mg_sleep_ms(int ms) { Sleep((DWORD)ms); }
 static int mg_spawn_daemon(const char *daemon_path,
                            const char *cli_dir,
                            const char *config_path,
+                           const char *log_path,
                            char *err, size_t err_cap) {
+    (void)cli_dir;
     pid_t pid = fork();
     if (pid < 0) {
         snprintf(err, err_cap, "fork failed: %s", strerror(errno));
@@ -250,9 +347,7 @@ static int mg_spawn_daemon(const char *daemon_path,
         pid_t pid2 = fork();
         if (pid2 < 0) _exit(127);
         if (pid2 > 0) _exit(0);
-        /* grandchild: redirect std fds to a log file */
-        char log_path[1024];
-        snprintf(log_path, sizeof(log_path), "%s/graftd.log", cli_dir);
+        /* grandchild: redirect std fds to the log file */
         int devnull = open("/dev/null", O_RDONLY);
         /* Daemon log may contain query text, error messages with paths,
          * and other content we don't want other local users to read. */
@@ -276,6 +371,10 @@ static int mg_spawn_daemon(const char *daemon_path,
     (void)waitpid(pid, &st, 0);
     return 0;
 }
+
+/* No pid to watch after the double fork: the poll timeout is the only signal. */
+static int  mg_daemon_exited(mg_proc_t proc) { (void)proc; return 0; }
+static void mg_proc_release(mg_proc_t proc)  { (void)proc; }
 
 static void mg_sleep_ms(int ms) {
     struct timespec ts;
@@ -389,6 +488,12 @@ mg_err_t mg_autostart_daemon(const char *socket_path, char *err, size_t err_cap)
         return MG_ERR_IO;
     }
 
+    char log_path[1024];
+    if (mg_log_path(cli_dir, log_path, sizeof(log_path)) != 0) {
+        if (err) snprintf(err, err_cap, "log path build failed");
+        return MG_ERR_IO;
+    }
+
     char config_path[1024];
     if (mg_resolve_config(cli_dir, config_path, sizeof(config_path)) != 0) {
         if (err) snprintf(err, err_cap,
@@ -442,8 +547,9 @@ mg_err_t mg_autostart_daemon(const char *socket_path, char *err, size_t err_cap)
     }
 
     char spawn_err[256] = { 0 };
-    if (mg_spawn_daemon(daemon_path, cli_dir, config_path,
-                        spawn_err, sizeof(spawn_err)) != 0) {
+    mg_proc_t proc = MG_PROC_NONE;
+    if (mg_spawn_daemon(daemon_path, cli_dir, config_path, log_path,
+                        &proc, spawn_err, sizeof(spawn_err)) != 0) {
         if (locked) mg_unlock(lock);
         if (err) snprintf(err, err_cap, "spawn failed: %s", spawn_err);
         return MG_ERR_IO;
@@ -451,6 +557,7 @@ mg_err_t mg_autostart_daemon(const char *socket_path, char *err, size_t err_cap)
 
     /* poll until the socket accepts a connection or we time out */
     int elapsed = 0;
+    int died = 0;
     while (elapsed < MG_AUTOSTART_TIMEOUT_MS) {
         mg_sleep_ms(MG_AUTOSTART_POLL_MS);
         elapsed += MG_AUTOSTART_POLL_MS;
@@ -458,12 +565,31 @@ mg_err_t mg_autostart_daemon(const char *socket_path, char *err, size_t err_cap)
         if (mg_daemon_socket_connect(socket_path, &fd) == MG_OK) {
             mg_daemon_socket_close(fd);
             if (locked) mg_unlock(lock);
+            mg_proc_release(proc);
             return MG_OK;
         }
+        /* A daemon that has already exited will never bind the socket. Report
+         * now instead of making the user sit through the whole timeout. */
+        if (mg_daemon_exited(proc)) { died = 1; break; }
     }
     if (locked) mg_unlock(lock);
-    if (err) snprintf(err, err_cap,
-                      "daemon spawned but socket %s did not become ready in %d ms",
-                      socket_path, MG_AUTOSTART_TIMEOUT_MS);
+    mg_proc_release(proc);
+    if (err) {
+        /* "socket did not become ready" tells the user nothing they can act on.
+         * The daemon already wrote the real reason to its log, so quote it. */
+        char tail[900];
+        mg_log_tail(log_path, tail, sizeof(tail));
+        char what[128];
+        if (died) snprintf(what, sizeof(what), "the daemon started and then exited");
+        else snprintf(what, sizeof(what), "the daemon did not answer within %d ms",
+                      MG_AUTOSTART_TIMEOUT_MS);
+        if (tail[0]) {
+            snprintf(err, err_cap, "%s. It said:\n%s\n(full log: %s)",
+                     what, tail, log_path);
+        } else {
+            snprintf(err, err_cap, "%s and wrote nothing to %s (config: %s)",
+                     what, log_path, config_path);
+        }
+    }
     return MG_ERR_IO;
 }

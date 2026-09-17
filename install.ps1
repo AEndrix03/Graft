@@ -150,26 +150,30 @@ try {
 
     if (Test-Path $config) {
         Ok "keeping your existing $config"
-    } elseif ($example) {
-        # graftd resolves relative paths against its own cwd, so both paths are
-        # rewritten to absolute ones with forward slashes (YAML-safe on Windows).
-        $modelYaml  = $model.Replace('\', '/')
-        $viewerYaml = $viewer.Replace('\', '/')
-        $inEmbed = $false; $inHttp = $false
-        $out = foreach ($line in Get-Content $example) {
-            if ($line -match '^embedding:') { $inEmbed = $true;  $inHttp = $false; $line; continue }
-            if ($line -match '^http:')      { $inHttp  = $true;  $inEmbed = $false; $line; continue }
-            if ($line -match '^[a-z]')      { $inEmbed = $false; $inHttp = $false }
-            if ($inEmbed -and $line -match '^\s+model_path:')  { "  model_path: `"$modelYaml`"";  continue }
-            if ($inHttp  -and $line -match '^\s+viewer_path:') { "  viewer_path: `"$viewerYaml`""; continue }
-            $line
+    } else {
+        # Only the two paths the daemon cannot guess (graftd resolves relative
+        # paths against its own cwd). Everything else stays on the built-in
+        # defaults, so later releases can improve them for existing installs
+        # too - copying the 400-line example here would freeze today's tuning.
+        # Forward slashes are YAML-safe on Windows.
+        $out = New-Object System.Collections.Generic.List[string]
+        $out.Add('# graft configuration.')
+        $out.Add('#')
+        $out.Add('# Only the paths that depend on where you installed are set here;')
+        $out.Add('# every other setting uses the built-in default.')
+        if ($example) { $out.Add("# Every available knob, documented: $example") }
+        $out.Add('')
+        $out.Add('embedding:')
+        $out.Add('  model_path: "' + $model.Replace('\', '/') + '"')
+        if (Test-Path $viewer) {
+            $out.Add('')
+            $out.Add('http:')
+            $out.Add('  viewer_path: "' + $viewer.Replace('\', '/') + '"')
         }
         # Set-Content -Encoding utf8 writes a BOM on Windows PowerShell, and the
         # YAML reader chokes on it, so write UTF-8 without one.
         [IO.File]::WriteAllLines($config, [string[]]$out, (New-Object System.Text.UTF8Encoding($false)))
         Ok "wrote $config"
-    } else {
-        Warn "no config.example.yaml in the archive - graft falls back to its built-in defaults"
     }
 
     # ---------- 6. PATH ----------

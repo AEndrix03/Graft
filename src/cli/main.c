@@ -554,7 +554,8 @@ int main(int argc, char **argv) {
         /* Daemon down — try to spawn it next to this binary, then retry once.
          * This pays a one-time cost (~1-2s) on the first command of a session
          * and saves the user from having to start the daemon manually. */
-        char ae[256] = { 0 };
+        /* Roomy: the message quotes the tail of the daemon log. */
+        char ae[2048] = { 0 };
         if (mg_autostart_daemon(sock_path, ae, sizeof(ae)) != MG_OK) {
             fprintf(stderr, "connect failed: %s\nauto-start: %s\n", sock_path, ae);
             free(req);
