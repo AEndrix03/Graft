@@ -78,6 +78,12 @@ integration copies skills; `/graft-init` writes one rule into the instruction fi
 the agent already reads. Nothing else on the machine is modified, which is what
 makes the integration reversible: delete the skills directory and the rule block.
 
+If you want the harness to guarantee the lookup instead of trusting the agent to
+remember it, `integrations/optional/hooks/` keeps the three event hooks
+(`UserPromptSubmit`, `PostToolUse`, `Stop`) and the instructions to wire them by
+hand. They are deliberately outside the installed path: `graft setup` never
+writes them, and never reads your harness configuration.
+
 ---
 
 ## MCP server (`integrations/mcp-server/`)
