@@ -3,6 +3,13 @@
 All notable changes to **graft** are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project follows [Semantic Versioning](https://semver.org/).
 
+## [0.1.1] — Windows daemon fix
+
+### Fixed
+
+- The Windows release archive now ships `libgomp-1.dll`. `ggml-cpu.dll` imports the GCC OpenMP runtime, so `graftd.exe` exited immediately with `0xC0000135` (STATUS_DLL_NOT_FOUND) on a fresh install and every `graft` command failed with "socket did not become ready". The CLI was unaffected because it never loads the embedding backend.
+- The Windows packaging step now walks the full PE import closure of the staged binaries instead of copying a hand-maintained DLL list, and fails the release if any import is neither bundled nor a Windows system DLL.
+
 ## [0.1.0] — Initial release
 
 First public release of graft — local-first agentic memory for AI coding agents.
@@ -74,4 +81,5 @@ Each adapter ships **skills** (when to search, when to save) and, where the harn
 - Glossary in `docs/concepts.md`, use cases in `docs/use-cases.md`.
 - Contributor guide in `CONTRIBUTING.md` with commit-msg policy (Conventional Commits, English ASCII subject ≤ 70 chars).
 
+[0.1.1]: https://github.com/AEndrix03/Graft/releases/tag/v0.1.1
 [0.1.0]: https://github.com/AEndrix03/Graft/releases/tag/v0.1.0
