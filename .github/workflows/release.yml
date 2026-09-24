@@ -336,10 +336,38 @@ jobs:
           cp third_party/llama.cpp/build/bin/*.dll "${stage}/bin/" 2>/dev/null || true
           cp third_party/llama.cpp/build/src/*.dll "${stage}/bin/" 2>/dev/null || true
           find third_party/llama.cpp/build/ggml -name '*.dll' -exec cp {} "${stage}/bin/" \; 2>/dev/null || true
-          for dll in libsqlite3-0.dll libyaml-0-2.dll libstdc++-6.dll libgcc_s_seh-1.dll libwinpthread-1.dll libcurl-4.dll zlib1.dll; do
-            src="/mingw64/bin/${dll}"
-            [[ -f "$src" ]] && cp "$src" "${stage}/bin/" || true
+          # Walk the PE import closure of everything staged: pull any DLL that
+          # lives in /mingw64/bin (libgomp-1.dll via ggml-cpu, libstdc++, ...)
+          # and fail if an import is neither staged nor a Windows system DLL.
+          declare -A seen=()
+          queue=("${stage}"/bin/*.exe "${stage}"/bin/*.dll)
+          missing=()
+          while ((${#queue[@]})); do
+            f="${queue[0]}"; queue=("${queue[@]:1}")
+            # Capture first: a failing objdump inside < <(...) would not trip set -e.
+            deps=$(objdump -p "$f" | awk '/DLL Name:/ {print $3}' | tr -d '\r')
+            while read -r dep; do
+              [[ -n "$dep" ]] || continue
+              key="${dep,,}"
+              [[ -n "${seen[$key]:-}" ]] && continue
+              seen[$key]=1
+              if [[ -f "${stage}/bin/${dep}" ]]; then
+                queue+=("${stage}/bin/${dep}")
+              elif [[ -f "/mingw64/bin/${dep}" ]]; then
+                cp "/mingw64/bin/${dep}" "${stage}/bin/"
+                queue+=("${stage}/bin/${dep}")
+              elif [[ "$key" == api-ms-win-* || "$key" == ext-ms-* || -f "/c/Windows/System32/${dep}" ]]; then
+                :
+              else
+                missing+=("${dep} (imported by $(basename "$f"))")
+              fi
+            done <<< "$deps"
           done
+          if ((${#missing[@]})); then
+            printf 'unresolved DLL import: %s\n' "${missing[@]}" >&2
+            exit 1
+          fi
+          ls "${stage}/bin"
           if [[ -d viewer/dist ]]; then
             mkdir -p "${stage}/share/graft/viewer"
             cp -r viewer/dist/. "${stage}/share/graft/viewer/"
