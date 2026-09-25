@@ -187,7 +187,7 @@ jobs:
         with:
           submodules: recursive
           fetch-depth: 0
-      - uses: Homebrew/actions/setup-homebrew@master
+      - uses: Homebrew/actions/setup-homebrew@main
       - name: Stage source tarball
         id: src
         shell: bash
