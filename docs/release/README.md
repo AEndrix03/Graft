@@ -18,27 +18,38 @@ The release workflow accepts **only strict `x.y.z`** in `VERSION`. Pre-release m
 
 Releases are triggered by a push to a branch matching `release/**` (e.g. `release/0.1.0`, `release/v0.2.0`). They are **not** triggered by tags and there is no `workflow_dispatch` form — the release branch push is the contract.
 
-Cutting a release:
+### Cutting a release
 
-1. From `master`, update [`VERSION`](../../VERSION) and [`CHANGELOG.md`](../../CHANGELOG.md) (the changelog content becomes the GitHub Release body).
-2. Commit with a Conventional Commit subject and merge into `master`.
-3. Branch off `master` with the release name and push:
+1. On `develop`, bump [`VERSION`](../../VERSION) and rename `## [Unreleased]` in
+   [`CHANGELOG.md`](../../CHANGELOG.md) to `## [x.y.z] - YYYY-MM-DD` (release
+   day). Add a fresh empty `## [Unreleased]` above it and update the compare
+   links at the bottom. Commit as `chore: release x.y.z`.
+2. Cut the release branch from `develop` and push it — this starts the workflow:
 
    ```bash
-   git switch -c release/0.1.0
-   git push -u origin release/0.1.0
+   git switch -c release/0.2.0
+   git push -u origin release/0.2.0
    ```
+
+3. Fix anything the workflow rejects on the release branch itself.
+4. Once the release is published, close it: merge `release/x.y.z` into
+   `master` and `develop` with `--no-ff`, pull the `[skip ci]` manifest commit
+   the workflow pushed to `master` into `develop`, and delete the release
+   branch locally and on `origin`. The tag `vx.y.z` keeps its history.
+
+Hotfixes follow the same steps from a `hotfix/x.y.z` branch cut from the latest
+tag, pushed as `release/x.y.z` when ready.
 
 The workflow then runs end-to-end. Each stage is a hard gate — if any fails, no tag is created and no release is published.
 
 | Stage | What it does |
 | ----- | ------------ |
-| `prep`     | Validates `VERSION` is strict `x.y.z`; refuses to start if another release run is already in progress (auto-cancels itself to prevent overlap). |
+| `prep`     | Validates `VERSION` is strict `x.y.z` and that `CHANGELOG.md` has a dated `## [x.y.z] - YYYY-MM-DD` section; refuses to start if another release run is already in progress (auto-cancels itself to prevent overlap). |
 | `test`     | Builds with `GRAFT_BUILD_TESTS=ON` and runs `ctest`. Bails out on the first failure. |
 | `tarball`  | Builds the Linux x86_64 release artifact via `scripts/package-release.sh`. |
 | `bottle`   | Builds the Homebrew bottle for `x86_64_linux` via `brew install --build-bottle`. |
 | `scoop`    | Builds the Windows x86_64 zip layout under MSYS2/MinGW64. |
-| `publish`  | Downloads all artifacts, generates `SHA256SUMS` + SPDX SBOM, signs everything with keyless Sigstore/cosign, attests build provenance, creates the `v<VERSION>` tag, opens the GitHub Release with `CHANGELOG.md` as the notes body, and patches `Formula/graft.rb` + `bucket/graft.json` on `master` in a single `[skip ci]` commit. |
+| `publish`  | Downloads all artifacts, generates `SHA256SUMS` + SPDX SBOM, signs everything with keyless Sigstore/cosign, attests build provenance, creates the `v<VERSION>` tag, opens the GitHub Release with this version's `CHANGELOG.md` section as the notes body, and patches `Formula/graft.rb` + `bucket/graft.json` on `master` in a single `[skip ci]` commit. |
 
 Build caching: `third_party/llama.cpp/build` is cached keyed on the submodule commit SHA, and `ccache` is reused across runs. MSYS2 packages are cached by `setup-msys2`.
 

@@ -66,18 +66,11 @@ is cut.
 
 ### Steps for the maintainer
 
-1. Work on a `release/<version>` (or `hotfix/<version>`) branch.
-2. Bump `VERSION` to the target version, e.g. `0.1.0-alpha.1` or `0.1.0`.
-3. Merge the branch into `master` (PR or fast-forward).
-4. Tag `master` with `v<version>` and push the tag:
-   ```sh
-   git tag v0.1.0-alpha.1
-   git push origin v0.1.0-alpha.1
-   ```
-5. Watch the workflow under Actions. On stable tags it will:
-   - Publish the GitHub Release with bottles + canonical source tarball.
-   - Push a follow-up commit on master patching `Formula/graft.rb`
-     (`chore(release): publish vX.Y.Z bottles and stable url [skip ci]`).
+Releases are cut from a `release/<version>` branch; the full procedure is in
+[`docs/release/`](./release/README.md#cutting-a-release). Once the workflow
+succeeds it publishes the GitHub Release with bottles + canonical source
+tarball and pushes a follow-up `[skip ci]` commit on `master` patching
+`Formula/graft.rb` and `bucket/graft.json`.
 
 ### Re-running a release
 

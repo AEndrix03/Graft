@@ -67,9 +67,31 @@ If you cloned without running the installer, enable the hook manually:
 git config core.hooksPath scripts/git-hooks
 ```
 
+## Branching model
+
+Graft follows a lightweight git-flow:
+
+| Branch | Purpose |
+| ------ | ------- |
+| `master` | What is released. Only receives merges from `develop` (at release time) and hotfixes. |
+| `develop` | Integration branch. Every feature and fix lands here first. |
+| `feat/<topic>`, `fix/<topic>` | Short-lived work branches, cut from `develop`. |
+| `release/<x.y.z>` | Pushing one triggers the release workflow. Deleted once merged back; the `v<x.y.z>` tag keeps it. |
+| `hotfix/<x.y.z>` | Urgent fix cut from the latest tag, released as `release/<x.y.z>`, then merged into `master` and `develop`. |
+
+See [`docs/release/`](./docs/release/README.md) for the release procedure.
+
+## Changelog
+
+Every user-visible change adds a line to [`CHANGELOG.md`](./CHANGELOG.md) under
+`## [Unreleased]`, in the same PR, in the right group (`Added`, `Changed`,
+`Deprecated`, `Removed`, `Fixed`, `Security`). Write it for users: what changed
+and why it matters, not which files moved. Internal refactors, tests and CI
+tweaks do not need an entry.
+
 ## Pull requests
 
-- Branch from `master`; open the PR against `master`.
+- Branch from `develop`; open the PR against `develop`.
 - Keep each PR focused on one concern.
 - For non-trivial changes, open an issue first to align on direction.
 - Update `README.md`, `CONTRIBUTING.md`, or the relevant `integrations/*/README.md` when user-facing behavior changes.

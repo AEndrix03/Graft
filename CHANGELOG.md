@@ -1,7 +1,13 @@
 # Changelog
 
 All notable changes to **graft** are documented in this file.
-The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project follows [Semantic Versioning](https://semver.org/).
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+Every change that a user could notice lands here in the same pull request that
+makes it, under `## [Unreleased]`. When a release is cut, that section is renamed
+to `## [x.y.z] - YYYY-MM-DD` and becomes the body of the GitHub Release.
 
 ## [Unreleased]
 
@@ -13,6 +19,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Changed
 
+- GitHub Release notes now contain only that version's `CHANGELOG.md` section instead of the whole file, and the release workflow refuses to start when the version has no dated changelog entry.
 - `graft setup` installs skills and nothing else. All hook installation, `settings.json` / `hooks.json` / `config.toml` merging and instruction-file writing were removed from the binary (~290 lines, plus the shipped hook scripts). Agent wiring is done by `/graft-init` from inside the agent.
 - `/graft-init` asks one question (global or project) instead of four, and writes the rule to `CLAUDE.md` + `.claude/rules/graft.md` on Claude Code, or `AGENTS.md` elsewhere.
 - The `graft` skill was rewritten around the prompter model: a near hit is useful, a miss is a gap to fill, short search-engine-style queries, `classify` for keywords, verify before trusting a `STRONG`, delete + re-insert for stale nodes, and a one-line end-of-turn recap.
@@ -22,7 +29,6 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 - The daemon's startup failure reason now reaches the user. `graftd` already printed the real cause on stderr ("embed init failed", "storage open failed", "socket listen failed"), but on Windows it was spawned DETACHED with no stdio redirection, so the output was discarded and the CLI only said "socket did not become ready in 20000 ms". The spawned daemon now inherits a handle to the log on both platforms, the log lives at `$GRAFT_HOME/graftd.log` as the docs always claimed (it used to sit next to the binary), and a failed auto-start quotes the tail of it.
 - A daemon that exits during startup is detected immediately on Windows instead of after the full 20 s poll: a missing model now reports in about 1 second.
-
 - `ctest` on Windows no longer fails with `0xc0000139` (STATUS_ENTRYPOINT_NOT_FOUND) for the six tests that import llama/ggml directly: CMake now prepends the llama.cpp build directories and the toolchain runtime directory to the test PATH. The CLI was unaffected because the linker drops its unused llama imports, which is what made the failure look like a code problem. 11/11 tests pass.
 
 ### Removed
@@ -30,14 +36,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 - The three harness hook scripts (`query_inject.js`, `mark_candidate.js`, `propose_memoryze.js`) and `scripts/install-codex-hooks.*`.
 - The duplicated per-agent skill copies under `integrations/claude-code/skills/`; `integrations/standard/skills/` is the single source.
 
-## [0.1.1] — Windows daemon fix
+## [0.1.1] - 2026-09-25
+
+Patch release fixing the Windows daemon.
 
 ### Fixed
 
 - The Windows release archive now ships `libgomp-1.dll`. `ggml-cpu.dll` imports the GCC OpenMP runtime, so `graftd.exe` exited immediately with `0xC0000135` (STATUS_DLL_NOT_FOUND) on a fresh install and every `graft` command failed with "socket did not become ready". The CLI was unaffected because it never loads the embedding backend.
 - The Windows packaging step now walks the full PE import closure of the staged binaries instead of copying a hand-maintained DLL list, and fails the release if any import is neither bundled nor a Windows system DLL.
 
-## [0.1.0] — Initial release
+## [0.1.0] - 2026-05-16
 
 First public release of graft — local-first agentic memory for AI coding agents.
 A single binary + single SQLite file that gives any agent persistent memory across sessions, context resets, and machines, with no cloud and no API key.
@@ -108,5 +116,6 @@ Each adapter ships **skills** (when to search, when to save) and, where the harn
 - Glossary in `docs/concepts.md`, use cases in `docs/use-cases.md`.
 - Contributor guide in `CONTRIBUTING.md` with commit-msg policy (Conventional Commits, English ASCII subject ≤ 70 chars).
 
-[0.1.1]: https://github.com/AEndrix03/Graft/releases/tag/v0.1.1
+[Unreleased]: https://github.com/AEndrix03/Graft/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/AEndrix03/Graft/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/AEndrix03/Graft/releases/tag/v0.1.0
