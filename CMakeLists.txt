@@ -135,8 +135,8 @@ target_link_libraries(graft_core
 add_executable(graftd src/daemon/main.c)
 target_link_libraries(graftd graft_core)
 
-add_executable(graft
-  src/cli/main.c
+# Everything the CLI does except main(), so tests can link the subcommands.
+add_library(graft_cli STATIC
   src/cli/autostart.c
   src/cli/usage_log.c
   src/cli/profile.c
@@ -144,11 +144,14 @@ add_executable(graft
   src/cli/upgrade.c
   src/cli/view.c
 )
-target_compile_definitions(graft PRIVATE
+target_compile_definitions(graft_cli PUBLIC
   GRAFT_VERSION="${GRAFT_VERSION_FULL}"
   GRAFT_REPOSITORY="AEndrix03/Graft"
 )
-target_link_libraries(graft graft_core)
+target_link_libraries(graft_cli PUBLIC graft_core)
+
+add_executable(graft src/cli/main.c)
+target_link_libraries(graft graft_cli)
 
 # === Tests ===
 option(GRAFT_BUILD_TESTS "Build the test executables" ON)
@@ -178,7 +181,7 @@ if(GRAFT_BUILD_TESTS)
   foreach(TFILE ${TEST_SRC})
     get_filename_component(TNAME ${TFILE} NAME_WE)
     add_executable(${TNAME} ${TFILE})
-    target_link_libraries(${TNAME} graft_core)
+    target_link_libraries(${TNAME} graft_cli)
     add_test(NAME ${TNAME} COMMAND ${TNAME})
     if(MG_TEST_PATHS)
       set_tests_properties(${TNAME} PROPERTIES ENVIRONMENT_MODIFICATION "${MG_TEST_PATHS}")

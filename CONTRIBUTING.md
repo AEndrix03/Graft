@@ -24,7 +24,7 @@ ctest --test-dir build           # run the suite
 
 - `src/` — daemon, CLI, retrieval, embed, storage, config, http (one subdir per concern)
 - `include/graft/` — public C headers
-- `tests/` — `test_*.c` files; CMake auto-registers each one
+- `tests/` — `test_*.c` files; CMake auto-registers each one and links it against `graft_cli` (every CLI subcommand except `main()`, on top of `graft_core`), so CLI code is testable too
 - `integrations/` — per-agent adapters (skills, AGENTS.md files, MCP server, hooks)
 - `viewer/` — Vue 3 + Vite + three.js SPA served by the daemon's HTTP layer
 - `docs/` — extended docs (HTTP API reference, etc.)
