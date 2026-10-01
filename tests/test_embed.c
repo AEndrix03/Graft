@@ -30,7 +30,7 @@ int main(void) {
     return 0;
   }
 
-  err = mg_embed_init(model_path, 2, 512, false, &ctx);
+  err = mg_embed_init(model_path, 2, 512, false, 1, &ctx);
   if (err != MG_OK) {
     fprintf(stderr, "mg_embed_init failed: %d\n", (int)err);
     return 1;
