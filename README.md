@@ -14,6 +14,7 @@ The agent still reasons. **Graft gives it a head start.**
 <br/>
 
 [![GitHub Stars](https://img.shields.io/github/stars/AEndrix03/Graft?style=flat-square)](https://github.com/AEndrix03/Graft/stargazers)
+[![CI](https://img.shields.io/github/actions/workflow/status/AEndrix03/Graft/ci.yml?branch=develop&style=flat-square&label=ci)](https://github.com/AEndrix03/Graft/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/AEndrix03/Graft?style=flat-square)](https://github.com/AEndrix03/Graft/releases)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-blue.svg?style=flat-square)](./LICENSE)
 [![Platforms](https://img.shields.io/badge/Linux%20%7C%20macOS%20%7C%20Windows-supported-lightgrey.svg?style=flat-square)](./docs/install/)
