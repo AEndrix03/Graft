@@ -13,6 +13,7 @@ to `## [x.y.z] - YYYY-MM-DD` and becomes the body of the GitHub Release.
 
 ### Added
 
+- `bench/`: a reproducible quality and latency benchmark. `python bench/run.py` runs a private daemon on built-in defaults over a 50-node labelled corpus (exact, paraphrased, Italian and unanswerable queries) and reports STRONG precision, false STRONG rate, recall@k, MRR and latency percentiles.
 - The installers write a minimal `config.yaml` (just the paths that depend on the install location) instead of copying the 403-line example. Built-in defaults cover the rest, so tuning improvements in later releases reach existing installs; `config.example.yaml` ships alongside as the documented reference.
 - **One-line installers** at the repo root: `install.sh` (Linux/macOS) and `install.ps1` (Windows). They download the prebuilt release archive for the platform, verify it against the published `SHA256SUMS` and refuse to continue on a mismatch, extract into `~/.graft`, fetch the BGE-M3 model once, write `config.yaml` with absolute paths without overwriting an existing one, put `~/.graft/bin` on `PATH`, and run a smoke check. No compiler, no submodules, no MSYS2.
 - `graft setup` with no argument now sets up every agent whose config directory exists on the machine, and the installers run it for you, so the only manual step left is `/graft-init` inside the agent.

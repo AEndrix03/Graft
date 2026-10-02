@@ -1,0 +1,140 @@
+{"query":"why does git pull rebase complain about unstaged changes","expect":"git-rebase-autostash","kind":"paraphrase"}
+{"query":"git pull --rebase non parte perché ho modifiche non committate","expect":"git-rebase-autostash","kind":"crosslang"}
+{"query":"shell script bad interpreter ^M error after cloning on Windows","expect":"git-crlf-windows","kind":"paraphrase"}
+{"query":"script bash rotto nel container per i fine riga CRLF di Windows","expect":"git-crlf-windows","kind":"crosslang"}
+{"query":"lost my commits inside a git submodule after update","expect":"git-submodule-detached","kind":"paraphrase"}
+{"query":"ho perso i commit fatti dentro un submodule in detached HEAD","expect":"git-submodule-detached","kind":"crosslang"}
+{"query":"docker build reinstalls npm packages on every code change","expect":"docker-layer-cache-copy","kind":"paraphrase"}
+{"query":"la build docker non usa la cache e reinstalla tutte le dipendenze","expect":"docker-layer-cache-copy","kind":"crosslang"}
+{"query":"how to call an API running on my machine from inside a docker container","expect":"docker-localhost-host","kind":"paraphrase"}
+{"query":"dal container non raggiungo il servizio sull'host con localhost","expect":"docker-localhost-host","kind":"crosslang"}
+{"query":"docker stop takes ten seconds and the app never receives the signal","expect":"docker-pid1-signals","kind":"paraphrase"}
+{"query":"il container non gestisce SIGTERM e docker stop aspetta il timeout","expect":"docker-pid1-signals","kind":"crosslang"}
+{"query":"migration hangs because some postgres session never committed","expect":"pg-idle-in-transaction","kind":"paraphrase"}
+{"query":"connessioni postgres idle in transaction che bloccano l'ALTER TABLE","expect":"pg-idle-in-transaction","kind":"crosslang"}
+{"query":"case insensitive email lookup does a sequential scan in postgres","expect":"pg-index-not-used-lower","kind":"paraphrase"}
+{"query":"postgres non usa l'indice se cerco con lower sulla colonna email","expect":"pg-index-not-used-lower","kind":"crosslang"}
+{"query":"duplicate key value violates unique constraint on id after importing data","expect":"pg-serial-sequence-reset","kind":"paraphrase"}
+{"query":"dopo un import i nuovi insert falliscono per chiave duplicata sulla sequence","expect":"pg-serial-sequence-reset","kind":"crosslang"}
+{"query":"sqlite database is locked when reading while another process writes","expect":"sqlite-wal-readers","kind":"paraphrase"}
+{"query":"errore database is locked su sqlite con letture e scritture concorrenti","expect":"sqlite-wal-readers","kind":"crosslang"}
+{"query":"redis freezes when I list keys matching a pattern","expect":"redis-keys-blocking","kind":"paraphrase"}
+{"query":"il comando KEYS blocca redis in produzione, cosa usare invece","expect":"redis-keys-blocking","kind":"crosslang"}
+{"query":"python list default argument keeps old items between calls","expect":"python-mutable-default","kind":"paraphrase"}
+{"query":"in python la lista di default del parametro si riempie a ogni chiamata","expect":"python-mutable-default","kind":"crosslang"}
+{"query":"pip install puts packages in the global site-packages even with venv active","expect":"python-venv-pip-wrong","kind":"paraphrase"}
+{"query":"pip installa fuori dal virtualenv anche se l'ho attivato","expect":"python-venv-pip-wrong","kind":"crosslang"}
+{"query":"time.sleep inside async def blocks all my asyncio tasks","expect":"python-asyncio-blocking","kind":"paraphrase"}
+{"query":"una chiamata bloccante dentro una coroutine asyncio ferma tutto l'event loop","expect":"python-asyncio-blocking","kind":"crosslang"}
+{"query":"can't compare offset-naive and offset-aware datetimes","expect":"python-datetime-naive","kind":"paraphrase"}
+{"query":"errore confrontando datetime con e senza timezone in python","expect":"python-datetime-naive","kind":"crosslang"}
+{"query":"ERR_REQUIRE_ESM when requiring node-fetch","expect":"node-esm-require","kind":"paraphrase"}
+{"query":"require di un pacchetto solo ESM fallisce dopo l'aggiornamento","expect":"node-esm-require","kind":"crosslang"}
+{"query":"node crashes when a promise rejects and nobody catches it","expect":"node-unhandled-rejection","kind":"paraphrase"}
+{"query":"il processo node termina per una promise rifiutata non gestita","expect":"node-unhandled-rejection","kind":"crosslang"}
+{"query":"npm ci says lockfile does not satisfy package.json","expect":"npm-ci-lockfile","kind":"paraphrase"}
+{"query":"npm ci fallisce in CI perché il package-lock non è allineato","expect":"npm-ci-lockfile","kind":"crosslang"}
+{"query":"turning on strict mode in typescript gives object is possibly undefined everywhere","expect":"ts-strict-null","kind":"paraphrase"}
+{"query":"attivando strictNullChecks typescript segnala centinaia di possibili undefined","expect":"ts-strict-null","kind":"crosslang"}
+{"query":"useEffect keeps re-running forever with an object in the deps array","expect":"react-useeffect-loop","kind":"paraphrase"}
+{"query":"useEffect in loop infinito per una dipendenza oggetto ricreata a ogni render","expect":"react-useeffect-loop","kind":"crosslang"}
+{"query":"my fetch in useEffect is called twice in development","expect":"react-strict-double","kind":"paraphrase"}
+{"query":"in sviluppo react esegue gli effetti due volte e la chiamata API parte doppia","expect":"react-strict-double","kind":"crosslang"}
+{"query":"text-overflow ellipsis not working inside a flexbox item","expect":"css-flex-min-width","kind":"paraphrase"}
+{"query":"un elemento flex con testo lungo esce dal contenitore invece di restringersi","expect":"css-flex-min-width","kind":"crosslang"}
+{"query":"credentials include request blocked by CORS with wildcard origin","expect":"cors-preflight-credentials","kind":"paraphrase"}
+{"query":"la preflight CORS fallisce con credenziali e Access-Control-Allow-Origin asterisco","expect":"cors-preflight-credentials","kind":"crosslang"}
+{"query":"random 502 bad gateway from AWS ALB in front of a node server","expect":"http-keepalive-502","kind":"paraphrase"}
+{"query":"502 intermittenti dal load balancer per il timeout keep-alive del server","expect":"http-keepalive-502","kind":"crosslang"}
+{"query":"curl unable to get local issuer certificate but chrome loads the site fine","expect":"tls-missing-intermediate","kind":"paraphrase"}
+{"query":"il certificato funziona nel browser ma curl e java non si fidano, manca l'intermedio","expect":"tls-missing-intermediate","kind":"crosslang"}
+{"query":"pod keeps restarting because liveness check fails while the app boots","expect":"k8s-crashloop-probe","kind":"paraphrase"}
+{"query":"pod in CrashLoopBackOff perché la liveness probe lo uccide all'avvio","expect":"k8s-crashloop-probe","kind":"crosslang"}
+{"query":"java pod OOMKilled even though Xmx is lower than the memory limit","expect":"k8s-oomkilled-limits","kind":"paraphrase"}
+{"query":"il pod java viene OOMKilled anche se l'heap è sotto il limite del container","expect":"k8s-oomkilled-limits","kind":"crosslang"}
+{"query":"updated the configmap but the pod still sees the old env values","expect":"k8s-configmap-reload","kind":"paraphrase"}
+{"query":"ho cambiato la ConfigMap ma le variabili d'ambiente dei pod non si aggiornano","expect":"k8s-configmap-reload","kind":"crosslang"}
+{"query":"set -e does not stop the script when a piped command fails","expect":"bash-set-e-pipe","kind":"paraphrase"}
+{"query":"lo script bash continua anche se un comando in pipe fallisce","expect":"bash-set-e-pipe","kind":"crosslang"}
+{"query":"bash variable with spaces in filename splits into several arguments","expect":"bash-word-splitting","kind":"paraphrase"}
+{"query":"variabile non quotata in bash si spezza sui nomi file con spazi","expect":"bash-word-splitting","kind":"crosslang"}
+{"query":"build fails on windows with path too long in node_modules","expect":"windows-path-length","kind":"paraphrase"}
+{"query":"su Windows la build fallisce perché il percorso supera i 260 caratteri","expect":"windows-path-length","kind":"crosslang"}
+{"query":"running scripts is disabled on this system powershell","expect":"powershell-execution-policy","kind":"paraphrase"}
+{"query":"powershell non mi lascia eseguire uno script ps1 locale","expect":"powershell-execution-policy","kind":"crosslang"}
+{"query":"cmake ignores the new compiler I passed with -D","expect":"cmake-stale-cache","kind":"paraphrase"}
+{"query":"cmake continua a usare il vecchio compilatore per la cache non aggiornata","expect":"cmake-stale-cache","kind":"crosslang"}
+{"query":"strncpy leaves the string without terminator and printf reads garbage","expect":"c-strncpy-nul","kind":"paraphrase"}
+{"query":"strncpy non mette il terminatore se la stringa sorgente è troppo lunga","expect":"c-strncpy-nul","kind":"crosslang"}
+{"query":"all goroutines in my for loop print the same value","expect":"go-loop-var-capture","kind":"paraphrase"}
+{"query":"le goroutine nel ciclo for vedono tutte l'ultimo valore della variabile","expect":"go-loop-var-capture","kind":"crosslang"}
+{"query":"err != nil is true even though I returned a nil pointer in go","expect":"go-nil-interface","kind":"paraphrase"}
+{"query":"in go un errore con puntatore nil non risulta uguale a nil","expect":"go-nil-interface","kind":"crosslang"}
+{"query":"cannot borrow vec as mutable because it is also borrowed as immutable in a for loop","expect":"rust-borrow-mutable-loop","kind":"paraphrase"}
+{"query":"rust non compila se modifico il Vec mentre lo scorro","expect":"rust-borrow-mutable-loop","kind":"crosslang"}
+{"query":"hashmap get returns null for a key that equals an existing key","expect":"java-hashcode-equals","kind":"paraphrase"}
+{"query":"la HashMap non trova la chiave perché ho ridefinito equals ma non hashCode","expect":"java-hashcode-equals","kind":"crosslang"}
+{"query":"transactional annotation has no effect calling a method of the same service","expect":"spring-transactional-self","kind":"paraphrase"}
+{"query":"@Transactional ignorato quando chiamo il metodo dalla stessa classe","expect":"spring-transactional-self","kind":"crosslang"}
+{"query":"could not initialize proxy no session when returning entity from controller","expect":"spring-lazy-init-exception","kind":"paraphrase"}
+{"query":"LazyInitializationException serializzando un'entità JPA in JSON","expect":"spring-lazy-init-exception","kind":"crosslang"}
+{"query":"setState called after dispose error in flutter after await","expect":"flutter-setstate-disposed","kind":"paraphrase"}
+{"query":"flutter chiama setState dopo dispose quando la future finisce tardi","expect":"flutter-setstate-disposed","kind":"crosslang"}
+{"query":"github actions cache miss on every new branch","expect":"gha-cache-branch-scope","kind":"paraphrase"}
+{"query":"la cache di github actions creata su un branch non è visibile agli altri","expect":"gha-cache-branch-scope","kind":"crosslang"}
+{"query":"secrets are blank in workflows for PRs from forked repositories","expect":"gha-secrets-forks","kind":"paraphrase"}
+{"query":"nelle pull request da fork i secret di github actions sono vuoti","expect":"gha-secrets-forks","kind":"crosslang"}
+{"query":"permission denied publickey cloning from github on a remote box","expect":"ssh-agent-forwarding","kind":"paraphrase"}
+{"query":"git clone via ssh sul server remoto fallisce con permission denied publickey","expect":"ssh-agent-forwarding","kind":"crosslang"}
+{"query":"jwt rejected as not yet valid nbf claim","expect":"ntp-clock-skew-jwt","kind":"paraphrase"}
+{"query":"token JWT rifiutato come non ancora valido per l'orologio del server sfasato","expect":"ntp-clock-skew-jwt","kind":"crosslang"}
+{"query":"JSON.parse unexpected token at position 0 on a file from powershell","expect":"utf8-bom-json","kind":"paraphrase"}
+{"query":"il parser JSON fallisce al primo carattere per il BOM UTF-8 di Windows","expect":"utf8-bom-json","kind":"crosslang"}
+{"query":"invoice total off by one cent rounding error","expect":"float-money","kind":"paraphrase"}
+{"query":"i totali degli importi sbagliano di un centesimo perché uso i float","expect":"float-money","kind":"crosslang"}
+{"query":"regex takes forever and pins the CPU on certain strings","expect":"regex-catastrophic","kind":"paraphrase"}
+{"query":"una regex con quantificatori annidati blocca il servizio, ReDoS","expect":"regex-catastrophic","kind":"crosslang"}
+{"query":"cron job fires at the wrong hour since the clocks changed","expect":"cron-utc","kind":"paraphrase"}
+{"query":"il job cron parte un'ora sbagliata dopo il cambio dell'ora legale","expect":"cron-utc","kind":"crosslang"}
+{"query":"disk full because a log file grew forever, deleting it did not free space","expect":"log-rotation-disk-full","kind":"paraphrase"}
+{"query":"disco pieno per un file di log mai ruotato","expect":"log-rotation-disk-full","kind":"crosslang"}
+{"query":"how to squash the last three git commits into one","expect":null,"kind":"negative"}
+{"query":"git bisect to find which commit introduced a bug","expect":null,"kind":"negative"}
+{"query":"docker compose healthcheck depends_on condition service_healthy","expect":null,"kind":"negative"}
+{"query":"reduce docker image size with multi-stage builds","expect":null,"kind":"negative"}
+{"query":"postgres vacuum full vs autovacuum bloat","expect":null,"kind":"negative"}
+{"query":"choosing between jsonb and a separate table in postgres","expect":null,"kind":"negative"}
+{"query":"sqlite full text search with fts5 tokenizer options","expect":null,"kind":"negative"}
+{"query":"redis pub sub messages lost when subscriber disconnects","expect":null,"kind":"negative"}
+{"query":"python dataclass frozen and slots performance","expect":null,"kind":"negative"}
+{"query":"poetry vs uv for python dependency management","expect":null,"kind":"negative"}
+{"query":"python GIL and multiprocessing for CPU bound work","expect":null,"kind":"negative"}
+{"query":"node worker threads vs child process","expect":null,"kind":"negative"}
+{"query":"pnpm workspace hoisting peer dependency warnings","expect":null,"kind":"negative"}
+{"query":"typescript generics constraint keyof extends","expect":null,"kind":"negative"}
+{"query":"react server components data fetching","expect":null,"kind":"negative"}
+{"query":"css grid auto-fit vs auto-fill responsive columns","expect":null,"kind":"negative"}
+{"query":"http2 server push deprecated alternatives","expect":null,"kind":"negative"}
+{"query":"letsencrypt certificate renewal with certbot cron","expect":null,"kind":"negative"}
+{"query":"kubernetes horizontal pod autoscaler custom metrics","expect":null,"kind":"negative"}
+{"query":"helm chart values override per environment","expect":null,"kind":"negative"}
+{"query":"bash associative arrays syntax","expect":null,"kind":"negative"}
+{"query":"windows subsystem for linux file permissions on mounted drives","expect":null,"kind":"negative"}
+{"query":"cmake find_package config mode vs module mode","expect":null,"kind":"negative"}
+{"query":"c undefined behavior signed integer overflow","expect":null,"kind":"negative"}
+{"query":"go context cancellation propagation in http handlers","expect":null,"kind":"negative"}
+{"query":"rust async runtime tokio vs async-std","expect":null,"kind":"negative"}
+{"query":"java virtual threads pinning with synchronized","expect":null,"kind":"negative"}
+{"query":"spring boot actuator expose prometheus metrics","expect":null,"kind":"negative"}
+{"query":"flutter state management riverpod vs bloc","expect":null,"kind":"negative"}
+{"query":"github actions matrix strategy exclude combination","expect":null,"kind":"negative"}
+{"query":"come fare il revert di un merge commit in git","expect":null,"kind":"negative"}
+{"query":"come configurare un reverse proxy nginx con websocket","expect":null,"kind":"negative"}
+{"query":"differenza tra processi e thread nel sistema operativo","expect":null,"kind":"negative"}
+{"query":"ricetta della pasta alla carbonara","expect":null,"kind":"negative"}
+{"query":"best hiking trails in the dolomites","expect":null,"kind":"negative"}
+{"query":"how does photosynthesis work","expect":null,"kind":"negative"}
+{"query":"oauth2 pkce flow for single page apps","expect":null,"kind":"negative"}
+{"query":"ssh config ProxyJump through a bastion host","expect":null,"kind":"negative"}
+{"query":"terraform state lock dynamodb","expect":null,"kind":"negative"}
+{"query":"elasticsearch mapping explosion too many fields","expect":null,"kind":"negative"}
