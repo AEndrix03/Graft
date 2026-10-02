@@ -2,19 +2,28 @@
 """Reproducible quality + latency benchmark for graft.
 
 Starts a private graftd (own GRAFT_HOME, socket, DB and usage log, built-in
-default settings), inserts bench/corpus/nodes.jsonl, then runs every query in
-bench/corpus/queries.jsonl through `graft query` and `graft retrieve` exactly
-as an agent would. Your real graph and usage log are never touched.
+default settings), inserts bench/corpus/nodes.jsonl and project_nodes.jsonl,
+then runs every query of the chosen set through `graft query` and
+`graft retrieve` exactly as an agent would. Your real graph and usage log are
+never touched.
+
+Query sets:
+  dev      queries.jsonl plus the exact node titles; written by the author of
+           the thresholds, so it is optimistic
+  heldout  heldout.jsonl; written independently, never used for tuning
 
 Reports, per query kind (exact title, English paraphrase, Italian query on an
-English node, unrelated/near-topic negative):
+English node, project-specific question, unrelated/near-topic negative):
 
   query     correct STRONG, correct WEAK, wrong STRONG, MISS; STRONG precision
   retrieve  recall@1, recall@k, MRR
   latency   p50 / p95 per operation, measured by the CLI round trip
 
+Exact-title queries are reported but left out of every aggregate: they only
+prove a node can find itself.
+
 Usage:
-  python bench/run.py [--graft PATH] [--model PATH] [--top-k 5] [--out DIR]
+  python bench/run.py [--set dev|heldout] [--graft PATH] [--model PATH] [--out DIR]
 
 Standard library only.
 """
@@ -35,7 +44,7 @@ import time
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-KINDS = ["exact", "paraphrase", "crosslang", "negative"]
+KINDS = ["exact", "paraphrase", "crosslang", "project", "negative"]
 
 
 # ---------- graft plumbing ----------
@@ -172,7 +181,7 @@ def summarize(rows: list[dict], top_k: int) -> dict:
     summary: dict = {}
     for kind in KINDS + ["all_positive"]:
         sel = [r for r in rows if (r["kind"] == kind if kind != "all_positive"
-                                   else r["expect"] is not None)]
+                                   else r["expect"] is not None and r["kind"] != "exact")]
         if not sel:
             continue
         n = len(sel)
@@ -191,10 +200,10 @@ def summarize(rows: list[dict], top_k: int) -> dict:
             entry["query"]["false_strong_rate"] = ratio(c["wrong_strong"], n)
             entry["query"]["correct_miss_rate"] = ratio(c["miss"], n)
         summary[kind] = entry
-    strong = [r for r in rows if r["hit"] == "STRONG"]
+    strong = [r for r in rows if r["hit"] == "STRONG" and r["kind"] != "exact"]
     summary["strong_precision"] = ratio(
         sum(1 for r in strong if r["outcome"] == "correct_strong"), len(strong))
-    summary["weak_count"] = sum(1 for r in rows if r["hit"] == "WEAK")
+    summary["weak_count"] = sum(1 for r in rows if r["hit"] == "WEAK" and r["kind"] != "exact")
     return summary
 
 
@@ -205,11 +214,13 @@ def fmt(x: float | None, digits: int = 3) -> str:
 def markdown(report: dict) -> str:
     s, top_k = report["summary"], report["top_k"]
     out = [
-        f"# graft benchmark — {report['started_at'][:10]}",
+        f"# graft benchmark — {report['started_at'][:10]} — `{report['set']}` set",
         "",
         f"graft {report['graft_version']} · {report['platform']} · "
         f"{report['corpus']['nodes']} nodes · {report['corpus']['queries']} queries · "
         "built-in default settings",
+        "",
+        "Aggregates leave out the exact-title queries.",
         "",
         "## Verified cache (`graft query`)",
         "",
@@ -236,7 +247,7 @@ def markdown(report: dict) -> str:
         f"| Kind | n | recall@1 | recall@{top_k} | MRR |",
         "| ---- | -: | -: | -: | -: |",
     ]
-    for kind in ["exact", "paraphrase", "crosslang", "all_positive"]:
+    for kind in ["exact", "paraphrase", "crosslang", "project", "all_positive"]:
         if kind in s:
             r = s[kind]["retrieve"]
             out.append(f"| {kind} | {s[kind]['n']} | {fmt(r['recall@1'])} "
@@ -260,8 +271,50 @@ def load_jsonl(path: Path) -> list[dict]:
     return [json.loads(l) for l in path.read_text(encoding="utf-8").splitlines() if l.strip()]
 
 
+def load_corpus(corpus: Path, query_set: str) -> tuple[list[dict], list[dict]]:
+    """Every node file, plus the queries of one set, checked against the nodes."""
+    nodes = load_jsonl(corpus / "nodes.jsonl")
+    if (corpus / "project_nodes.jsonl").exists():
+        nodes += load_jsonl(corpus / "project_nodes.jsonl")
+    keys = [n["key"] for n in nodes]
+    if len(keys) != len(set(keys)):
+        sys.exit("duplicate node keys in the corpus")
+    if query_set == "dev":
+        queries = load_jsonl(corpus / "queries.jsonl")
+        # Exact-title queries are derived, so they can never drift from the corpus.
+        queries = [{"query": n["title"], "expect": n["key"], "kind": "exact"}
+                   for n in nodes] + queries
+    else:
+        queries = load_jsonl(corpus / "heldout.jsonl")
+    unknown = {q["expect"] for q in queries if q["expect"] and q["expect"] not in set(keys)}
+    if unknown:
+        sys.exit(f"queries reference unknown node keys: {sorted(unknown)}")
+    return nodes, queries
+
+
+def insert_nodes(g: Graft, nodes: list[dict], wall: dict[str, list[float]]) -> dict[str, str]:
+    """Inserts the corpus; returns id_hex -> node key."""
+    key_of: dict[str, str] = {}
+    for i, n in enumerate(nodes, 1):
+        argv = ["insert", "--title", n["title"], "--body", n["body"]]
+        for kw in n.get("keywords", []):
+            argv += ["--keyword", kw]
+        res, ms = g.run(*argv)
+        wall.setdefault("insert", []).append(ms)
+        key_of[res["id_hex"]] = n["key"]
+        print(f"\rinsert {i}/{len(nodes)}", end="", file=sys.stderr)
+    print(file=sys.stderr)
+    return key_of
+
+
+def graft_version(graft: Path) -> str:
+    return subprocess.run([str(graft), "--version"], capture_output=True,
+                          text=True).stdout.strip().removeprefix("graft ")
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
+    ap.add_argument("--set", dest="query_set", choices=["dev", "heldout"], default="heldout")
     ap.add_argument("--graft", help="graft CLI (default: the one on PATH)")
     ap.add_argument("--model", help="BGE-M3 GGUF (default: $GRAFT_HOME/models/bge-m3.gguf)")
     ap.add_argument("--top-k", type=int, default=5)
@@ -275,17 +328,9 @@ def main() -> None:
     model = Path(args.model).resolve() if args.model else default_model()
     if not model.exists():
         sys.exit(f"model not found: {model} (pass --model)")
-    nodes = load_jsonl(Path(args.corpus) / "nodes.jsonl")
-    queries = load_jsonl(Path(args.corpus) / "queries.jsonl")
-    keys = {n["key"] for n in nodes}
-    unknown = {q["expect"] for q in queries if q["expect"] and q["expect"] not in keys}
-    if unknown:
-        sys.exit(f"queries reference unknown node keys: {sorted(unknown)}")
-    # Exact-title queries are derived, so they can never drift from the corpus.
-    queries = [{"query": n["title"], "expect": n["key"], "kind": "exact"} for n in nodes] + queries
+    nodes, queries = load_corpus(Path(args.corpus), args.query_set)
 
-    version = subprocess.run([str(graft), "--version"], capture_output=True,
-                             text=True).stdout.strip().removeprefix("graft ")
+    version = graft_version(graft)
     started = dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds")
     workdir = Path(tempfile.mkdtemp(prefix="graft-bench-"))
     g = Graft(graft, model, workdir)
@@ -295,16 +340,7 @@ def main() -> None:
           file=sys.stderr)
     try:
         g.start()
-        key_of: dict[str, str] = {}
-        for i, n in enumerate(nodes, 1):
-            argv = ["insert", "--title", n["title"], "--body", n["body"]]
-            for kw in n.get("keywords", []):
-                argv += ["--keyword", kw]
-            res, ms = g.run(*argv)
-            wall.setdefault("insert", []).append(ms)
-            key_of[res["id_hex"]] = n["key"]
-            print(f"\rinsert {i}/{len(nodes)}", end="", file=sys.stderr)
-        print(file=sys.stderr)
+        key_of = insert_nodes(g, nodes, wall)
 
         for i, q in enumerate(queries, 1):
             qres, qms = g.run("query", q["query"])
@@ -337,6 +373,7 @@ def main() -> None:
 
     report = {
         "started_at": started,
+        "set": args.query_set,
         "graft_version": version,
         "platform": f"{platform.system()} {platform.machine()}",
         "cpu": platform.processor() or None,
@@ -350,7 +387,7 @@ def main() -> None:
     }
     out_dir = Path(args.out)
     out_dir.mkdir(parents=True, exist_ok=True)
-    stem = f"{started[:10]}-{platform.system().lower()}-{version}"
+    stem = f"{started[:10]}-{platform.system().lower()}-{version}-{args.query_set}"
     (out_dir / f"{stem}.json").write_text(json.dumps(report, indent=2, ensure_ascii=False) + "\n",
                                          encoding="utf-8")
     md = markdown(report)

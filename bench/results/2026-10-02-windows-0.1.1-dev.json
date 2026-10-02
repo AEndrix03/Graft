@@ -1,20 +1,21 @@
 {
-  "started_at": "2026-10-02T00:13:22+00:00",
+  "started_at": "2026-10-02T22:57:47+00:00",
+  "set": "dev",
   "graft_version": "0.1.1",
   "platform": "Windows AMD64",
   "cpu": "AMD64 Family 23 Model 8 Stepping 2, AuthenticAMD",
   "cpu_count": 16,
   "settings": "built-in defaults (installer-style config with paths only)",
   "corpus": {
-    "nodes": 50,
-    "queries": 190
+    "nodes": 65,
+    "queries": 205
   },
   "top_k": 5,
   "summary": {
     "exact": {
-      "n": 50,
+      "n": 65,
       "query": {
-        "correct_strong": 50,
+        "correct_strong": 65,
         "correct_weak": 0,
         "wrong_strong": 0,
         "wrong_weak": 0,
@@ -64,53 +65,53 @@
       "query": {
         "correct_strong": 0,
         "correct_weak": 0,
-        "wrong_strong": 6,
+        "wrong_strong": 8,
         "wrong_weak": 0,
-        "miss": 34,
-        "false_strong_rate": 0.15,
-        "correct_miss_rate": 0.85
+        "miss": 32,
+        "false_strong_rate": 0.2,
+        "correct_miss_rate": 0.8
       }
     },
     "all_positive": {
-      "n": 150,
+      "n": 100,
       "query": {
-        "correct_strong": 148,
+        "correct_strong": 98,
         "correct_weak": 1,
         "wrong_strong": 1,
         "wrong_weak": 0,
         "miss": 0,
-        "strong_hit_rate": 0.9866666666666667
+        "strong_hit_rate": 0.98
       },
       "retrieve": {
-        "recall@1": 0.9866666666666667,
+        "recall@1": 0.98,
         "recall@5": 1.0,
-        "mrr": 0.9922222222222223
+        "mrr": 0.9883333333333333
       }
     },
-    "strong_precision": 0.9548387096774194,
+    "strong_precision": 0.9158878504672897,
     "weak_count": 1
   },
   "latency_ms": {
     "insert": {
-      "n": 50,
-      "p50": 344.0,
-      "p95": 493.24999999999994,
-      "max": 625,
-      "wall_p50": 388.3342999906745
+      "n": 65,
+      "p50": 328.0,
+      "p95": 465.79999999999995,
+      "max": 500,
+      "wall_p50": 360.96009996253997
     },
     "query": {
-      "n": 190,
-      "p50": 187.0,
-      "p95": 281.0,
-      "max": 375,
-      "wall_p50": 206.41459999023937
+      "n": 205,
+      "p50": 219.0,
+      "p95": 375.0,
+      "max": 640,
+      "wall_p50": 244.524999987334
     },
     "retrieve": {
-      "n": 190,
-      "p50": 187.0,
-      "p95": 281.0,
-      "max": 375,
-      "wall_p50": 208.5004500404466
+      "n": 205,
+      "p50": 219.0,
+      "p95": 391.0,
+      "max": 610,
+      "wall_p50": 242.03480000142008
     }
   },
   "rows": [
@@ -154,8 +155,8 @@
         "git-crlf-windows",
         "git-submodule-detached",
         "ssh-agent-forwarding",
-        "powershell-execution-policy",
-        "git-rebase-autostash"
+        "orbit-secrets-vault",
+        "powershell-execution-policy"
       ]
     },
     {
@@ -177,7 +178,7 @@
         "git-crlf-windows",
         "gha-cache-branch-scope",
         "ssh-agent-forwarding",
-        "gha-secrets-forks"
+        "orbit-secrets-vault"
       ]
     },
     {
@@ -220,8 +221,8 @@
         "docker-localhost-host",
         "tls-missing-intermediate",
         "cors-preflight-credentials",
-        "ssh-agent-forwarding",
-        "powershell-execution-policy"
+        "orbit-local-postgres-5433",
+        "ssh-agent-forwarding"
       ]
     },
     {
@@ -265,7 +266,7 @@
         "sqlite-wal-readers",
         "pg-serial-sequence-reset",
         "python-asyncio-blocking",
-        "spring-transactional-self"
+        "orbit-migrations-make-target"
       ]
     },
     {
@@ -395,9 +396,9 @@
       "retrieved": [
         "python-venv-pip-wrong",
         "docker-layer-cache-copy",
+        "orbit-pnpm-only",
         "bash-set-e-pipe",
-        "k8s-configmap-reload",
-        "windows-path-length"
+        "k8s-configmap-reload"
       ]
     },
     {
@@ -418,8 +419,8 @@
         "python-asyncio-blocking",
         "flutter-setstate-disposed",
         "pg-idle-in-transaction",
-        "http-keepalive-502",
-        "python-mutable-default"
+        "orbit-celery-reports-queue",
+        "http-keepalive-502"
       ]
     },
     {
@@ -504,10 +505,10 @@
       },
       "retrieved": [
         "npm-ci-lockfile",
+        "orbit-pnpm-only",
         "ntp-clock-skew-jwt",
         "utf8-bom-json",
-        "pg-serial-sequence-reset",
-        "pg-idle-in-transaction"
+        "pg-serial-sequence-reset"
       ]
     },
     {
@@ -637,9 +638,9 @@
       "retrieved": [
         "http-keepalive-502",
         "k8s-crashloop-probe",
+        "orbit-celery-reports-queue",
         "python-asyncio-blocking",
-        "log-rotation-disk-full",
-        "docker-pid1-signals"
+        "log-rotation-disk-full"
       ]
     },
     {
@@ -683,7 +684,7 @@
         "k8s-configmap-reload",
         "k8s-oomkilled-limits",
         "http-keepalive-502",
-        "redis-keys-blocking"
+        "orbit-celery-reports-queue"
       ]
     },
     {
@@ -705,7 +706,7 @@
         "k8s-crashloop-probe",
         "java-hashcode-equals",
         "utf8-bom-json",
-        "k8s-configmap-reload"
+        "orbit-pnpm-only"
       ]
     },
     {
@@ -726,8 +727,8 @@
         "k8s-configmap-reload",
         "k8s-crashloop-probe",
         "cmake-stale-cache",
-        "git-rebase-autostash",
-        "docker-layer-cache-copy"
+        "orbit-feature-flags-yaml",
+        "git-rebase-autostash"
       ]
     },
     {
@@ -1186,10 +1187,10 @@
       },
       "retrieved": [
         "cron-utc",
+        "orbit-staging-nightly-restore",
         "ntp-clock-skew-jwt",
-        "python-datetime-naive",
-        "http-keepalive-502",
-        "python-asyncio-blocking"
+        "orbit-deploy-freeze-friday",
+        "python-datetime-naive"
       ]
     },
     {
@@ -1208,10 +1209,340 @@
       },
       "retrieved": [
         "log-rotation-disk-full",
+        "orbit-migrations-make-target",
         "utf8-bom-json",
-        "cmake-stale-cache",
-        "react-useeffect-loop",
-        "docker-localhost-host"
+        "orbit-celery-reports-queue",
+        "orbit-tenant-scoped-session"
+      ]
+    },
+    {
+      "query": "Orbit database migrations must be run with make db-migrate, not alembic directly",
+      "expect": "orbit-migrations-make-target",
+      "kind": "exact",
+      "hit": "STRONG",
+      "got": "orbit-migrations-make-target",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 1,
+        "s_lex": 1,
+        "s_jaccard": 1,
+        "s_ce": null
+      },
+      "retrieved": [
+        "orbit-migrations-make-target",
+        "orbit-billing-async-only",
+        "orbit-secrets-vault",
+        "orbit-tenant-scoped-session",
+        "orbit-feature-flags-yaml"
+      ]
+    },
+    {
+      "query": "Orbit api must never call the billing service synchronously; publish to the billing-events queue",
+      "expect": "orbit-billing-async-only",
+      "kind": "exact",
+      "hit": "STRONG",
+      "got": "orbit-billing-async-only",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 1,
+        "s_lex": 1,
+        "s_jaccard": 1,
+        "s_ce": null
+      },
+      "retrieved": [
+        "orbit-billing-async-only",
+        "orbit-migrations-make-target",
+        "orbit-api-v1-frozen",
+        "orbit-tenant-scoped-session",
+        "orbit-celery-reports-queue"
+      ]
+    },
+    {
+      "query": "Orbit staging database is restored from an anonymized prod snapshot every night at 03:00 UTC",
+      "expect": "orbit-staging-nightly-restore",
+      "kind": "exact",
+      "hit": "STRONG",
+      "got": "orbit-staging-nightly-restore",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 1,
+        "s_lex": 1,
+        "s_jaccard": 1,
+        "s_ce": null
+      },
+      "retrieved": [
+        "orbit-staging-nightly-restore",
+        "orbit-deploy-freeze-friday",
+        "orbit-tenant-scoped-session",
+        "orbit-migrations-make-target",
+        "cron-utc"
+      ]
+    },
+    {
+      "query": "Orbit feature flags live in config/flags.yaml and only change with a deploy",
+      "expect": "orbit-feature-flags-yaml",
+      "kind": "exact",
+      "hit": "STRONG",
+      "got": "orbit-feature-flags-yaml",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 1,
+        "s_lex": 1,
+        "s_jaccard": 1,
+        "s_ce": null
+      },
+      "retrieved": [
+        "orbit-feature-flags-yaml",
+        "orbit-migrations-make-target",
+        "orbit-python-311-pin",
+        "orbit-secrets-vault",
+        "orbit-pnpm-only"
+      ]
+    },
+    {
+      "query": "Orbit TypeScript API types are generated from the Python pydantic models with make contracts",
+      "expect": "orbit-contracts-codegen",
+      "kind": "exact",
+      "hit": "STRONG",
+      "got": "orbit-contracts-codegen",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 1,
+        "s_lex": 1,
+        "s_jaccard": 1,
+        "s_ce": null
+      },
+      "retrieved": [
+        "orbit-contracts-codegen",
+        "orbit-python-311-pin",
+        "orbit-billing-async-only",
+        "orbit-api-v1-frozen",
+        "orbit-secrets-vault"
+      ]
+    },
+    {
+      "query": "Orbit end-to-end tests only run on a PR when the run-e2e label is added",
+      "expect": "orbit-e2e-label",
+      "kind": "exact",
+      "hit": "STRONG",
+      "got": "orbit-e2e-label",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 1,
+        "s_lex": 1,
+        "s_jaccard": 1,
+        "s_ce": null
+      },
+      "retrieved": [
+        "orbit-e2e-label",
+        "orbit-api-v1-frozen",
+        "orbit-preview-env-ttl",
+        "orbit-migrations-make-target",
+        "bash-set-e-pipe"
+      ]
+    },
+    {
+      "query": "Orbit per-PR preview environments live in namespace pr-<number> and are deleted after 72 hours",
+      "expect": "orbit-preview-env-ttl",
+      "kind": "exact",
+      "hit": "STRONG",
+      "got": "orbit-preview-env-ttl",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 1,
+        "s_lex": 1,
+        "s_jaccard": 1,
+        "s_ce": null
+      },
+      "retrieved": [
+        "orbit-preview-env-ttl",
+        "orbit-pnpm-only",
+        "orbit-e2e-label",
+        "orbit-staging-nightly-restore",
+        "orbit-tenant-scoped-session"
+      ]
+    },
+    {
+      "query": "Orbit secrets come from Vault at secret/orbit/<service>, not from Kubernetes Secrets or .env in git",
+      "expect": "orbit-secrets-vault",
+      "kind": "exact",
+      "hit": "STRONG",
+      "got": "orbit-secrets-vault",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 1,
+        "s_lex": 1,
+        "s_jaccard": 1,
+        "s_ce": null
+      },
+      "retrieved": [
+        "orbit-secrets-vault",
+        "orbit-migrations-make-target",
+        "orbit-tenant-scoped-session",
+        "orbit-api-v1-frozen",
+        "git-submodule-detached"
+      ]
+    },
+    {
+      "query": "The Orbit monorepo uses pnpm workspaces; npm install creates a package-lock.json that CI rejects",
+      "expect": "orbit-pnpm-only",
+      "kind": "exact",
+      "hit": "STRONG",
+      "got": "orbit-pnpm-only",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 1,
+        "s_lex": 1,
+        "s_jaccard": 1,
+        "s_ce": null
+      },
+      "retrieved": [
+        "orbit-pnpm-only",
+        "npm-ci-lockfile",
+        "orbit-migrations-make-target",
+        "orbit-python-311-pin",
+        "orbit-feature-flags-yaml"
+      ]
+    },
+    {
+      "query": "Every Orbit database query must go through TenantScopedSession to avoid leaking data between tenants",
+      "expect": "orbit-tenant-scoped-session",
+      "kind": "exact",
+      "hit": "STRONG",
+      "got": "orbit-tenant-scoped-session",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 1,
+        "s_lex": 1,
+        "s_jaccard": 1,
+        "s_ce": null
+      },
+      "retrieved": [
+        "orbit-tenant-scoped-session",
+        "orbit-billing-async-only",
+        "orbit-migrations-make-target",
+        "orbit-secrets-vault",
+        "orbit-staging-nightly-restore"
+      ]
+    },
+    {
+      "query": "Orbit production deploys are frozen from Friday 14:00 CET to Monday 08:00 CET",
+      "expect": "orbit-deploy-freeze-friday",
+      "kind": "exact",
+      "hit": "STRONG",
+      "got": "orbit-deploy-freeze-friday",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 1,
+        "s_lex": 1,
+        "s_jaccard": 1,
+        "s_ce": null
+      },
+      "retrieved": [
+        "orbit-deploy-freeze-friday",
+        "orbit-staging-nightly-restore",
+        "orbit-celery-reports-queue",
+        "orbit-api-v1-frozen",
+        "orbit-feature-flags-yaml"
+      ]
+    },
+    {
+      "query": "Orbit Python services are pinned to 3.11 because the reports service depends on a pinned pyarrow build",
+      "expect": "orbit-python-311-pin",
+      "kind": "exact",
+      "hit": "STRONG",
+      "got": "orbit-python-311-pin",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 1,
+        "s_lex": 1,
+        "s_jaccard": 1,
+        "s_ce": null
+      },
+      "retrieved": [
+        "orbit-python-311-pin",
+        "orbit-contracts-codegen",
+        "orbit-api-v1-frozen",
+        "orbit-billing-async-only",
+        "orbit-migrations-make-target"
+      ]
+    },
+    {
+      "query": "Orbit local dev Postgres listens on port 5433, not 5432",
+      "expect": "orbit-local-postgres-5433",
+      "kind": "exact",
+      "hit": "STRONG",
+      "got": "orbit-local-postgres-5433",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 1,
+        "s_lex": 1,
+        "s_jaccard": 1,
+        "s_ce": null
+      },
+      "retrieved": [
+        "orbit-local-postgres-5433",
+        "orbit-migrations-make-target",
+        "orbit-secrets-vault",
+        "docker-localhost-host",
+        "orbit-api-v1-frozen"
+      ]
+    },
+    {
+      "query": "Orbit public API v1 is frozen; new fields and endpoints go only into v2",
+      "expect": "orbit-api-v1-frozen",
+      "kind": "exact",
+      "hit": "STRONG",
+      "got": "orbit-api-v1-frozen",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 1,
+        "s_lex": 1,
+        "s_jaccard": 1,
+        "s_ce": null
+      },
+      "retrieved": [
+        "orbit-api-v1-frozen",
+        "orbit-billing-async-only",
+        "orbit-migrations-make-target",
+        "orbit-python-311-pin",
+        "orbit-secrets-vault"
+      ]
+    },
+    {
+      "query": "Long-running Orbit Celery tasks must be routed to the reports-slow queue",
+      "expect": "orbit-celery-reports-queue",
+      "kind": "exact",
+      "hit": "STRONG",
+      "got": "orbit-celery-reports-queue",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 1,
+        "s_lex": 1,
+        "s_jaccard": 1,
+        "s_ce": null
+      },
+      "retrieved": [
+        "orbit-celery-reports-queue",
+        "orbit-billing-async-only",
+        "orbit-tenant-scoped-session",
+        "http-keepalive-502",
+        "orbit-migrations-make-target"
       ]
     },
     {
@@ -1299,7 +1630,7 @@
         "bash-word-splitting",
         "cors-preflight-credentials",
         "bash-set-e-pipe",
-        "cmake-stale-cache"
+        "orbit-celery-reports-queue"
       ]
     },
     {
@@ -1321,7 +1652,7 @@
         "git-rebase-autostash",
         "git-crlf-windows",
         "ssh-agent-forwarding",
-        "pg-serial-sequence-reset"
+        "orbit-secrets-vault"
       ]
     },
     {
@@ -1362,10 +1693,10 @@
       },
       "retrieved": [
         "docker-layer-cache-copy",
+        "orbit-pnpm-only",
         "cmake-stale-cache",
         "k8s-configmap-reload",
-        "npm-ci-lockfile",
-        "python-venv-pip-wrong"
+        "npm-ci-lockfile"
       ]
     },
     {
@@ -1430,8 +1761,8 @@
         "docker-localhost-host",
         "tls-missing-intermediate",
         "cors-preflight-credentials",
-        "k8s-oomkilled-limits",
-        "log-rotation-disk-full"
+        "orbit-local-postgres-5433",
+        "orbit-celery-reports-queue"
       ]
     },
     {
@@ -1495,9 +1826,9 @@
       "retrieved": [
         "pg-idle-in-transaction",
         "pg-serial-sequence-reset",
+        "orbit-migrations-make-target",
         "git-rebase-autostash",
-        "log-rotation-disk-full",
-        "ssh-agent-forwarding"
+        "log-rotation-disk-full"
       ]
     },
     {
@@ -1540,8 +1871,8 @@
         "pg-index-not-used-lower",
         "pg-serial-sequence-reset",
         "spring-lazy-init-exception",
-        "go-loop-var-capture",
-        "ts-strict-null"
+        "orbit-celery-reports-queue",
+        "go-loop-var-capture"
       ]
     },
     {
@@ -1561,9 +1892,9 @@
       "retrieved": [
         "pg-index-not-used-lower",
         "pg-serial-sequence-reset",
+        "orbit-local-postgres-5433",
         "java-hashcode-equals",
-        "cors-preflight-credentials",
-        "go-nil-interface"
+        "cors-preflight-credentials"
       ]
     },
     {
@@ -1758,10 +2089,10 @@
       },
       "retrieved": [
         "python-venv-pip-wrong",
+        "orbit-pnpm-only",
         "docker-layer-cache-copy",
         "powershell-execution-policy",
-        "k8s-configmap-reload",
-        "git-submodule-detached"
+        "k8s-configmap-reload"
       ]
     },
     {
@@ -1780,10 +2111,10 @@
       },
       "retrieved": [
         "python-venv-pip-wrong",
+        "orbit-pnpm-only",
         "powershell-execution-policy",
         "docker-layer-cache-copy",
-        "docker-pid1-signals",
-        "k8s-configmap-reload"
+        "docker-pid1-signals"
       ]
     },
     {
@@ -1847,9 +2178,9 @@
       "retrieved": [
         "python-datetime-naive",
         "ntp-clock-skew-jwt",
-        "java-hashcode-equals",
-        "git-rebase-autostash",
-        "pg-serial-sequence-reset"
+        "orbit-staging-nightly-restore",
+        "orbit-migrations-make-target",
+        "java-hashcode-equals"
       ]
     },
     {
@@ -1978,10 +2309,10 @@
       },
       "retrieved": [
         "npm-ci-lockfile",
+        "orbit-pnpm-only",
         "utf8-bom-json",
         "cmake-stale-cache",
-        "spring-lazy-init-exception",
-        "c-strncpy-nul"
+        "spring-lazy-init-exception"
       ]
     },
     {
@@ -2000,10 +2331,10 @@
       },
       "retrieved": [
         "npm-ci-lockfile",
+        "orbit-pnpm-only",
         "go-nil-interface",
         "node-unhandled-rejection",
-        "pg-serial-sequence-reset",
-        "cmake-stale-cache"
+        "pg-serial-sequence-reset"
       ]
     },
     {
@@ -2022,10 +2353,10 @@
       },
       "retrieved": [
         "ts-strict-null",
+        "orbit-contracts-codegen",
         "react-strict-double",
         "python-datetime-naive",
-        "c-strncpy-nul",
-        "bash-word-splitting"
+        "c-strncpy-nul"
       ]
     },
     {
@@ -2245,7 +2576,7 @@
         "cors-preflight-credentials",
         "docker-localhost-host",
         "pg-serial-sequence-reset",
-        "log-rotation-disk-full"
+        "orbit-local-postgres-5433"
       ]
     },
     {
@@ -2265,9 +2596,9 @@
       "retrieved": [
         "http-keepalive-502",
         "k8s-crashloop-probe",
+        "orbit-celery-reports-queue",
         "ntp-clock-skew-jwt",
-        "python-asyncio-blocking",
-        "log-rotation-disk-full"
+        "python-asyncio-blocking"
       ]
     },
     {
@@ -2354,8 +2685,8 @@
         "k8s-crashloop-probe",
         "k8s-oomkilled-limits",
         "http-keepalive-502",
-        "k8s-configmap-reload",
-        "react-useeffect-loop"
+        "orbit-preview-env-ttl",
+        "k8s-configmap-reload"
       ]
     },
     {
@@ -2440,10 +2771,10 @@
       },
       "retrieved": [
         "k8s-configmap-reload",
+        "orbit-feature-flags-yaml",
         "k8s-crashloop-probe",
         "git-rebase-autostash",
-        "k8s-oomkilled-limits",
-        "cmake-stale-cache"
+        "k8s-oomkilled-limits"
       ]
     },
     {
@@ -2463,9 +2794,9 @@
       "retrieved": [
         "bash-set-e-pipe",
         "powershell-execution-policy",
+        "orbit-e2e-label",
         "flutter-setstate-disposed",
-        "git-rebase-autostash",
-        "git-crlf-windows"
+        "git-rebase-autostash"
       ]
     },
     {
@@ -2619,7 +2950,7 @@
         "bash-set-e-pipe",
         "python-venv-pip-wrong",
         "docker-pid1-signals",
-        "ssh-agent-forwarding"
+        "orbit-pnpm-only"
       ]
     },
     {
@@ -2902,10 +3233,10 @@
       },
       "retrieved": [
         "spring-transactional-self",
+        "orbit-billing-async-only",
         "python-asyncio-blocking",
         "spring-lazy-init-exception",
-        "regex-catastrophic",
-        "python-mutable-default"
+        "regex-catastrophic"
       ]
     },
     {
@@ -3078,10 +3409,10 @@
       },
       "retrieved": [
         "gha-secrets-forks",
+        "orbit-preview-env-ttl",
         "utf8-bom-json",
         "ssh-agent-forwarding",
-        "gha-cache-branch-scope",
-        "java-hashcode-equals"
+        "gha-cache-branch-scope"
       ]
     },
     {
@@ -3102,8 +3433,8 @@
         "gha-secrets-forks",
         "gha-cache-branch-scope",
         "ssh-agent-forwarding",
-        "git-submodule-detached",
-        "git-rebase-autostash"
+        "orbit-secrets-vault",
+        "git-submodule-detached"
       ]
     },
     {
@@ -3345,7 +3676,7 @@
         "ntp-clock-skew-jwt",
         "python-datetime-naive",
         "python-asyncio-blocking",
-        "http-keepalive-502"
+        "orbit-deploy-freeze-friday"
       ]
     },
     {
@@ -3366,8 +3697,8 @@
         "cron-utc",
         "ntp-clock-skew-jwt",
         "python-datetime-naive",
-        "http-keepalive-502",
-        "spring-lazy-init-exception"
+        "orbit-staging-nightly-restore",
+        "http-keepalive-502"
       ]
     },
     {
@@ -3411,7 +3742,7 @@
         "utf8-bom-json",
         "sqlite-wal-readers",
         "bash-word-splitting",
-        "pg-serial-sequence-reset"
+        "orbit-migrations-make-target"
       ]
     },
     {
@@ -3475,9 +3806,9 @@
       "retrieved": [
         "regex-catastrophic",
         "docker-layer-cache-copy",
+        "orbit-celery-reports-queue",
         "cors-preflight-credentials",
-        "k8s-configmap-reload",
-        "k8s-crashloop-probe"
+        "k8s-configmap-reload"
       ]
     },
     {
@@ -3496,10 +3827,10 @@
       },
       "retrieved": [
         "docker-layer-cache-copy",
+        "orbit-celery-reports-queue",
         "k8s-oomkilled-limits",
         "k8s-crashloop-probe",
-        "windows-path-length",
-        "git-submodule-detached"
+        "windows-path-length"
       ]
     },
     {
@@ -3543,7 +3874,7 @@
         "pg-serial-sequence-reset",
         "pg-index-not-used-lower",
         "spring-transactional-self",
-        "pg-idle-in-transaction"
+        "orbit-local-postgres-5433"
       ]
     },
     {
@@ -3607,9 +3938,9 @@
       "retrieved": [
         "python-asyncio-blocking",
         "python-mutable-default",
+        "orbit-api-v1-frozen",
         "python-datetime-naive",
-        "spring-transactional-self",
-        "pg-idle-in-transaction"
+        "spring-transactional-self"
       ]
     },
     {
@@ -3631,7 +3962,7 @@
         "docker-layer-cache-copy",
         "k8s-configmap-reload",
         "react-useeffect-loop",
-        "bash-word-splitting"
+        "orbit-api-v1-frozen"
       ]
     },
     {
@@ -3652,8 +3983,8 @@
         "git-submodule-detached",
         "git-crlf-windows",
         "git-rebase-autostash",
-        "ssh-agent-forwarding",
-        "python-asyncio-blocking"
+        "orbit-celery-reports-queue",
+        "ssh-agent-forwarding"
       ]
     },
     {
@@ -3682,44 +4013,44 @@
       "query": "pnpm workspace hoisting peer dependency warnings",
       "expect": null,
       "kind": "negative",
-      "hit": "MISS",
-      "got": null,
-      "outcome": "miss",
+      "hit": "STRONG",
+      "got": "orbit-pnpm-only",
+      "outcome": "wrong_strong",
       "rank": 0,
       "signals": {
-        "s_vec": 0.718641,
-        "s_lex": 0.0909091,
-        "s_jaccard": 0.0909091,
+        "s_vec": 0.787073,
+        "s_lex": 0.109375,
+        "s_jaccard": 0.109375,
         "s_ce": null
       },
       "retrieved": [
+        "orbit-pnpm-only",
         "docker-layer-cache-copy",
         "python-venv-pip-wrong",
-        "regex-catastrophic",
-        "docker-localhost-host",
-        "python-datetime-naive"
+        "orbit-python-311-pin",
+        "regex-catastrophic"
       ]
     },
     {
       "query": "typescript generics constraint keyof extends",
       "expect": null,
       "kind": "negative",
-      "hit": "MISS",
-      "got": null,
-      "outcome": "miss",
+      "hit": "STRONG",
+      "got": "orbit-contracts-codegen",
+      "outcome": "wrong_strong",
       "rank": 0,
       "signals": {
-        "s_vec": 0.730618,
-        "s_lex": 0.127119,
-        "s_jaccard": 0.127119,
+        "s_vec": 0.734325,
+        "s_lex": 0.153846,
+        "s_jaccard": 0.153846,
         "s_ce": null
       },
       "retrieved": [
+        "orbit-contracts-codegen",
         "ts-strict-null",
         "java-hashcode-equals",
         "regex-catastrophic",
-        "pg-serial-sequence-reset",
-        "python-datetime-naive"
+        "pg-serial-sequence-reset"
       ]
     },
     {
@@ -3782,10 +4113,10 @@
       },
       "retrieved": [
         "docker-localhost-host",
+        "orbit-api-v1-frozen",
         "tls-missing-intermediate",
         "http-keepalive-502",
-        "ssh-agent-forwarding",
-        "log-rotation-disk-full"
+        "ssh-agent-forwarding"
       ]
     },
     {
@@ -3828,8 +4159,8 @@
         "k8s-configmap-reload",
         "k8s-crashloop-probe",
         "k8s-oomkilled-limits",
-        "regex-catastrophic",
-        "docker-layer-cache-copy"
+        "orbit-celery-reports-queue",
+        "regex-catastrophic"
       ]
     },
     {
@@ -3848,10 +4179,10 @@
       },
       "retrieved": [
         "java-hashcode-equals",
+        "orbit-feature-flags-yaml",
         "k8s-configmap-reload",
-        "k8s-oomkilled-limits",
-        "regex-catastrophic",
-        "git-submodule-detached"
+        "orbit-preview-env-ttl",
+        "k8s-oomkilled-limits"
       ]
     },
     {
@@ -4024,10 +4355,10 @@
       },
       "retrieved": [
         "k8s-crashloop-probe",
+        "orbit-migrations-make-target",
         "python-asyncio-blocking",
         "react-strict-double",
-        "git-rebase-autostash",
-        "git-submodule-detached"
+        "git-rebase-autostash"
       ]
     },
     {
@@ -4049,7 +4380,7 @@
         "float-money",
         "pg-idle-in-transaction",
         "k8s-crashloop-probe",
-        "k8s-oomkilled-limits"
+        "orbit-migrations-make-target"
       ]
     },
     {
@@ -4114,8 +4445,8 @@
         "docker-localhost-host",
         "cors-preflight-credentials",
         "pg-serial-sequence-reset",
-        "tls-missing-intermediate",
-        "ssh-agent-forwarding"
+        "orbit-pnpm-only",
+        "tls-missing-intermediate"
       ]
     },
     {
@@ -4171,17 +4502,17 @@
       "outcome": "miss",
       "rank": 0,
       "signals": {
-        "s_vec": 0.610294,
-        "s_lex": 0.0909091,
-        "s_jaccard": 0.0909091,
+        "s_vec": 0.640059,
+        "s_lex": 0.0740741,
+        "s_jaccard": 0.0740741,
         "s_ce": null
       },
       "retrieved": [
         "git-submodule-detached",
         "docker-layer-cache-copy",
         "java-hashcode-equals",
-        "go-loop-var-capture",
-        "gha-secrets-forks"
+        "orbit-migrations-make-target",
+        "go-loop-var-capture"
       ]
     },
     {
@@ -4221,11 +4552,11 @@
         "s_ce": null
       },
       "retrieved": [
+        "orbit-e2e-label",
+        "orbit-api-v1-frozen",
         "http-keepalive-502",
         "cmake-stale-cache",
-        "pg-serial-sequence-reset",
-        "docker-pid1-signals",
-        "k8s-configmap-reload"
+        "pg-serial-sequence-reset"
       ]
     },
     {
@@ -4246,8 +4577,8 @@
         "ssh-agent-forwarding",
         "cors-preflight-credentials",
         "docker-localhost-host",
-        "pg-idle-in-transaction",
-        "git-submodule-detached"
+        "orbit-tenant-scoped-session",
+        "pg-idle-in-transaction"
       ]
     },
     {
@@ -4268,8 +4599,8 @@
         "sqlite-wal-readers",
         "pg-idle-in-transaction",
         "k8s-crashloop-probe",
-        "python-asyncio-blocking",
-        "http-keepalive-502"
+        "orbit-pnpm-only",
+        "orbit-contracts-codegen"
       ]
     },
     {
@@ -4281,9 +4612,9 @@
       "outcome": "miss",
       "rank": 0,
       "signals": {
-        "s_vec": 0.656607,
-        "s_lex": 0.0588235,
-        "s_jaccard": 0.0588235,
+        "s_vec": 0.659401,
+        "s_lex": 0.0697674,
+        "s_jaccard": 0.0697674,
         "s_ce": null
       },
       "retrieved": [

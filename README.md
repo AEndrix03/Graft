@@ -37,6 +37,22 @@ with graft       bug → recall → check → done
 
 ---
 
+## Benchmark
+
+<img src="./assets/bench-hero.svg" alt="On questions about a team's own codebase, Claude Code answers 40% faster with 49% fewer tokens with graft, right answers go from 27% to 73% and made-up answers from 27% to 0%" width="100%"/>
+
+- **It stops making things up.** Without graft, a quarter of the answers about the
+  team's own code were invented. With graft, none.
+- **A wrong note does not derail it.** On 30 questions no note answers, graft
+  sometimes offered the wrong note, and the agent set it aside every time.
+- **Where it still slips.** graft finds the right note for 88% of the questions.
+  When it picks a wrong one, the question is usually about the same technology as
+  another note: that is the next thing being fixed.
+
+How it was measured, and how to run it yourself → [`bench/`](./bench/)
+
+---
+
 ## Install
 
 ### 1. The CLI
