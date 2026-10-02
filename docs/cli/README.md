@@ -292,9 +292,12 @@ graft setup codex
 graft setup opencode
 ```
 
-Copies the shared skills package from `integrations/standard/skills/` into the agent's
+Copies the shared skills package (`plugins/graft/skills/` in a checkout,
+`share/graft/integrations/standard/skills/` in an install) into the agent's
 user config directory (`~/.claude/skills`, `~/.codex/skills`, `~/.config/opencode/skills`).
-With no argument it sets up every agent whose config directory exists. Re-running
+With no argument it sets up every agent whose config directory exists. Claude Code
+and Codex are skipped when the graft plugin is installed from the marketplace:
+the skills already come from it, and a copy would list each one twice. Re-running
 overwrites in place - safe and idempotent.
 
 That is all it does. It installs **no hooks**, and it does not touch `settings.json`,

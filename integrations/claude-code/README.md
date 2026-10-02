@@ -1,8 +1,9 @@
 # Claude Code — graft skill suite
 
-Un solo livello di integrazione: **skill**. `graft setup` le copia, `/graft-init`
-scrive la regola d'uso nel CLAUDE.md e in `.claude/rules/graft.md`. Nessun hook,
-nessuna modifica a `settings.json`.
+Un solo livello di integrazione: **skill**, distribuite come plugin dal
+marketplace di questo repo (oppure copiate da `graft setup`). `/graft-init`
+installa la CLI se manca e scrive la regola d'uso nel CLAUDE.md e in
+`.claude/rules/graft.md`. Nessun hook, nessuna modifica a `settings.json`.
 
 ## Skill
 
@@ -19,24 +20,39 @@ Sei skill collaborano:
 
 ## Installazione
 
-La sorgente unica delle skill e' `integrations/standard/skills`; questa cartella
-e' solo documentazione per Claude Code.
+La sorgente unica delle skill e' il plugin in `plugins/graft/skills`; questa
+cartella e' solo documentazione per Claude Code.
+
+Via marketplace (consigliato):
+
+```text
+/plugin marketplace add AEndrix03/Graft
+/plugin install graft@graft
+/graft:graft-init     # installa la CLI se manca, poi una domanda e scrive la regola
+```
+
+Le skill del plugin hanno il prefisso `graft:` (`/graft:recall`,
+`/graft:memoryze`, ...). Se in `~/.claude/skills` ci sono ancora le copie di un
+vecchio `graft setup`, ogni skill compare due volte: `/graft:graft-init` le
+trova e propone di rimuoverle.
+
+Senza marketplace:
 
 ```bash
 graft setup        # copia le skill in ~/.claude/skills
 /graft-init        # dentro Claude Code: una domanda, poi scrive la regola
 ```
 
-Copia tutta la directory standard `skills/` nella skill folder di Claude Code:
+Oppure a mano, dalla checkout del repo:
 
 ```bash
 # Project-scoped (solo questo repo)
 mkdir -p .claude/skills
-cp -r integrations/standard/skills/* .claude/skills/
+cp -r plugins/graft/skills/* .claude/skills/
 
 # User-scoped (tutti i progetti)
 mkdir -p ~/.claude/skills
-cp -r integrations/standard/skills/* ~/.claude/skills/
+cp -r plugins/graft/skills/* ~/.claude/skills/
 ```
 
 Su Windows PowerShell:
@@ -44,7 +60,7 @@ Su Windows PowerShell:
 ```powershell
 $dst = "$env:USERPROFILE\.claude\skills"
 New-Item -ItemType Directory -Path $dst -Force | Out-Null
-Copy-Item -Recurse integrations\standard\skills\* $dst
+Copy-Item -Recurse plugins\graft\skills\* $dst
 ```
 
 ## Verifica

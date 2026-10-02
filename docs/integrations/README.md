@@ -69,7 +69,9 @@ For Claude Code we ship six skills:
 | `learn`          | Batch-ingestion from external sources (codebase, docs tree): plan + confirm + ingest. |
 | `memory-audit`   | Read-only health check: hit rate, hoarding ratio, top reused nodes, never-reused nodes. |
 
-All six are copied into `~/.claude/skills/` (or `.claude/skills/`) by `graft setup`.
+All six ship in the graft plugin (`plugins/graft/`), installed from the marketplace
+(`/plugin install graft@graft`), where they are namespaced as `/graft:<name>`. Without
+the marketplace, `graft setup` copies them into `~/.claude/skills/`.
 
 ### No hooks
 
@@ -181,11 +183,11 @@ If you're writing your own skill / `AGENTS.md`, the rule of thumb is:
 
 ### Claude Code
 
-`graft setup` copies skills into `~/.claude/skills/`, then `/graft-init` writes the rule into `CLAUDE.md` plus `.claude/rules/graft.md`. `~/.claude/settings.json` is never touched. See [`../../integrations/claude-code/README.md`](../../integrations/claude-code/README.md) for recommended `permissions.allow` entries.
+The plugin (`/plugin install graft@graft`) or `graft setup` provides the skills, then `/graft-init` installs the CLI if needed and writes the rule into `CLAUDE.md` plus `.claude/rules/graft.md`. `~/.claude/settings.json` is never touched. See [`../../integrations/claude-code/README.md`](../../integrations/claude-code/README.md) for recommended `permissions.allow` entries.
 
 ### Codex
 
-`graft setup` copies skills into `~/.codex/skills/`, then `/graft-init` writes the rule into `AGENTS.md`. `~/.codex/hooks.json` and `~/.codex/config.toml` are never touched.
+The plugin (`codex plugin add graft@graft`) or `graft setup` provides the skills, then `graft-init` installs the CLI if needed and writes the rule into `AGENTS.md`. `~/.codex/hooks.json` and `~/.codex/config.toml` are never touched.
 
 ### Claude Desktop / ChatGPT
 

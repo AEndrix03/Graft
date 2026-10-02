@@ -59,6 +59,7 @@ jobs:
             echo "::error title=Missing changelog entry::CHANGELOG.md has no '## [$version] - YYYY-MM-DD' section; rename [Unreleased] before releasing"
             exit 1
           fi
+          bash scripts/check-plugin-version.sh
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "tag=$tag"         >> "$GITHUB_OUTPUT"
           echo "::notice title=Release plan::tag=$tag version=$version"
@@ -376,7 +377,8 @@ jobs:
             mkdir -p "${stage}/share/graft/viewer"
             cp -r viewer/dist/. "${stage}/share/graft/viewer/"
           fi
-          cp -r integrations/standard "${stage}/share/graft/integrations/standard"
+          mkdir -p "${stage}/share/graft/integrations/standard"
+          cp -r plugins/graft/skills "${stage}/share/graft/integrations/standard/skills"
           cp config.example.yaml "${stage}/share/graft/" 2>/dev/null || true
           out="dist/${name}.zip"
           (cd dist && /usr/bin/zip -r "${name}.zip" "${name}")
