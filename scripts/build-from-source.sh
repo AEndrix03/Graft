@@ -506,14 +506,13 @@ ok "installed binaries, model and config under $INSTALL_DIR"
 # Shared agent integration source used by `graft setup` when running from an
 # installed binary. User-specific agent configs still live under each tool's
 # own config directory.
-if [ -d integrations/standard ]; then
-  mkdir -p "$INSTALL_SHARE/integrations"
+if [ -d plugins/graft/skills ]; then
+  mkdir -p "$INSTALL_SHARE/integrations/standard"
   if command -v rsync >/dev/null 2>&1; then
-    rsync -a --delete integrations/standard/ "$INSTALL_SHARE/integrations/standard/"
+    rsync -a --delete plugins/graft/skills/ "$INSTALL_SHARE/integrations/standard/skills/"
   else
-    rm -rf "$INSTALL_SHARE/integrations/standard"
-    mkdir -p "$INSTALL_SHARE/integrations"
-    cp -R integrations/standard "$INSTALL_SHARE/integrations/standard"
+    rm -rf "$INSTALL_SHARE/integrations/standard/skills"
+    cp -R plugins/graft/skills "$INSTALL_SHARE/integrations/standard/skills"
   fi
   ok "installed shared integrations under $INSTALL_SHARE/integrations/standard"
 fi

@@ -308,7 +308,21 @@ static const char *agent_display_name(enum mg_setup_agent agent) {
 static int candidate_standard_dir(char *out, size_t cap, const char *base) {
     char tmp[1024];
     if (path_join(tmp, sizeof(tmp), base, "integrations") != 0) return -1;
-    return path_join(out, cap, tmp, "standard");
+    if (path_join(out, cap, tmp, "standard") != 0) return -1;
+    char skills[1024];
+    if (path_join(skills, sizeof(skills), out, "skills") != 0) return -1;
+    return dir_exists(skills) ? 0 : -1;
+}
+
+/* In a source checkout the skills live in the plugin (plugins/graft/skills);
+ * installed layouts copy them to share/graft/integrations/standard/skills. */
+static int candidate_plugin_dir(char *out, size_t cap, const char *base) {
+    char tmp[1024];
+    if (path_join(tmp, sizeof(tmp), base, "plugins") != 0) return -1;
+    if (path_join(out, cap, tmp, "graft") != 0) return -1;
+    char skills[1024];
+    if (path_join(skills, sizeof(skills), out, "skills") != 0) return -1;
+    return dir_exists(skills) ? 0 : -1;
 }
 
 static int find_standard_dir(char *out, size_t cap) {
@@ -346,16 +360,53 @@ static int find_standard_dir(char *out, size_t cap) {
                 snprintf(out, cap, "%s", cand);
                 return 0;
             }
+            if (candidate_plugin_dir(cand, sizeof(cand), parent) == 0) {
+                snprintf(out, cap, "%s", cand);
+                return 0;
+            }
         }
     }
 
-    if (cwd_path(base, sizeof(base)) == 0
-        && candidate_standard_dir(cand, sizeof(cand), base) == 0
-        && dir_exists(cand)) {
-        snprintf(out, cap, "%s", cand);
-        return 0;
+    if (cwd_path(base, sizeof(base)) == 0) {
+        if (candidate_standard_dir(cand, sizeof(cand), base) == 0 && dir_exists(cand)) {
+            snprintf(out, cap, "%s", cand);
+            return 0;
+        }
+        if (candidate_plugin_dir(cand, sizeof(cand), base) == 0) {
+            snprintf(out, cap, "%s", cand);
+            return 0;
+        }
     }
     return -1;
+}
+
+/* True when the file exists and contains `needle`. Registries are small; a
+ * bounded read is enough. */
+static int file_contains(const char *path, const char *needle) {
+    FILE *f = fopen(path, "rb");
+    if (!f) return 0;
+    static char buf[1024 * 1024];
+    size_t n = fread(buf, 1, sizeof(buf) - 1, f);
+    fclose(f);
+    buf[n] = '\0';
+    return strstr(buf, needle) != NULL;
+}
+
+/* With the graft plugin installed the agent already gets the skills from the
+ * marketplace; copying them as well would list every skill twice. */
+static int plugin_installed(enum mg_setup_agent agent, const char *agent_home) {
+    char path[1024], dir[1024];
+    switch (agent) {
+        case MG_SETUP_CLAUDECODE:
+            return path_join(dir, sizeof(dir), agent_home, "plugins") == 0
+                && path_join(path, sizeof(path), dir, "installed_plugins.json") == 0
+                && file_contains(path, "\"graft@graft\"");
+        case MG_SETUP_CODEX:
+            return path_join(path, sizeof(path), agent_home, "config.toml") == 0
+                && file_contains(path, "[plugins.\"graft@graft\"]");
+        default:
+            return 0;
+    }
 }
 
 
@@ -402,6 +453,11 @@ static int setup_agent(enum mg_setup_agent agent, const char *src, const char *h
     char agent_home[1024], skills[1024];
     if (agent_paths(agent, home, agent_home, sizeof(agent_home), skills, sizeof(skills)) != 0) {
         return -1;
+    }
+    if (plugin_installed(agent, agent_home)) {
+        printf("  %-12s graft plugin installed, skills come from it (skipped)\n",
+               agent_display_name(agent));
+        return 0;
     }
     return install_skills(src, skills, agent_display_name(agent));
 }
@@ -475,7 +531,7 @@ int mg_setup_cmd(int argc, char **argv) {
             continue;
         }
         if (!dir_exists(agent_home)) continue;
-        if (install_skills(src, skills, agent_display_name(a)) != 0) {
+        if (setup_agent(a, src, home) != 0) {
             fprintf(stderr, "  %-12s FAILED: %s\n", agent_display_name(a),
                     strerror(errno ? errno : EINVAL));
             continue;

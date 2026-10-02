@@ -20,7 +20,10 @@ Releases are triggered by a push to a branch matching `release/**` (e.g. `releas
 
 ### Cutting a release
 
-1. On `develop`, bump [`VERSION`](../../VERSION) and rename `## [Unreleased]` in
+1. On `develop`, bump [`VERSION`](../../VERSION) and the `version` of both plugin
+   manifests (`plugins/graft/.claude-plugin/plugin.json`,
+   `plugins/graft/.codex-plugin/plugin.json`; `scripts/check-plugin-version.sh`
+   fails CI and `prep` when they differ), and rename `## [Unreleased]` in
    [`CHANGELOG.md`](../../CHANGELOG.md) to `## [x.y.z] - YYYY-MM-DD` (release
    day). Add a fresh empty `## [Unreleased]` above it and update the compare
    links at the bottom. Commit as `chore: release x.y.z`.

@@ -101,6 +101,34 @@ This is **agent memory**, not document storage.
 
 ## Install
 
+Two ways in: from your agent's plugin marketplace, or from the command line.
+Either way you end up with the same `graft` CLI in `~/.graft` and the same skills.
+
+### From the marketplace
+
+**Claude Code**
+
+```text
+/plugin marketplace add AEndrix03/Graft
+/plugin install graft@graft
+/graft:graft-init
+```
+
+**Codex**
+
+```bash
+codex plugin marketplace add AEndrix03/Graft
+codex plugin add graft@graft
+```
+
+then, inside Codex, run the `graft-init` skill (or just ask: *"set up graft"*).
+
+`graft-init` installs the `graft` CLI if it is missing (it asks first), then asks
+one question - global or this project - and writes the usage rule. Plugin updates
+come from the marketplace.
+
+### From the command line
+
 **Linux**
 
 ```bash
@@ -113,6 +141,12 @@ curl -fsSL https://raw.githubusercontent.com/AEndrix03/Graft/master/install.sh |
 irm https://raw.githubusercontent.com/AEndrix03/Graft/master/install.ps1 | iex
 ```
 
+or with Scoop:
+
+```powershell
+scoop install https://raw.githubusercontent.com/AEndrix03/Graft/master/bucket/graft.json
+```
+
 **macOS** — prebuilt archives aren't published yet, so use the tap:
 
 ```bash
@@ -123,18 +157,14 @@ The one-liners drop prebuilt, checksum-verified binaries into `~/.graft` — no
 compiler, no submodules, no MSYS2. The embedding model (~600 MB) is downloaded
 once. Nothing else to configure.
 
-Then wire it into your coding agent, which is two commands:
+Then wire it into your coding agent:
 
 ```bash
-graft setup     # copies the skills into every agent found on this machine
+graft setup     # copies the skills into every agent found here (skips agents with the plugin)
 /graft-init     # run this inside the agent; it asks one question and writes the rule
 ```
 
-Prefer Scoop on Windows?
-
-```powershell
-scoop install https://raw.githubusercontent.com/AEndrix03/Graft/master/bucket/graft.json
-```
+`graft setup` is the way in for agents without a marketplace, such as OpenCode.
 
 Building from source (contributors, GPU builds, unsupported platforms):
 
@@ -271,8 +301,8 @@ Graft is a binary with a CLI contract. Any agent that can run a subprocess can u
 
 | Agent | Integration | Setup |
 |---|---|---|
-| **Claude Code** | Skills | `graft setup` then `/graft-init` |
-| **Codex** | Skills | `graft setup` then `/graft-init` |
+| **Claude Code** | Plugin (skills) | `/plugin install graft@graft` then `/graft:graft-init` |
+| **Codex** | Plugin (skills) | `codex plugin add graft@graft` then `graft-init` |
 | **Open Code** | Native skills | `graft setup` then `/graft-init` |
 | **Gemini CLI** | `GEMINI.md` workflow | [`integrations/gemini-cli/`](./integrations/gemini-cli/) |
 | **Claude Desktop** | MCP | [`integrations/claude-ai/`](./integrations/claude-ai/) |
@@ -505,33 +535,8 @@ The default runtime is local.
 **Not a vector database replacement.**  
 It is opinionated around agent memory.
 
-**Not just a semantic cache.**  
-Verified reuse is one primitive. Graft also provides ranked retrieval, graph exploration, evolving memories and agent workflows.
-
----
-
-## A secondary use case: semantic reuse in services
-
-The same primitives can sit in front of an LLM-backed service:
-
-```text
-request
-   │
-   ▼
-exact cache
-   │ MISS
-   ▼
-Graft
-   │ no useful memory
-   ▼
-LLM
-   │
-   └──► remember result
-```
-
-This is an **experimental design pattern**, not Graft's primary positioning.
-
-See [`docs/microservices/`](./docs/microservices/).
+**Not a cache for your services.**  
+It is memory for coding agents, built around what an agent learns while it works.
 
 ---
 

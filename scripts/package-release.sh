@@ -57,7 +57,8 @@ case "$PLATFORM" in
 esac
 
 cp -f config.example.yaml "$PAYLOAD/config.example.yaml"
-cp -R integrations/standard "$PAYLOAD/share/graft/integrations/standard"
+mkdir -p "$PAYLOAD/share/graft/integrations/standard"
+cp -R plugins/graft/skills "$PAYLOAD/share/graft/integrations/standard/skills"
 
 if [ -d viewer ] && [ -f viewer/package.json ]; then
   mkdir -p "$PAYLOAD/viewer"

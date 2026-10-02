@@ -1,0 +1,32 @@
+{
+  "name": "graft",
+  "version": "0.1.1",
+  "description": "Persistent local memory for coding agents: recall past fixes, decisions and gotchas before solving them again, and save what was learned.",
+  "author": {
+    "name": "AEndrix03",
+    "url": "https://github.com/AEndrix03"
+  },
+  "homepage": "https://github.com/AEndrix03/Graft",
+  "repository": "https://github.com/AEndrix03/Graft",
+  "license": "Apache-2.0",
+  "keywords": ["memory", "knowledge-graph", "recall", "local-first", "embeddings"],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Graft",
+    "shortDescription": "Persistent local memory for coding agents",
+    "longDescription": "Graft keeps the fixes, decisions and gotchas your agent works out, in a local graph on your machine, and brings them back when a similar problem shows up. No account, no API key, no cloud. Run /graft-init once to install graft and wire it in.",
+    "developerName": "AEndrix03",
+    "category": "Developer Tools",
+    "capabilities": ["Read", "Write"],
+    "websiteURL": "https://github.com/AEndrix03/Graft",
+    "defaultPrompt": [
+      "Set up graft on this machine",
+      "Do we already know how to fix this error?",
+      "Save what we just learned to graft"
+    ],
+    "composerIcon": "./assets/graft.png",
+    "logo": "./assets/graft.png",
+    "screenshots": [],
+    "brandColor": "#2F855A"
+  }
+}

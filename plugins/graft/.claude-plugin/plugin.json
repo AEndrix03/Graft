@@ -1,0 +1,13 @@
+{
+  "name": "graft",
+  "version": "0.1.1",
+  "description": "Persistent local memory for coding agents: recall past fixes, decisions and gotchas before solving them again, and save what was learned.",
+  "author": {
+    "name": "AEndrix03",
+    "url": "https://github.com/AEndrix03"
+  },
+  "homepage": "https://github.com/AEndrix03/Graft",
+  "repository": "https://github.com/AEndrix03/Graft",
+  "license": "Apache-2.0",
+  "keywords": ["memory", "knowledge-graph", "recall", "local-first", "embeddings"]
+}

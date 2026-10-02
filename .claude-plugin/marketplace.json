@@ -1,0 +1,17 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "graft",
+  "description": "Graft: persistent local memory for coding agents.",
+  "owner": {
+    "name": "AEndrix03",
+    "url": "https://github.com/AEndrix03"
+  },
+  "plugins": [
+    {
+      "name": "graft",
+      "source": "./plugins/graft",
+      "description": "Persistent local memory for coding agents: recall past fixes, decisions and gotchas before solving them again, and save what was learned.",
+      "category": "productivity"
+    }
+  ]
+}

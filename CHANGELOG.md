@@ -13,6 +13,8 @@ to `## [x.y.z] - YYYY-MM-DD` and becomes the body of the GitHub Release.
 
 ### Added
 
+- **Plugin marketplace for Claude Code and Codex.** The repo is now a marketplace for both agents: `/plugin marketplace add AEndrix03/Graft` then `/plugin install graft@graft` on Claude Code, `codex plugin marketplace add AEndrix03/Graft` then `codex plugin add graft@graft` on Codex. The plugin carries the six skills (namespaced as `graft:<name>`) and updates through the marketplace.
+- `/graft-init` installs the `graft` CLI when it is missing, after asking, by running the official installer; offers `graft upgrade` when the CLI is older than the plugin; and offers to remove skill copies left by an older `graft setup`, which would otherwise show every skill twice.
 - `bench/`: a reproducible quality and latency benchmark. `python bench/run.py` runs a private daemon on built-in defaults over a 50-node labelled corpus (exact, paraphrased, Italian and unanswerable queries) and reports STRONG precision, false STRONG rate, recall@k, MRR and latency percentiles.
 - The installers write a minimal `config.yaml` (just the paths that depend on the install location) instead of copying the 403-line example. Built-in defaults cover the rest, so tuning improvements in later releases reach existing installs; `config.example.yaml` ships alongside as the documented reference.
 - **One-line installers** at the repo root: `install.sh` (Linux/macOS) and `install.ps1` (Windows). They download the prebuilt release archive for the platform, verify it against the published `SHA256SUMS` and refuse to continue on a mismatch, extract into `~/.graft`, fetch the BGE-M3 model once, write `config.yaml` with absolute paths without overwriting an existing one, put `~/.graft/bin` on `PATH`, and run a smoke check. No compiler, no submodules, no MSYS2.
@@ -20,6 +22,8 @@ to `## [x.y.z] - YYYY-MM-DD` and becomes the body of the GitHub Release.
 
 ### Changed
 
+- The skills moved from `integrations/standard/skills` to `plugins/graft/skills`, the single source for the plugin, `graft setup` and the release archives (installed layout unchanged). `graft setup` skips Claude Code and Codex when the graft plugin is installed there.
+- CI and the release `prep` job fail when the plugin manifests' `version` differs from `VERSION`.
 - GitHub Release notes now contain only that version's `CHANGELOG.md` section instead of the whole file, and the release workflow refuses to start when the version has no dated changelog entry.
 - `graft setup` installs skills and nothing else. All hook installation, `settings.json` / `hooks.json` / `config.toml` merging and instruction-file writing were removed from the binary (~290 lines, plus the shipped hook scripts). Agent wiring is done by `/graft-init` from inside the agent.
 - `/graft-init` asks one question (global or project) instead of four, and writes the rule to `CLAUDE.md` + `.claude/rules/graft.md` on Claude Code, or `AGENTS.md` elsewhere.

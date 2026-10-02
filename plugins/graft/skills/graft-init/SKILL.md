@@ -1,14 +1,55 @@
 ---
 name: graft-init
 description: >-
-  One-shot wiring of graft into this agent. Asks a single question - global or project - then writes the graft usage rule into the right instruction file (CLAUDE.md or AGENTS.md) and, on Claude Code, a rule file under .claude/rules/graft.md that the instruction file imports. Triggered by `/graft-init`, "configura graft", "set up graft here", "enable graft globally". Idempotent: re-running replaces the previous block in place, it never duplicates or strips anything else.
+  One-shot wiring of graft into this agent. Installs the graft CLI first if it is missing (after asking), then asks a single question - global or project - then writes the graft usage rule into the right instruction file (CLAUDE.md or AGENTS.md) and, on Claude Code, a rule file under .claude/rules/graft.md that the instruction file imports. Triggered by `/graft-init`, "configura graft", "set up graft here", "enable graft globally". Idempotent: re-running replaces the previous block in place, it never duplicates or strips anything else.
 ---
 
 # graft-init - wire graft into this agent
 
-`graft setup` copied the skills onto the machine. This skill does the remaining
-step: it tells the agent to actually *use* them, every session, without being
-asked. One question, then it writes the files.
+The skills reach the agent either from the graft plugin (marketplace) or from
+`graft setup`. This skill does the rest: it makes sure the `graft` CLI is
+installed, then tells the agent to actually *use* the skills, every session,
+without being asked. One question, then it writes the files.
+
+## Step 0 - make sure graft is installed
+
+Run `graft --version`. If that fails, also try the default install location
+directly - right after an install the PATH of this session is stale, on Windows
+especially: `~/.graft/bin/graft --version` (`$env:USERPROFILE\.graft\bin\graft.exe`
+on Windows). Use whichever path answers for every `graft` command below.
+
+**Not installed.** Ask before downloading anything (`AskUserQuestion`):
+
+```
+question: "graft is not installed. Install it now?"
+header:   "Install"
+options:
+  - { label: "Install (recommended)", description: "Prebuilt, checksum-verified binaries into ~/.graft, plus the embedding model (~600 MB, downloaded once). No account, no API key." }
+  - { label: "Cancel",                description: "Install nothing. graft-init cannot continue without the CLI." }
+```
+
+On **Install**, run the official installer, nothing else:
+
+- Linux: `curl -fsSL https://raw.githubusercontent.com/AEndrix03/Graft/master/install.sh | sh`
+- macOS: `brew tap AEndrix03/graft https://github.com/AEndrix03/Graft.git && brew install graft`
+- Windows: `powershell -NoProfile -ExecutionPolicy Bypass -Command "irm https://raw.githubusercontent.com/AEndrix03/Graft/master/install.ps1 | iex"`
+
+The model download takes minutes: give the command a long timeout (10 minutes)
+or run it in the background and wait for it. If it fails, show the last lines of
+its output and stop - do not retry with other flags or try to build from source.
+
+**Installed but older than this plugin.** When the skills came from the plugin,
+its manifest carries a `version` (`.claude-plugin/plugin.json` or
+`.codex-plugin/plugin.json` in the plugin root, two levels above this skill's folder). If `graft --version`
+is lower, say so in one line and offer `graft upgrade --yes`. Do not upgrade
+without a yes.
+
+**Duplicate skills.** If the skills came from the plugin, check for copies left by
+an older `graft setup`: `graft`, `graft-init`, `recall`, `memoryze`, `learn` and
+`memory-audit` under `~/.claude/skills` or `~/.codex/skills`, each with a
+`SKILL.md` whose `name:` matches its folder. They make every skill appear twice
+(`/recall` and `/graft:recall`). List what you found and offer to delete exactly
+those folders; delete nothing else and nothing without a yes.
 
 ## Step 1 - ask the one question that matters
 
@@ -76,7 +117,8 @@ decided before. You are also the one who maintains it.
 
 **Before non-trivial work** - a bug, an error, a design decision, a "how do I",
 anything the user says you have seen before, any substantial piece of code you
-are about to write - search the graph first. Use `/recall <short query>`, or the
+are about to write - search the graph first. Use the `recall` skill
+(`/graft:recall` when graft came from the plugin, `/recall` otherwise), or the
 raw loop: `graft classify --title "<short query>"` to find the vocabulary, then
 `graft query`, then `graft retrieve --top-k 5` or `graft explore --beam 5`, then
 `graft get <id>` on whatever looks relevant.
@@ -94,8 +136,8 @@ Never leave two contradicting notes about the same thing.
 **At the end of the work, close the gap.** If what you just figured out was not
 in the graph, insert it - often more than one node: the fix, the gotcha, the
 decision and its reason. A miss today is only a waste if you leave it a miss.
-Use `/memoryze` for notes from the conversation, `/learn` for bulk ingestion
-from files. Never save secrets, tokens, or anything derivable from the code.
+Use the `memoryze` skill for notes from the conversation, `learn` for bulk
+ingestion from files. Never save secrets, tokens, or anything derivable from the code.
 
 **End every turn in which you touched graft with a one-line recap** of how you
 used it - hits, what you took from them, what you added. One line, not a section.
@@ -130,5 +172,6 @@ Do not paste the rule back to the user.
 - Cancel on the question - stop, nothing written.
 - A directory cannot be created - report the path and the error verbatim, do not retry blindly.
 - A target file is read-only - report it and stop; do not change permissions without asking.
-- `graft` is not on PATH - say so and point at the installer; the rule is useless
-  until the CLI answers.
+- `graft` is not installed and the user cancels step 0 - stop, nothing written;
+  the rule is useless until the CLI answers.
+- The installer fails - report its last lines verbatim and stop.
