@@ -14,7 +14,7 @@
 
 ---
 
-## Graft in 20 seconds
+## How it works
 
 <img src="./assets/how-it-works.png" alt="Solved once, remembered, answered instantly" width="100%"/>
 
