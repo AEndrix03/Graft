@@ -334,8 +334,10 @@ static int mg_spawn_daemon(const char *daemon_path,
                            const char *cli_dir,
                            const char *config_path,
                            const char *log_path,
+                           mg_proc_t *out_proc,
                            char *err, size_t err_cap) {
     (void)cli_dir;
+    *out_proc = MG_PROC_NONE;
     pid_t pid = fork();
     if (pid < 0) {
         snprintf(err, err_cap, "fork failed: %s", strerror(errno));
