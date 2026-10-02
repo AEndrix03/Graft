@@ -135,6 +135,23 @@ Different prompt. Same underlying problem.
 
 ---
 
+## Browse your memory
+
+<table>
+<tr>
+<td width="60%"><img src="./assets/graph-example.png" alt="Every memory in the graph and how they connect"/></td>
+<td width="40%"><img src="./assets/graph-exploration.png" alt="An exploration lighting up the notes related to one memory"/></td>
+</tr>
+<tr>
+<td align="center"><sub>Every memory and how it connects</sub></td>
+<td align="center"><sub>From one note to the related ones</sub></td>
+</tr>
+</table>
+
+`graft view` opens it in your browser.
+
+---
+
 ## Works with your agent
 
 | | |
