@@ -16,7 +16,7 @@
 
 ## Graft in 20 seconds
 
-<!-- assets/how-it-works.png goes here once generated -->
+<img src="./assets/how-it-works.png" alt="Solved once, remembered, answered instantly" width="100%"/>
 
 Your agent writes down what it learns: the fix, the gotcha, the decision and why.
 Next time it runs into the same thing, graft hands it the answer before it starts
