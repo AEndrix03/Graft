@@ -183,6 +183,8 @@ if(GRAFT_BUILD_TESTS)
     add_executable(${TNAME} ${TFILE})
     target_link_libraries(${TNAME} graft_cli)
     add_test(NAME ${TNAME} COMMAND ${TNAME})
+    # A hung test must fail, not hold a CI runner for its 6 h job limit.
+    set_tests_properties(${TNAME} PROPERTIES TIMEOUT 300)
     if(MG_TEST_PATHS)
       set_tests_properties(${TNAME} PROPERTIES ENVIRONMENT_MODIFICATION "${MG_TEST_PATHS}")
     endif()

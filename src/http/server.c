@@ -2,8 +2,11 @@
  *
  * Lifecycle:
  *   mg_http_start(ctx) — binds, listens, spawns worker. Returns a handle.
- *   mg_http_stop(srv)  — flips shutdown flag, closes the listening socket
- *                        (which makes accept() return), joins the worker.
+ *   mg_http_stop(srv)  — flips shutdown flag, joins the worker, then closes
+ *                        the listening socket. The worker waits in select()
+ *                        with a short timeout, not in a bare accept(): closing
+ *                        a socket another thread is blocked on wakes accept()
+ *                        on Windows but not on Linux, where stop hung forever.
  *
  * One thread per connection (via pthread_create + detach). Acceptable for a
  * local-first inspection tool; a real high-concurrency server would use a
@@ -32,6 +35,7 @@ typedef SOCKET mg_sock_t;
 #  include <netinet/in.h>
 #  include <arpa/inet.h>
 #  include <netdb.h>
+#  include <sys/select.h>
 #  include <unistd.h>
 #  include <errno.h>
 #  define MG_INVALID_SOCK (-1)
@@ -305,6 +309,13 @@ static void *server_thread(void *arg) {
 #else
     socklen_t caddrlen = sizeof(client_addr);
 #endif
+    fd_set rfds;
+    struct timeval tv;
+    FD_ZERO(&rfds);
+    FD_SET((mg_sock_t)srv->listen_fd, &rfds);
+    tv.tv_sec = 0;
+    tv.tv_usec = 200 * 1000;  /* re-check srv->shutdown every 200 ms */
+    if (select(srv->listen_fd + 1, &rfds, NULL, NULL, &tv) <= 0) continue;
     mg_sock_t cfd = accept((mg_sock_t)srv->listen_fd,
                            (struct sockaddr *)&client_addr, &caddrlen);
     if (cfd == MG_INVALID_SOCK) {
@@ -516,10 +527,10 @@ mg_err_t mg_http_start(mg_ctx_t *ctx, mg_http_server_t **out) {
 void mg_http_stop(mg_http_server_t *srv) {
   if (!srv) return;
   srv->shutdown = 1;
+  pthread_join(srv->thread, NULL);  /* the worker leaves within one select() timeout */
   if (srv->listen_fd >= 0) {
     MG_CLOSE_SOCK((mg_sock_t)srv->listen_fd);
     srv->listen_fd = -1;
   }
-  pthread_join(srv->thread, NULL);
   free(srv);
 }
