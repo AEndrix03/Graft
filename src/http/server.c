@@ -2,20 +2,24 @@
  *
  * Lifecycle:
  *   mg_http_start(ctx) — binds, listens, spawns worker. Returns a handle.
- *   mg_http_stop(srv)  — flips shutdown flag, joins the worker, then closes
- *                        the listening socket. The worker waits in select()
+ *   mg_http_stop(srv)  — flips shutdown flag, joins the worker, closes the
+ *                        listening socket, then drains the client threads
+ *                        before freeing srv. The worker waits in select()
  *                        with a short timeout, not in a bare accept(): closing
  *                        a socket another thread is blocked on wakes accept()
  *                        on Windows but not on Linux, where stop hung forever.
  *
  * One thread per connection (via pthread_create + detach). Acceptable for a
  * local-first inspection tool; a real high-concurrency server would use a
- * thread pool or epoll/kqueue. We keep it boring.
+ * thread pool or epoll/kqueue. We keep it boring. Client threads are counted
+ * in srv->workers (graft/workers.h) because they use srv and srv->ctx: stop
+ * must not free either while one is still running.
  */
 
 #include "graft/http.h"
 #include "internal.h"
 #include "graft/error.h"
+#include "graft/workers.h"
 
 #include <pthread.h>
 #include <stdio.h>
@@ -48,6 +52,7 @@ struct mg_http_server {
   int        listen_fd;
   pthread_t  thread;
   volatile int shutdown;
+  mg_workers_t *workers;  /* live client threads */
 };
 
 typedef struct {
@@ -233,6 +238,7 @@ static int mg_host_header_ok(const mg_ctx_t *ctx, const char *host) {
 static void *handle_client(void *arg) {
   client_arg_t *ca = (client_arg_t *)arg;
   mg_ctx_t *ctx = ca->srv->ctx;
+  mg_workers_t *workers = ca->srv->workers;
   int fd = ca->fd;
   mg_http_request_t req;
   mg_http_response_t resp;
@@ -296,6 +302,7 @@ send:
   (void)mg_http_send_response(fd, &resp);
   mg_http_response_free(&resp);
   mg_http_request_free(&req);
+  mg_workers_leave(workers, fd);  /* last touch of srv/ctx: stop may free them now */
   MG_CLOSE_SOCK((mg_sock_t)fd);
   return NULL;
 }
@@ -328,8 +335,15 @@ static void *server_thread(void *arg) {
     ca->srv = srv;
     ca->fd  = (int)cfd;
 
+    /* Count the worker before it exists, so a drain can never miss it. */
+    if (mg_workers_enter(srv->workers, (int)cfd) != 0) {
+      free(ca);
+      MG_CLOSE_SOCK(cfd);
+      continue;
+    }
     pthread_t th;
     if (pthread_create(&th, NULL, handle_client, ca) != 0) {
+      mg_workers_leave(srv->workers, (int)cfd);
       free(ca);
       MG_CLOSE_SOCK(cfd);
       continue;
@@ -465,9 +479,12 @@ mg_err_t mg_http_start(mg_ctx_t *ctx, mg_http_server_t **out) {
   if (!srv) { MG_CLOSE_SOCK(s); return MG_ERR_OOM; }
   srv->ctx = ctx;
   srv->listen_fd = (int)s;
+  srv->workers = mg_workers_new();
+  if (!srv->workers) { MG_CLOSE_SOCK(s); free(srv); return MG_ERR_OOM; }
 
   if (pthread_create(&srv->thread, NULL, server_thread, srv) != 0) {
     MG_CLOSE_SOCK(s);
+    mg_workers_free(srv->workers);
     free(srv);
     return MG_ERR_INTERNAL;
   }
@@ -524,13 +541,43 @@ mg_err_t mg_http_start(mg_ctx_t *ctx, mg_http_server_t **out) {
   return MG_OK;
 }
 
-void mg_http_stop(mg_http_server_t *srv) {
-  if (!srv) return;
+bool mg_http_stop(mg_http_server_t *srv) {
+  int left;
+  if (!srv) return true;
   srv->shutdown = 1;
   pthread_join(srv->thread, NULL);  /* the worker leaves within one select() timeout */
   if (srv->listen_fd >= 0) {
     MG_CLOSE_SOCK((mg_sock_t)srv->listen_fd);
     srv->listen_fd = -1;
   }
+  /* No new clients from here on; wait for the ones already being served. */
+  left = mg_workers_drain(srv->workers, MG_WORKERS_DRAIN_TIMEOUT_MS);
+  if (left > 0) {
+    /* Freeing srv now would pull it out from under the stragglers. */
+    fprintf(stderr, "http: %d client thread(s) still running after %d ms, "
+            "leaving the server state allocated\n",
+            left, MG_WORKERS_DRAIN_TIMEOUT_MS);
+    return false;
+  }
+  mg_workers_free(srv->workers);
   free(srv);
+  return true;
+}
+
+int mg_http_server_port(const mg_http_server_t *srv) {
+  struct sockaddr_storage ss;
+#ifdef _WIN32
+  int len = sizeof(ss);
+#else
+  socklen_t len = sizeof(ss);
+#endif
+  if (!srv || srv->listen_fd < 0) return -1;
+  if (getsockname((mg_sock_t)srv->listen_fd, (struct sockaddr *)&ss, &len) != 0) return -1;
+  if (ss.ss_family == AF_INET) return ntohs(((struct sockaddr_in *)&ss)->sin_port);
+  if (ss.ss_family == AF_INET6) return ntohs(((struct sockaddr_in6 *)&ss)->sin6_port);
+  return -1;
+}
+
+int mg_http_server_active_clients(const mg_http_server_t *srv) {
+  return srv ? mg_workers_active(srv->workers) : 0;
 }
