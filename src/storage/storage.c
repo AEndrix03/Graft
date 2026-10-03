@@ -161,28 +161,15 @@ mg_err_t mg_storage_open(const char *db_path, mg_storage_t **out) {
   {
     const char *key = getenv("GRAFT_DB_KEY");
     if (key && *key) {
-      char *pragma = NULL;
       sqlite3_stmt *probe = NULL;
-      size_t klen = strlen(key);
-      pragma = (char *)malloc(klen + 32u);
+      /* %Q quotes the key and doubles any embedded single quote, sizing the
+       * buffer itself: a hand-sized buffer overflowed on keys full of '. */
+      char *pragma = sqlite3_mprintf("PRAGMA key=%Q;", key);
       if (pragma) {
-        /* Single-quote the key and double any embedded single quotes to keep
-         * the PRAGMA syntactically valid. */
-        char *dst = pragma;
-        const char *src = key;
-        dst += sprintf(dst, "PRAGMA key='");
-        while (*src) {
-          if (*src == '\'') { *dst++ = '\''; *dst++ = '\''; }
-          else              { *dst++ = *src; }
-          ++src;
-        }
-        *dst++ = '\'';
-        *dst++ = ';';
-        *dst   = '\0';
         if (sqlite3_exec(s->db, pragma, NULL, NULL, NULL) != SQLITE_OK) {
           fprintf(stderr, "graft: warning: PRAGMA key failed — DB is NOT encrypted\n");
         }
-        free(pragma);
+        sqlite3_free(pragma);
       }
       if (sqlite3_prepare_v2(s->db, "PRAGMA cipher_version;", -1, &probe, NULL) == SQLITE_OK) {
         int has_cipher = (sqlite3_step(probe) == SQLITE_ROW &&

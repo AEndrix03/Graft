@@ -33,6 +33,7 @@ to `## [x.y.z] - YYYY-MM-DD` and becomes the body of the GitHub Release.
 
 ### Fixed
 
+- A `GRAFT_DB_KEY` with many single quotes overflowed a heap buffer when opening the database: each quote is doubled in `PRAGMA key`, but the buffer was sized for the key's own length. The statement is now built with `sqlite3_mprintf` ([#9](https://github.com/AEndrix03/Graft/issues/9)).
 - The source-build scripts ended by suggesting `graft insert --summary ... --detail ...`, flags removed long ago: the request went out with an empty title and body and the daemon rejected it. They now print `--title` / `--body`, and the CLI refuses an unknown option or a known one missing its value (exit code 2) instead of silently ignoring it ([#14](https://github.com/AEndrix03/Graft/issues/14)).
 - Building from source on Linux and macOS works again: `src/cli/autostart.c` called the POSIX `mg_spawn_daemon` with the Windows-only process-handle argument added by the daemon log fix, so the CLI failed to compile on every non-Windows platform.
 - The MCP server pins `mcp<2`. A fresh `pip install -e .` pulled `mcp` 2.x, where `FastMCP` no longer exists, and the server refused to start with "mcp SDK not installed".
