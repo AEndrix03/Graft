@@ -272,11 +272,155 @@ static int test_merge(void) {
   return 0;
 }
 
+/* Runs `sql` against the DB at `path` with up to two blob parameters and
+ * returns the first column of the first row as an integer, or -1. */
+static int64_t query_int(const char *path, const char *sql,
+                         const void *b1, int n1, const void *b2, int n2) {
+  sqlite3 *db = NULL;
+  sqlite3_stmt *stmt = NULL;
+  int64_t out = -1;
+  if (sqlite3_open(path, &db) != SQLITE_OK) { sqlite3_close(db); return -1; }
+  if (sqlite3_prepare_v2(db, sql, -1, &stmt, NULL) == SQLITE_OK) {
+    if (b1) sqlite3_bind_blob(stmt, 1, b1, n1, SQLITE_STATIC);
+    if (b2) sqlite3_bind_blob(stmt, 2, b2, n2, SQLITE_STATIC);
+    if (sqlite3_step(stmt) == SQLITE_ROW) out = sqlite3_column_int64(stmt, 0);
+  }
+  sqlite3_finalize(stmt);
+  sqlite3_close(db);
+  return out;
+}
+
+#define ID_ARG(x) (x), MG_NODE_ID_BYTES
+#define EXPECT_EQ(what, got, want) do { \
+    int64_t g_ = (got), w_ = (want); \
+    if (g_ != w_) { \
+      fprintf(stderr, "merge identity (overwrite=%d): %s: got %lld, want %lld\n", \
+              overwrite, (what), (long long)g_, (long long)w_); \
+      ok = 0; \
+    } \
+  } while (0)
+
+/* Issue #11: the target holds node A (hash H) with a target-only edge
+ * X -> A; the source holds node B with the same hash H plus a source-only
+ * node Y with an edge Y -> B. The merge must keep A's id and its edge,
+ * leave exactly one H node, and remap Y -> B onto Y -> A. overwrite=1
+ * adopts B's metadata on A; overwrite=0 keeps A's. */
+static int test_merge_identity(int overwrite) {
+  const char *src_path = "./test_merge_id_src.db";
+  const char *dst_path = "./test_merge_id_dst.db";
+  cleanup(src_path);
+  cleanup(dst_path);
+
+  mg_storage_t *src = NULL, *dst = NULL;
+  mg_node_t na, nx, nb, ny;
+  mg_embedding_t emb;
+  mg_keyword_id_t kw = 0;
+  fill_embedding(emb, 4.0f);
+
+  /* Target: A (keyword "merge-dst-kw") and X with edge X -> A. */
+  if (open_schema(dst_path, &dst) != 0) return 1;
+  fill_node(&na, "merge-shared", 100);
+  na.author = (char *)"dst-author";
+  na.access_count = 3;
+  fill_node(&nx, "merge-x", 101);
+  if (mg_storage_upsert_keyword(dst, "merge-dst-kw", NULL, &kw) != MG_OK) return 1;
+  if (mg_storage_insert_node_with_edges(dst, &na, emb, &kw, 1, NULL, 0, NULL) != MG_OK) return 1;
+  mg_edge_t ex = {{0}, {0}, MG_EDGE_SEMANTIC, 0, 0.9f};
+  memcpy(ex.src, nx.id, MG_NODE_ID_BYTES);
+  memcpy(ex.dst, na.id, MG_NODE_ID_BYTES);
+  if (mg_storage_insert_node_with_edges(dst, &nx, emb, NULL, 0, &ex, 1, NULL) != MG_OK) return 1;
+  mg_storage_close(dst);
+
+  /* Source: B (same hash as A, new id, keyword "merge-src-kw") and Y with
+   * edge Y -> B. */
+  if (open_schema(src_path, &src) != 0) return 1;
+  fill_node(&nb, "merge-shared", 500);
+  nb.author = (char *)"src-author";
+  nb.access_count = 7;
+  nb.state = MG_NODE_STALE;
+  fill_node(&ny, "merge-y", 501);
+  if (mg_storage_upsert_keyword(src, "merge-src-kw", NULL, &kw) != MG_OK) return 1;
+  if (mg_storage_insert_node_with_edges(src, &nb, emb, &kw, 1, NULL, 0, NULL) != MG_OK) return 1;
+  mg_edge_t ey = {{0}, {0}, MG_EDGE_SEMANTIC, 0, 0.8f};
+  memcpy(ey.src, ny.id, MG_NODE_ID_BYTES);
+  memcpy(ey.dst, nb.id, MG_NODE_ID_BYTES);
+  if (mg_storage_insert_node_with_edges(src, &ny, emb, NULL, 0, &ey, 1, NULL) != MG_OK) return 1;
+  mg_storage_close(src);
+
+  if (open_schema(dst_path, &dst) != 0) return 1;
+  if (mg_storage_merge_from(dst, src_path, overwrite) != MG_OK) {
+    fprintf(stderr, "merge identity (overwrite=%d): merge_from failed\n", overwrite);
+    mg_storage_close(dst);
+    cleanup(src_path); cleanup(dst_path);
+    return 1;
+  }
+  /* A second pass must be a no-op for the graph shape. */
+  if (mg_storage_merge_from(dst, src_path, overwrite) != MG_OK) {
+    fprintf(stderr, "merge identity (overwrite=%d): second merge failed\n", overwrite);
+    mg_storage_close(dst);
+    cleanup(src_path); cleanup(dst_path);
+    return 1;
+  }
+
+  int ok = 1;
+  mg_node_t got;
+  if (mg_storage_get_node(dst, na.id, &got) != MG_OK) {
+    fprintf(stderr, "merge identity (overwrite=%d): node A lost\n", overwrite);
+    ok = 0;
+  } else {
+    EXPECT_EQ("A created_at", got.created_at, overwrite ? 500 : 100);
+    EXPECT_EQ("A access_count", got.access_count, overwrite ? 7 : 3);
+    EXPECT_EQ("A state", got.state, overwrite ? MG_NODE_STALE : MG_NODE_ACTIVE);
+    EXPECT_EQ("A author",
+              got.author && strcmp(got.author, overwrite ? "src-author" : "dst-author") == 0,
+              1);
+    mg_node_free(&got);
+  }
+  mg_storage_close(dst);
+
+  EXPECT_EQ("nodes with hash H",
+            query_int(dst_path, "SELECT COUNT(*) FROM nodes WHERE content_hash = ?;",
+                      na.content_hash, MG_HASH_BYTES, NULL, 0), 1);
+  EXPECT_EQ("node B present",
+            query_int(dst_path, "SELECT COUNT(*) FROM nodes WHERE id = ?;",
+                      ID_ARG(nb.id), NULL, 0), 0);
+  EXPECT_EQ("total nodes",
+            query_int(dst_path, "SELECT COUNT(*) FROM nodes;", NULL, 0, NULL, 0), 3);
+  EXPECT_EQ("edge X -> A",
+            query_int(dst_path, "SELECT COUNT(*) FROM edges WHERE src = ? AND dst = ?;",
+                      ID_ARG(nx.id), ID_ARG(na.id)), 1);
+  EXPECT_EQ("edge Y -> A",
+            query_int(dst_path, "SELECT COUNT(*) FROM edges WHERE src = ? AND dst = ?;",
+                      ID_ARG(ny.id), ID_ARG(na.id)), 1);
+  EXPECT_EQ("edges touching B",
+            query_int(dst_path, "SELECT COUNT(*) FROM edges WHERE src = ?1 OR dst = ?1;",
+                      ID_ARG(nb.id), NULL, 0), 0);
+  EXPECT_EQ("total edges",
+            query_int(dst_path, "SELECT COUNT(*) FROM edges;", NULL, 0, NULL, 0), 2);
+  EXPECT_EQ("keywords on A",
+            query_int(dst_path, "SELECT COUNT(*) FROM node_keywords WHERE node_id = ?;",
+                      ID_ARG(na.id), NULL, 0), 2);
+  EXPECT_EQ("node_vec for B",
+            query_int(dst_path, "SELECT COUNT(*) FROM node_vec WHERE id = ?;",
+                      ID_ARG(nb.id), NULL, 0), 0);
+  EXPECT_EQ("node_vec for Y",
+            query_int(dst_path, "SELECT COUNT(*) FROM node_vec WHERE id = ?;",
+                      ID_ARG(ny.id), NULL, 0), 1);
+
+  cleanup(src_path);
+  cleanup(dst_path);
+  if (!ok) return 1;
+  printf("ok merge_from identity (overwrite=%d)\n", overwrite);
+  return 0;
+}
+
 int main(void) {
   int rc = 0;
   rc |= test_pull();
   rc |= test_push();
   rc |= test_merge();
+  rc |= test_merge_identity(0);
+  rc |= test_merge_identity(1);
   if (rc == 0) printf("test_remote_profiles: PASS\n");
   return rc;
 }

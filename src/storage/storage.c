@@ -1221,18 +1221,27 @@ static mg_err_t storage_merge_from_unlocked(mg_storage_t *s, const char *source_
                                            int overwrite) {
   /* Strategy: ATTACH the source DB read-only to our existing connection (so
    * sqlite-vec is already loaded), copy in dependency order with SQL set-
-   * operations, then DETACH. Idempotency comes from the content_hash UNIQUE
-   * constraint on nodes and the (src,dst,kind,coalesce(kw,-1)) index on
-   * edges. Keyword ids are remapped by text since keywords.text is UNIQUE
-   * COLLATE NOCASE. The whole thing runs in one transaction so a failure
-   * leaves the target untouched.
+   * operations, then DETACH. The whole thing runs in one transaction so a
+   * failure leaves the target untouched.
    *
-   * Note about overwrite semantics: nodes are deduplicated by content_hash
-   * (which hashes title+body+keywords). If two nodes have the same
-   * content_hash, they are by definition identical — so "overwrite" only
-   * matters for fields the hash does not cover (created_at, last_access,
-   * access_count). With overwrite=1 we adopt the source's metadata; with
-   * overwrite=0 we keep what the target already has. */
+   * Node identity: a target row is never deleted or re-keyed. Each source
+   * node is first resolved to a target id in temp.merge_map:
+   *   kind 1  same content_hash in the target -> that target id
+   *   kind 2  no hash match, same id in the target -> that id
+   *   kind 0  neither -> inserted under the source id
+   * node_vec, node_keywords and edges are then imported through the map, so
+   * a source edge to a node the target already holds lands on the target id.
+   * INSERT OR REPLACE on nodes would delete the conflicting target row and
+   * cascade away its edges and keyword links (issue #11).
+   *
+   * Overwrite semantics: content_hash covers title+body+keywords, so for a
+   * kind 1 match "overwrite" only matters for the metadata (author,
+   * created_at, expires_at, last_access, access_count, state). overwrite=1
+   * adopts the source's values, overwrite=0 keeps the target's. A kind 2
+   * match is the same node with diverged content: overwrite=1 adopts the
+   * source content, keyword links and embedding too. The target's id and
+   * origin are always kept. Keyword ids are remapped by text since
+   * keywords.text is UNIQUE COLLATE NOCASE. */
   if (!s || !source_path) return MG_ERR_INVALID_ARG;
 
   sqlite3_stmt *stmt = NULL;
@@ -1249,57 +1258,115 @@ static mg_err_t storage_merge_from_unlocked(mg_storage_t *s, const char *source_
     return err;
   }
 
-  const char *node_verb = overwrite ? "INSERT OR REPLACE" : "INSERT OR IGNORE";
-  char sql[1024];
-
-  /* 1. nodes (idempotent on content_hash UNIQUE) */
-  snprintf(sql, sizeof(sql),
-    "%s INTO main.nodes(id, content_hash, title, body, author, "
-    "                   created_at, expires_at, last_access, access_count, state, origin) "
-    "SELECT id, content_hash, title, body, author, "
-    "       created_at, expires_at, last_access, access_count, state, origin FROM src.nodes;",
-    node_verb);
-  err = exec_sql(s->db, sql);
+  /* 1. resolve every source node to the target id it maps onto. dst_id is
+   * UNIQUE: a target row claimed by a hash match cannot also be claimed by
+   * an id match. A source row whose id collides with an already-claimed
+   * target row is left out (the INSERT OR IGNORE of the last step). */
+  err = exec_sql(s->db,
+    "DROP TABLE IF EXISTS temp.merge_map;"
+    "CREATE TEMP TABLE merge_map("
+    "  src_id BLOB PRIMARY KEY,"
+    "  dst_id BLOB NOT NULL UNIQUE,"
+    "  kind INTEGER NOT NULL);"
+    "INSERT INTO temp.merge_map(src_id, dst_id, kind) "
+    "SELECT sn.id, mn.id, 1 FROM src.nodes AS sn "
+    "JOIN main.nodes AS mn ON mn.content_hash = sn.content_hash;"
+    "INSERT OR IGNORE INTO temp.merge_map(src_id, dst_id, kind) "
+    "SELECT sn.id, mn.id, 2 FROM src.nodes AS sn "
+    "JOIN main.nodes AS mn ON mn.id = sn.id;"
+    "INSERT OR IGNORE INTO temp.merge_map(src_id, dst_id, kind) "
+    "SELECT sn.id, sn.id, 0 FROM src.nodes AS sn "
+    "WHERE NOT EXISTS (SELECT 1 FROM main.nodes WHERE id = sn.id);");
   if (err != MG_OK) goto rollback;
 
-  /* 2. node_vec (only for nodes that ended up in main; same id) */
+  /* 2. nodes: insert the unmatched ones; never touch a target row's id */
+  err = exec_sql(s->db,
+    "INSERT INTO main.nodes(id, content_hash, title, body, author, "
+    "                       created_at, expires_at, last_access, access_count, state, origin) "
+    "SELECT sn.id, sn.content_hash, sn.title, sn.body, sn.author, "
+    "       sn.created_at, sn.expires_at, sn.last_access, sn.access_count, sn.state, sn.origin "
+    "FROM src.nodes AS sn "
+    "JOIN temp.merge_map AS mm ON mm.src_id = sn.id AND mm.kind = 0;");
+  if (err != MG_OK) goto rollback;
+
+  if (overwrite) {
+    /* adopt source metadata on every matched row */
+    err = exec_sql(s->db,
+      "UPDATE main.nodes SET "
+      "  (author, created_at, expires_at, last_access, access_count, state) = ("
+      "    SELECT sn.author, sn.created_at, sn.expires_at, sn.last_access, "
+      "           sn.access_count, sn.state "
+      "    FROM temp.merge_map AS mm JOIN src.nodes AS sn ON sn.id = mm.src_id "
+      "    WHERE mm.dst_id = main.nodes.id) "
+      "WHERE id IN (SELECT dst_id FROM temp.merge_map WHERE kind != 0);");
+    if (err != MG_OK) goto rollback;
+
+    /* same id, diverged content: adopt the source content. The new hash is
+     * absent from the target, otherwise the row would be a kind 1 match.
+     * Stale keyword links and embedding go so the source's replace them. */
+    err = exec_sql(s->db,
+      "UPDATE main.nodes SET (content_hash, title, body) = ("
+      "    SELECT sn.content_hash, sn.title, sn.body FROM src.nodes AS sn "
+      "    WHERE sn.id = main.nodes.id) "
+      "WHERE id IN (SELECT dst_id FROM temp.merge_map WHERE kind = 2);"
+      "DELETE FROM main.node_keywords "
+      "WHERE node_id IN (SELECT dst_id FROM temp.merge_map WHERE kind = 2);");
+    if (err != MG_OK) goto rollback;
+
+    /* node_vec may be a vec0 virtual table with no foreign keys: delete
+     * explicitly, and only where the source has a replacement. */
+    err = exec_sql(s->db,
+      "DELETE FROM main.node_vec WHERE id IN ("
+      "  SELECT mm.dst_id FROM temp.merge_map AS mm "
+      "  JOIN src.node_vec AS sv ON sv.id = mm.src_id "
+      "  WHERE mm.kind = 2);");
+    if (err != MG_OK) goto rollback;
+  }
+
+  /* 3. node_vec, keyed by the retained target id */
   err = exec_sql(s->db,
     "INSERT OR IGNORE INTO main.node_vec(id, embedding) "
-    "SELECT id, embedding FROM src.node_vec "
-    "WHERE id IN (SELECT id FROM main.nodes);");
+    "SELECT mm.dst_id, sv.embedding FROM src.node_vec AS sv "
+    "JOIN temp.merge_map AS mm ON mm.src_id = sv.id "
+    "WHERE NOT EXISTS (SELECT 1 FROM main.node_vec WHERE id = mm.dst_id);");
   if (err != MG_OK) goto rollback;
 
-  /* 3. keywords (UNIQUE on text COLLATE NOCASE → idempotent) */
+  /* 4. keywords (UNIQUE on text COLLATE NOCASE -> idempotent) */
   err = exec_sql(s->db,
     "INSERT OR IGNORE INTO main.keywords(text, embedding) "
     "SELECT text, embedding FROM src.keywords;");
   if (err != MG_OK) goto rollback;
 
-  /* 4. node_keywords with id remap via text */
+  /* 5. node_keywords with node id remap via merge_map, keyword id via text */
   err = exec_sql(s->db,
     "INSERT OR IGNORE INTO main.node_keywords(node_id, keyword_id) "
-    "SELECT nk.node_id, m_kw.id "
+    "SELECT mm.dst_id, m_kw.id "
     "FROM src.node_keywords AS nk "
+    "JOIN temp.merge_map AS mm ON mm.src_id = nk.node_id "
     "JOIN src.keywords AS s_kw ON s_kw.id = nk.keyword_id "
-    "JOIN main.keywords AS m_kw ON m_kw.text = s_kw.text COLLATE NOCASE "
-    "WHERE EXISTS (SELECT 1 FROM main.nodes WHERE id = nk.node_id);");
+    "JOIN main.keywords AS m_kw ON m_kw.text = s_kw.text COLLATE NOCASE;");
   if (err != MG_OK) goto rollback;
 
-  /* 5. edges with optional keyword_id remap; restrict to endpoints in main */
+  /* 6. edges with both endpoints remapped and optional keyword_id remap.
+   * REPLACE here only rewrites the weight of an identical edge: nothing
+   * references edges, so it cannot cascade. */
+  char sql[1024];
   snprintf(sql, sizeof(sql),
     "%s INTO main.edges(src, dst, kind, keyword_id, weight) "
-    "SELECT e.src, e.dst, e.kind, "
+    "SELECT ms.dst_id, md.dst_id, e.kind, "
     "       CASE WHEN e.keyword_id IS NULL THEN NULL ELSE m_kw.id END, "
     "       e.weight "
     "FROM src.edges AS e "
+    "JOIN temp.merge_map AS ms ON ms.src_id = e.src "
+    "JOIN temp.merge_map AS md ON md.src_id = e.dst "
     "LEFT JOIN src.keywords AS s_kw ON s_kw.id = e.keyword_id "
-    "LEFT JOIN main.keywords AS m_kw ON m_kw.text = s_kw.text COLLATE NOCASE "
-    "WHERE EXISTS (SELECT 1 FROM main.nodes WHERE id = e.src) "
-    "  AND EXISTS (SELECT 1 FROM main.nodes WHERE id = e.dst);",
+    "LEFT JOIN main.keywords AS m_kw ON m_kw.text = s_kw.text COLLATE NOCASE;",
     overwrite ? "INSERT OR REPLACE" : "INSERT OR IGNORE");
   err = exec_sql(s->db, sql);
   if (err != MG_OK) goto rollback;
 
+  err = exec_sql(s->db, "DROP TABLE temp.merge_map;");
+  if (err != MG_OK) goto rollback;
   err = exec_sql(s->db, "COMMIT;");
   if (err != MG_OK) goto rollback;
   (void)exec_sql(s->db, "DETACH DATABASE src;");
@@ -1307,6 +1374,7 @@ static mg_err_t storage_merge_from_unlocked(mg_storage_t *s, const char *source_
 
 rollback:
   (void)exec_sql(s->db, "ROLLBACK;");
+  (void)exec_sql(s->db, "DROP TABLE IF EXISTS temp.merge_map;");
   (void)exec_sql(s->db, "DETACH DATABASE src;");
   return err;
 }
