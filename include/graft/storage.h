@@ -23,6 +23,13 @@ typedef struct {
 mg_err_t mg_storage_open(const char *db_path, mg_storage_t **out);
 void     mg_storage_close(mg_storage_t *s);
 
+/* Every mg_storage_* call below takes the handle's (recursive) mutex for its
+ * whole duration, so concurrent daemon workers never interleave statements
+ * or transactions on the shared connection. Code that reaches the raw sqlite3
+ * handle directly must bracket that access with lock/unlock. */
+void     mg_storage_lock(mg_storage_t *s);
+void     mg_storage_unlock(mg_storage_t *s);
+
 /* Consistent snapshot of the database at src_path written to dst_path (its
  * previous content is replaced), committed WAL frames included. */
 mg_err_t mg_storage_backup_file(const char *src_path, const char *dst_path);
@@ -164,7 +171,7 @@ mg_err_t mg_storage_merge_from(mg_storage_t *s, const char *source_path,
  *
  * pull_remote_file: imports remote-only nodes (origin=REMOTE) and applies
  *   delete-wins-remote for rows that are not LOCAL. Uses the existing
- *   connection so WAL serialises the writes against other daemon threads.
+ *   connection, under the storage mutex like every other call.
  *
  * push_to_remote_file: copies only LOCAL nodes (origin=0) to the remote
  *   file and marks them PUSHED (origin=2) in the same transaction, so the

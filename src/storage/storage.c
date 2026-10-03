@@ -13,13 +13,71 @@
 #include <sys/stat.h>
 #endif
 
+#if defined(_WIN32) && !defined(__MINGW32__) && !defined(__MINGW64__)
+#include <windows.h>
+#else
+#include <pthread.h>
+#endif
+
 extern int sqlite3_vec_init(sqlite3 *db, char **pzErrMsg, const sqlite3_api_routines *pApi);
 extern const char *mg_storage_schema_sql(void);
 extern const char *mg_storage_migration_v2_sql(void);
 extern const char *mg_storage_migration_v3_sql(void);
 
+/* The daemon runs one thread per connection and every worker shares this
+ * handle. SQLITE_OPEN_FULLMUTEX only serializes single API calls: a
+ * BEGIN IMMEDIATE ... COMMIT sequence from one thread could otherwise
+ * interleave with another thread's statements on the same connection. Every
+ * public function holds `lock` for its whole duration. The mutex is recursive
+ * because public functions call each other (insert -> prune_expired,
+ * consolidate -> count). */
+#if defined(_WIN32) && !defined(__MINGW32__) && !defined(__MINGW64__)
+typedef CRITICAL_SECTION mg_storage_mutex_t;
+static int storage_mutex_init(mg_storage_mutex_t *m) {
+  InitializeCriticalSection(m);
+  return 0;
+}
+static void storage_mutex_destroy(mg_storage_mutex_t *m) {
+  DeleteCriticalSection(m);
+}
+static void storage_mutex_lock(mg_storage_mutex_t *m) {
+  EnterCriticalSection(m);
+}
+static void storage_mutex_unlock(mg_storage_mutex_t *m) {
+  LeaveCriticalSection(m);
+}
+#else
+typedef pthread_mutex_t mg_storage_mutex_t;
+static int storage_mutex_init(mg_storage_mutex_t *m) {
+  pthread_mutexattr_t attr;
+  int rc;
+  if (pthread_mutexattr_init(&attr) != 0) {
+    return -1;
+  }
+  rc = pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
+  if (rc == 0) {
+    rc = pthread_mutex_init(m, &attr);
+  }
+  pthread_mutexattr_destroy(&attr);
+  return rc;
+}
+static void storage_mutex_destroy(mg_storage_mutex_t *m) {
+  pthread_mutex_destroy(m);
+}
+static void storage_mutex_lock(mg_storage_mutex_t *m) {
+  pthread_mutex_lock(m);
+}
+static void storage_mutex_unlock(mg_storage_mutex_t *m) {
+  pthread_mutex_unlock(m);
+}
+#endif
+
+/* `db` must stay the first member: src/retrieve/view.c redeclares the struct
+ * with only that field to reach the raw handle. */
 struct mg_storage {
   sqlite3 *db;
+  mg_storage_mutex_t lock;
+  int lock_init;
 };
 
 static char *mg_strdup(const char *s) {
@@ -135,6 +193,11 @@ mg_err_t mg_storage_open(const char *db_path, mg_storage_t **out) {
   if (!s) {
     return MG_ERR_OOM;
   }
+  if (storage_mutex_init(&s->lock) != 0) {
+    free(s);
+    return MG_ERR_OOM;
+  }
+  s->lock_init = 1;
   if (sqlite3_open_v2(db_path, &s->db, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_FULLMUTEX, NULL) != SQLITE_OK) {
     mg_storage_close(s);
     return MG_ERR_STORAGE;
@@ -196,7 +259,22 @@ void mg_storage_close(mg_storage_t *s) {
   if (s->db) {
     sqlite3_close(s->db);
   }
+  if (s->lock_init) {
+    storage_mutex_destroy(&s->lock);
+  }
   free(s);
+}
+
+void mg_storage_lock(mg_storage_t *s) {
+  if (s) {
+    storage_mutex_lock(&s->lock);
+  }
+}
+
+void mg_storage_unlock(mg_storage_t *s) {
+  if (s) {
+    storage_mutex_unlock(&s->lock);
+  }
 }
 
 static void apply_db_key(sqlite3 *db) {
@@ -280,7 +358,7 @@ static int has_legacy_summary_column(sqlite3 *db) {
   return has_table_column(db, "nodes", "summary");
 }
 
-mg_err_t mg_storage_apply_schema(mg_storage_t *s) {
+static mg_err_t storage_apply_schema_unlocked(mg_storage_t *s) {
   mg_err_t err;
   int legacy;
   int has_origin;
@@ -320,7 +398,7 @@ mg_err_t mg_storage_apply_schema(mg_storage_t *s) {
   return mg_storage_prune_expired(s, NULL);
 }
 
-mg_err_t mg_storage_prune_expired(mg_storage_t *s, int64_t *out_deleted) {
+static mg_err_t storage_prune_expired_unlocked(mg_storage_t *s, int64_t *out_deleted) {
   sqlite3_stmt *stmt = NULL;
   mg_err_t err;
   int rc;
@@ -380,7 +458,7 @@ rollback:
   return err;
 }
 
-mg_err_t mg_storage_insert_node_with_edges(
+static mg_err_t storage_insert_node_with_edges_unlocked(
   mg_storage_t *s,
   const mg_node_t *node,
   const mg_embedding_t embedding,
@@ -494,7 +572,7 @@ mg_err_t mg_storage_insert_node_with_edges(
   return err;
 }
 
-mg_err_t mg_storage_get_node(mg_storage_t *s, const mg_node_id_t id, mg_node_t *out) {
+static mg_err_t storage_get_node_unlocked(mg_storage_t *s, const mg_node_id_t id, mg_node_t *out) {
   sqlite3_stmt *stmt = NULL;
   int rc;
   if (!s || !id || !out) {
@@ -530,7 +608,7 @@ mg_err_t mg_storage_get_node(mg_storage_t *s, const mg_node_id_t id, mg_node_t *
   return rc == SQLITE_DONE ? MG_ERR_NOT_FOUND : MG_ERR_STORAGE;
 }
 
-mg_err_t mg_storage_node_id_by_hash(mg_storage_t *s, const mg_hash_t h, mg_node_id_t out) {
+static mg_err_t storage_node_id_by_hash_unlocked(mg_storage_t *s, const mg_hash_t h, mg_node_id_t out) {
   sqlite3_stmt *stmt = NULL;
   int rc;
   if (!s || !h || !out) {
@@ -550,7 +628,7 @@ mg_err_t mg_storage_node_id_by_hash(mg_storage_t *s, const mg_hash_t h, mg_node_
   return rc == SQLITE_DONE ? MG_ERR_NOT_FOUND : MG_ERR_STORAGE;
 }
 
-mg_err_t mg_storage_touch_access(mg_storage_t *s, const mg_node_id_t id) {
+static mg_err_t storage_touch_access_unlocked(mg_storage_t *s, const mg_node_id_t id) {
   sqlite3_stmt *stmt = NULL;
   mg_err_t err;
   if (!s || !id) {
@@ -567,7 +645,7 @@ mg_err_t mg_storage_touch_access(mg_storage_t *s, const mg_node_id_t id) {
   return err == MG_OK && sqlite3_changes(s->db) == 0 ? MG_ERR_NOT_FOUND : err;
 }
 
-mg_err_t mg_storage_upsert_keyword(mg_storage_t *s, const char *text, const float *opt_embedding, mg_keyword_id_t *out_id) {
+static mg_err_t storage_upsert_keyword_unlocked(mg_storage_t *s, const char *text, const float *opt_embedding, mg_keyword_id_t *out_id) {
   sqlite3_stmt *stmt = NULL;
   mg_err_t err;
   if (!s || !text || !out_id) {
@@ -601,7 +679,7 @@ mg_err_t mg_storage_upsert_keyword(mg_storage_t *s, const char *text, const floa
   return MG_OK;
 }
 
-mg_err_t mg_storage_get_keyword_text(mg_storage_t *s, mg_keyword_id_t id, char **out) {
+static mg_err_t storage_get_keyword_text_unlocked(mg_storage_t *s, mg_keyword_id_t id, char **out) {
   sqlite3_stmt *stmt = NULL;
   int rc;
   if (!s || !out || id <= 0) {
@@ -664,11 +742,11 @@ static mg_err_t topk_scan(mg_storage_t *s, const mg_embedding_t query, int k, mg
   return rc == SQLITE_DONE ? MG_OK : MG_ERR_STORAGE;
 }
 
-mg_err_t mg_storage_vector_topk(mg_storage_t *s, const mg_embedding_t query, int k, mg_node_score_t *out, int *out_count) {
+static mg_err_t storage_vector_topk_unlocked(mg_storage_t *s, const mg_embedding_t query, int k, mg_node_score_t *out, int *out_count) {
   return topk_scan(s, query, k, 0, 0, out, out_count);
 }
 
-mg_err_t mg_storage_vector_topk_by_keyword(mg_storage_t *s, const mg_embedding_t query, mg_keyword_id_t kw_id, int k, mg_node_score_t *out, int *out_count) {
+static mg_err_t storage_vector_topk_by_keyword_unlocked(mg_storage_t *s, const mg_embedding_t query, mg_keyword_id_t kw_id, int k, mg_node_score_t *out, int *out_count) {
   if (kw_id <= 0) {
     return MG_ERR_INVALID_ARG;
   }
@@ -740,7 +818,7 @@ static char *build_scoped_fts_query(const char *col, const char *query_text) {
   return out;
 }
 
-mg_err_t mg_storage_fts_search(mg_storage_t *s, const char *query_text, int k, bool match_title, bool match_body, mg_node_score_t *out, int *out_count) {
+static mg_err_t storage_fts_search_unlocked(mg_storage_t *s, const char *query_text, int k, bool match_title, bool match_body, mg_node_score_t *out, int *out_count) {
   sqlite3_stmt *stmt = NULL;
   char *match_query = NULL;
   const char *match_expr = query_text;
@@ -798,7 +876,7 @@ mg_err_t mg_storage_fts_search(mg_storage_t *s, const char *query_text, int k, b
   return rc == SQLITE_DONE ? MG_OK : MG_ERR_STORAGE;
 }
 
-mg_err_t mg_storage_neighbors(mg_storage_t *s, const mg_node_id_t src, int kind_filter, const mg_keyword_id_t *kw_filter, size_t n_kw, mg_edge_t *out, int max_out, int *out_count) {
+static mg_err_t storage_neighbors_unlocked(mg_storage_t *s, const mg_node_id_t src, int kind_filter, const mg_keyword_id_t *kw_filter, size_t n_kw, mg_edge_t *out, int max_out, int *out_count) {
   sqlite3_stmt *stmt = NULL;
   int rc;
   if (!s || !src || !out || !out_count || max_out < 0 || (!kw_filter && n_kw > 0)) {
@@ -867,7 +945,7 @@ mg_err_t mg_storage_neighbors(mg_storage_t *s, const mg_node_id_t src, int kind_
   return rc == SQLITE_DONE || *out_count == max_out ? MG_OK : MG_ERR_STORAGE;
 }
 
-mg_err_t mg_storage_record_sample(mg_storage_t *s, int kind, float cosine) {
+static mg_err_t storage_record_sample_unlocked(mg_storage_t *s, int kind, float cosine) {
   sqlite3_stmt *stmt = NULL;
   mg_err_t err;
   if (!s) {
@@ -885,7 +963,7 @@ mg_err_t mg_storage_record_sample(mg_storage_t *s, int kind, float cosine) {
   return err;
 }
 
-mg_err_t mg_storage_distribution_percentiles(mg_storage_t *s, int kind, float out[6]) {
+static mg_err_t storage_distribution_percentiles_unlocked(mg_storage_t *s, int kind, float out[6]) {
   static const double pct[6] = {0.25, 0.50, 0.75, 0.90, 0.95, 0.99};
   sqlite3_stmt *stmt = NULL;
   sqlite3_int64 count;
@@ -924,7 +1002,7 @@ mg_err_t mg_storage_distribution_percentiles(mg_storage_t *s, int kind, float ou
   return MG_OK;
 }
 
-mg_err_t mg_storage_get_embedding(mg_storage_t *s, const mg_node_id_t id, mg_embedding_t out) {
+static mg_err_t storage_get_embedding_unlocked(mg_storage_t *s, const mg_node_id_t id, mg_embedding_t out) {
   sqlite3_stmt *stmt = NULL;
   int rc;
   const void *blob;
@@ -950,7 +1028,7 @@ mg_err_t mg_storage_get_embedding(mg_storage_t *s, const mg_node_id_t id, mg_emb
   return rc == SQLITE_DONE ? MG_ERR_NOT_FOUND : MG_ERR_STORAGE;
 }
 
-mg_err_t mg_storage_count(mg_storage_t *s, int kind, int64_t *out) {
+static mg_err_t storage_count_unlocked(mg_storage_t *s, int kind, int64_t *out) {
   static const char *const sqls[] = {
     "SELECT COUNT(*) FROM nodes;",
     "SELECT COUNT(*) FROM edges;",
@@ -1008,7 +1086,7 @@ static mg_err_t exec_count_changes(mg_storage_t *s, const char *sql, int64_t *ou
   return MG_OK;
 }
 
-mg_err_t mg_storage_consolidate(mg_storage_t *s, mg_storage_consolidate_report_t *out) {
+static mg_err_t storage_consolidate_unlocked(mg_storage_t *s, mg_storage_consolidate_report_t *out) {
   mg_err_t err;
 
   if (!s || !out) {
@@ -1098,7 +1176,7 @@ rollback:
   return err;
 }
 
-mg_err_t mg_storage_delete_node(mg_storage_t *s, const mg_node_id_t id) {
+static mg_err_t storage_delete_node_unlocked(mg_storage_t *s, const mg_node_id_t id) {
   if (!s || !id) return MG_ERR_INVALID_ARG;
 
   mg_err_t err = exec_sql(s->db, "BEGIN IMMEDIATE;");
@@ -1139,8 +1217,8 @@ rollback:
   return err;
 }
 
-mg_err_t mg_storage_merge_from(mg_storage_t *s, const char *source_path,
-                               int overwrite) {
+static mg_err_t storage_merge_from_unlocked(mg_storage_t *s, const char *source_path,
+                                           int overwrite) {
   /* Strategy: ATTACH the source DB read-only to our existing connection (so
    * sqlite-vec is already loaded), copy in dependency order with SQL set-
    * operations, then DETACH. Idempotency comes from the content_hash UNIQUE
@@ -1233,8 +1311,8 @@ rollback:
   return err;
 }
 
-mg_err_t mg_storage_pull_remote_file(mg_storage_t *s, const char *source_path,
-                                     int64_t *inserted, int64_t *deleted) {
+static mg_err_t storage_pull_remote_file_unlocked(mg_storage_t *s, const char *source_path,
+                                                 int64_t *inserted, int64_t *deleted) {
   if (!s || !source_path) return MG_ERR_INVALID_ARG;
   if (inserted) *inserted = 0;
   if (deleted) *deleted = 0;
@@ -1314,7 +1392,7 @@ rollback:
   return err;
 }
 
-mg_err_t mg_storage_mark_local_pushed(mg_storage_t *s, int64_t *updated) {
+static mg_err_t storage_mark_local_pushed_unlocked(mg_storage_t *s, int64_t *updated) {
   if (!s) return MG_ERR_INVALID_ARG;
   if (updated) *updated = 0;
   mg_err_t err = exec_sql(s->db, "UPDATE nodes SET origin = 2 WHERE origin = 0;");
@@ -1322,8 +1400,8 @@ mg_err_t mg_storage_mark_local_pushed(mg_storage_t *s, int64_t *updated) {
   return err;
 }
 
-mg_err_t mg_storage_push_to_remote_file(mg_storage_t *s, const char *dest_path,
-                                        int64_t *pushed) {
+static mg_err_t storage_push_to_remote_file_unlocked(mg_storage_t *s, const char *dest_path,
+                                                    int64_t *pushed) {
   /* Strategy: ATTACH the remote file as "dest" on the daemon's existing
    * connection. This avoids opening a second connection to the local WAL,
    * which was the source of SQLITE_BUSY failures under concurrent inserts.
@@ -1423,10 +1501,10 @@ detach:
   return err;
 }
 
-mg_err_t mg_storage_node_keywords(mg_storage_t *s,
-                                  const mg_node_id_t node_id,
-                                  mg_keyword_id_t *out_ids,
-                                  int max_out, int *out_count) {
+static mg_err_t storage_node_keywords_unlocked(mg_storage_t *s,
+                                               const mg_node_id_t node_id,
+                                               mg_keyword_id_t *out_ids,
+                                               int max_out, int *out_count) {
   if (!s || !node_id || !out_ids || !out_count || max_out <= 0) return MG_ERR_INVALID_ARG;
 
   sqlite3_stmt *stmt = NULL;
@@ -1452,4 +1530,123 @@ mg_err_t mg_storage_node_keywords(mg_storage_t *s,
   sqlite3_finalize(stmt);
   *out_count = n;
   return MG_OK;
+}
+
+/* === Public entry points ===
+ * Each one holds the storage mutex for the whole call, so a transaction (and
+ * any sqlite3_changes() read after a statement) belongs to a single caller. */
+
+#define STORAGE_LOCKED(s, call) do { \
+  mg_err_t locked_err_; \
+  if (!(s)) return MG_ERR_INVALID_ARG; \
+  storage_mutex_lock(&(s)->lock); \
+  locked_err_ = (call); \
+  storage_mutex_unlock(&(s)->lock); \
+  return locked_err_; \
+} while (0)
+
+mg_err_t mg_storage_apply_schema(mg_storage_t *s) {
+  STORAGE_LOCKED(s, storage_apply_schema_unlocked(s));
+}
+
+mg_err_t mg_storage_prune_expired(mg_storage_t *s, int64_t *out_deleted) {
+  STORAGE_LOCKED(s, storage_prune_expired_unlocked(s, out_deleted));
+}
+
+mg_err_t mg_storage_insert_node_with_edges(
+  mg_storage_t *s,
+  const mg_node_t *node,
+  const mg_embedding_t embedding,
+  const mg_keyword_id_t *keyword_ids, size_t n_keywords,
+  const mg_edge_t *edges, size_t n_edges,
+  const mg_node_id_t *supersedes_id
+) {
+  STORAGE_LOCKED(s, storage_insert_node_with_edges_unlocked(
+    s, node, embedding, keyword_ids, n_keywords, edges, n_edges, supersedes_id));
+}
+
+mg_err_t mg_storage_get_node(mg_storage_t *s, const mg_node_id_t id, mg_node_t *out) {
+  STORAGE_LOCKED(s, storage_get_node_unlocked(s, id, out));
+}
+
+mg_err_t mg_storage_node_id_by_hash(mg_storage_t *s, const mg_hash_t h, mg_node_id_t out) {
+  STORAGE_LOCKED(s, storage_node_id_by_hash_unlocked(s, h, out));
+}
+
+mg_err_t mg_storage_touch_access(mg_storage_t *s, const mg_node_id_t id) {
+  STORAGE_LOCKED(s, storage_touch_access_unlocked(s, id));
+}
+
+mg_err_t mg_storage_upsert_keyword(mg_storage_t *s, const char *text, const float *opt_embedding, mg_keyword_id_t *out_id) {
+  STORAGE_LOCKED(s, storage_upsert_keyword_unlocked(s, text, opt_embedding, out_id));
+}
+
+mg_err_t mg_storage_get_keyword_text(mg_storage_t *s, mg_keyword_id_t id, char **out) {
+  STORAGE_LOCKED(s, storage_get_keyword_text_unlocked(s, id, out));
+}
+
+mg_err_t mg_storage_vector_topk(mg_storage_t *s, const mg_embedding_t query, int k, mg_node_score_t *out, int *out_count) {
+  STORAGE_LOCKED(s, storage_vector_topk_unlocked(s, query, k, out, out_count));
+}
+
+mg_err_t mg_storage_vector_topk_by_keyword(mg_storage_t *s, const mg_embedding_t query, mg_keyword_id_t kw_id, int k, mg_node_score_t *out, int *out_count) {
+  STORAGE_LOCKED(s, storage_vector_topk_by_keyword_unlocked(s, query, kw_id, k, out, out_count));
+}
+
+mg_err_t mg_storage_fts_search(mg_storage_t *s, const char *query_text, int k, bool match_title, bool match_body, mg_node_score_t *out, int *out_count) {
+  STORAGE_LOCKED(s, storage_fts_search_unlocked(s, query_text, k, match_title, match_body, out, out_count));
+}
+
+mg_err_t mg_storage_neighbors(mg_storage_t *s, const mg_node_id_t src, int kind_filter, const mg_keyword_id_t *kw_filter, size_t n_kw, mg_edge_t *out, int max_out, int *out_count) {
+  STORAGE_LOCKED(s, storage_neighbors_unlocked(s, src, kind_filter, kw_filter, n_kw, out, max_out, out_count));
+}
+
+mg_err_t mg_storage_record_sample(mg_storage_t *s, int kind, float cosine) {
+  STORAGE_LOCKED(s, storage_record_sample_unlocked(s, kind, cosine));
+}
+
+mg_err_t mg_storage_distribution_percentiles(mg_storage_t *s, int kind, float out[6]) {
+  STORAGE_LOCKED(s, storage_distribution_percentiles_unlocked(s, kind, out));
+}
+
+mg_err_t mg_storage_get_embedding(mg_storage_t *s, const mg_node_id_t id, mg_embedding_t out) {
+  STORAGE_LOCKED(s, storage_get_embedding_unlocked(s, id, out));
+}
+
+mg_err_t mg_storage_count(mg_storage_t *s, int kind, int64_t *out) {
+  STORAGE_LOCKED(s, storage_count_unlocked(s, kind, out));
+}
+
+mg_err_t mg_storage_consolidate(mg_storage_t *s, mg_storage_consolidate_report_t *out) {
+  STORAGE_LOCKED(s, storage_consolidate_unlocked(s, out));
+}
+
+mg_err_t mg_storage_delete_node(mg_storage_t *s, const mg_node_id_t id) {
+  STORAGE_LOCKED(s, storage_delete_node_unlocked(s, id));
+}
+
+mg_err_t mg_storage_merge_from(mg_storage_t *s, const char *source_path,
+                               int overwrite) {
+  STORAGE_LOCKED(s, storage_merge_from_unlocked(s, source_path, overwrite));
+}
+
+mg_err_t mg_storage_pull_remote_file(mg_storage_t *s, const char *source_path,
+                                     int64_t *inserted, int64_t *deleted) {
+  STORAGE_LOCKED(s, storage_pull_remote_file_unlocked(s, source_path, inserted, deleted));
+}
+
+mg_err_t mg_storage_mark_local_pushed(mg_storage_t *s, int64_t *updated) {
+  STORAGE_LOCKED(s, storage_mark_local_pushed_unlocked(s, updated));
+}
+
+mg_err_t mg_storage_push_to_remote_file(mg_storage_t *s, const char *dest_path,
+                                        int64_t *pushed) {
+  STORAGE_LOCKED(s, storage_push_to_remote_file_unlocked(s, dest_path, pushed));
+}
+
+mg_err_t mg_storage_node_keywords(mg_storage_t *s,
+                                  const mg_node_id_t node_id,
+                                  mg_keyword_id_t *out_ids,
+                                  int max_out, int *out_count) {
+  STORAGE_LOCKED(s, storage_node_keywords_unlocked(s, node_id, out_ids, max_out, out_count));
 }

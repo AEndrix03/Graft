@@ -124,7 +124,8 @@ Every header is intentionally small. The internal C APIs are not promised to be 
 - One **listener thread** in the daemon accepts socket connections.
 - Each accepted connection runs `handle_client()` on its own pthread (detached).
 - Inside the handler, operations are dispatched against shared `mg_ctx_t` state (storage, embed, verify).
-- The storage layer holds an internal mutex on the SQLite handle for write paths. Read paths use SQLite's own concurrency (WAL allows readers and a single writer concurrently).
+- All workers share one SQLite connection. The storage layer serializes it with a recursive mutex in `mg_storage_t`: every `mg_storage_*` call (reads included) holds it for its whole duration, so one worker's `BEGIN IMMEDIATE … COMMIT` never interleaves with another's statements. `SQLITE_OPEN_FULLMUTEX` alone only serializes single API calls. Embedding and reranking run outside the mutex, so it is held only for the short SQL part of a request.
+- Two identical concurrent inserts can both miss the content-hash lookup; the loser hits the UNIQUE `content_hash` constraint and resolves to the winner's node (`duplicate: true`).
 - The embed context is thread-safe at the llama.cpp level for the inference call used by graft (CPU pool sized by `embedding.threads`).
 - The optional HTTP layer runs on its own background thread and **reuses the same dispatcher** — the HTTP handlers build mpack requests, run them through `mg_dispatch`, and convert the response to JSON.
 

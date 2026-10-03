@@ -163,7 +163,7 @@ If any of these steps fails the daemon does **not** start. The CLI prints the er
 
 ## Threading
 
-The storage handle is owned by the daemon. All write paths run under a mutex. Reads use SQLite's WAL concurrency — multiple readers + one writer is the design.
+The storage handle is owned by the daemon and every worker thread shares its single SQLite connection. A recursive mutex in `mg_storage_t` is held for the whole duration of every `mg_storage_*` call, reads included, so a multi-statement transaction always belongs to one caller. Code that touches the raw handle (the viewer dump) brackets it with `mg_storage_lock()` / `mg_storage_unlock()`. WAL still lets other processes (e.g. `graft profile export`) read while the daemon writes.
 
 The CLI is single-threaded by construction (one request per invocation). Concurrent CLI processes contend at the socket layer, then at the daemon's pthread pool, then at the storage mutex. Throughput on warm I/O is ~hundreds of inserts per second on a laptop, dominated by the embedding pass.
 

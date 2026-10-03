@@ -391,6 +391,13 @@ mg_err_t mg_op_insert(mg_ctx_t *ctx, mpack_node_t args, mpack_writer_t *result) 
                                            has_supersedes ? (const mg_node_id_t *)&supersedes_id : NULL);
   if (err == MG_OK) {
     write_insert_result(result, node.id, n_kw_edges, n_sem_edges, false);
+  } else if (err == MG_ERR_DUPLICATE &&
+             mg_storage_node_id_by_hash(ctx->storage, content_hash, existing_id) == MG_OK) {
+    /* A concurrent insert of the same content committed between our hash
+     * lookup and our transaction: the UNIQUE content_hash rejected ours.
+     * Resolve to the winner so the idempotency contract holds. */
+    write_insert_result(result, existing_id, 0u, 0u, true);
+    err = MG_OK;
   }
 
   free(edges);
