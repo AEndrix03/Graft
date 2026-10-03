@@ -153,10 +153,13 @@ mg_err_t mg_storage_node_keywords(
 /* === Merge another profile's DB into this one === */
 /* Imports nodes / keywords / edges from `source_path` (a SQLite file from
  * `graft profile export`) into the connected DB. Idempotent on
- * content_hash: nodes already in the target are skipped (overwrite=0) or
- * replaced (overwrite=1). Keyword ids are remapped by text (keywords.text
- * is UNIQUE COLLATE NOCASE), so the source's auto-increment ids don't
- * leak into the target. */
+ * content_hash: a source node whose hash (or, failing that, id) is already
+ * in the target maps onto that target node, which keeps its id, edges and
+ * keyword links; overwrite=1 adopts the source's metadata on it, overwrite=0
+ * keeps the target's. Source edges / keyword links / embeddings are
+ * remapped onto the retained target ids. Keyword ids are remapped by text
+ * (keywords.text is UNIQUE COLLATE NOCASE), so the source's auto-increment
+ * ids don't leak into the target. */
 mg_err_t mg_storage_merge_from(mg_storage_t *s, const char *source_path,
                                int overwrite);
 

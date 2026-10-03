@@ -101,11 +101,12 @@ graft profile merge --into work --from /path/to/other.graftprofile --overwrite
 Mechanics (`mg_storage_merge_from`):
 
 - Open the source as a second SQLite DB.
-- Walk its `nodes` table.
-- For each row, check `content_hash` in the target.
-  - If absent → insert (idempotent on hash anyway).
-  - If present and `--overwrite` → replace title / body / keywords / edges on the target.
-  - If present and not `--overwrite` → skip.
+- Walk its `nodes` table and resolve each row to a target node.
+  - Same `content_hash` already in the target → that target node, whatever its id. Same content means same node, so the target keeps its id and the source row is not inserted again.
+  - Otherwise, same id already in the target → that node (the same node, edited on one side).
+  - Otherwise → insert under the source id.
+- A matched target node is never deleted or re-keyed, so its edges and keyword links survive. With `--overwrite` it adopts the source's metadata (author, created_at, expires_at, last_access, access_count, state); a same-id match also takes the source's title / body, keywords and embedding. Without `--overwrite` the target's values stay. The target's id and sync origin are kept either way.
+- The source's keyword links, embeddings and edges are imported onto the resolved target ids, so a source edge to a node the target already holds is attached to the target's node. With `--overwrite` an edge present on both sides takes the source weight.
 - Keyword ids are **remapped by text** (the keyword `text` column is `UNIQUE COLLATE NOCASE`), so the source's auto-increment ids don't leak into the target.
 - The whole pass runs in one transaction; either everything goes in or nothing does.
 
