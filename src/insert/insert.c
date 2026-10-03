@@ -51,6 +51,14 @@ static int cmp_cstr_ptr(const void *a, const void *b) {
   return strcmp(*sa, *sb);
 }
 
+/* A keyword may not be empty or contain ',' or NUL. The content hash joins
+ * the sorted keywords with ',', so ["a,b", "c"] and ["a", "b,c"] would hash
+ * alike and the second insert would come back as a false duplicate.
+ * Rejecting the separator keeps the hash of every existing node unchanged. */
+int mg_insert_keyword_valid(const char *kw, size_t len) {
+  return len > 0u && !memchr(kw, ',', len) && !memchr(kw, '\0', len);
+}
+
 static mg_err_t parse_keywords(mpack_node_t args, char ***out_keywords, size_t *out_count) {
   if (!out_keywords || !out_count) {
     return MG_ERR_INVALID_ARG;
@@ -81,7 +89,7 @@ static mg_err_t parse_keywords(mpack_node_t args, char ***out_keywords, size_t *
     }
 
     size_t len = mpack_node_strlen(item);
-    if (len == 0u) {
+    if (!mg_insert_keyword_valid(mpack_node_str(item), len)) {
       for (size_t j = 0u; j < i; ++j) {
         free(keywords[j]);
       }

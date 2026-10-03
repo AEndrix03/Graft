@@ -373,6 +373,11 @@ static int build_insert(int argc, char **argv, mpack_writer_t *w) {
                 fprintf(stderr, "graft insert: at most %d keywords\n", MG_CLI_MAX_KEYWORDS);
                 exit(2);
             }
+            if (strchr(argv[i + 1], ',')) {
+                fprintf(stderr, "graft insert: keyword '%s' contains ',': "
+                                "pass each one as its own --keyword\n", argv[i + 1]);
+                exit(2);
+            }
             kws[n_kws++] = argv[++i];
         }
         else mg_reject_arg("insert", argv[i]);

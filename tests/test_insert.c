@@ -17,6 +17,8 @@ mg_err_t mg_insert_build_edges_from_embedding(
   size_t *out_n_sem_edges
 );
 
+int mg_insert_keyword_valid(const char *kw, size_t len);
+
 static void fill_id(mg_node_id_t id, unsigned char value) {
   memset(id, value, MG_NODE_ID_BYTES);
 }
@@ -55,6 +57,15 @@ static int insert_seed(
 }
 
 int main(void) {
+  /* The content hash joins keywords with ',': a keyword carrying one would
+   * let ["a,b","c"] and ["a","b,c"] collide, so it is rejected. */
+  if (!mg_insert_keyword_valid("spring-boot", 11) ||
+      mg_insert_keyword_valid("", 0) ||
+      mg_insert_keyword_valid("a,b", 3) ||
+      mg_insert_keyword_valid("a\0b", 3)) {
+    return 1;
+  }
+
   mg_storage_t *storage = NULL;
   mg_config_t cfg;
   mg_config_defaults(&cfg);

@@ -139,6 +139,8 @@ What's in the hash:
 - `body`
 - `keywords`, **sorted lexicographically** (so the same node with `[a, b]` and `[b, a]` hashes identically)
 
+A keyword may not contain `,` (nor be empty): since `,` is the separator, `["a,b", "c"]` and `["a", "b,c"]` would hash alike and the second insert would come back as a false duplicate. Such an insert is rejected with `INVALID_ARG`, and the CLI says to pass each keyword as its own `--keyword`.
+
 What's deliberately **not** in the hash:
 
 - `author` — same memory saved by different users still dedups.
