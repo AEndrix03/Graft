@@ -31,6 +31,7 @@ typedef SOCKET mg_sock_t;
 #  include <sys/socket.h>
 #  include <netinet/in.h>
 #  include <arpa/inet.h>
+#  include <netdb.h>
 #  include <unistd.h>
 #  include <errno.h>
 #  define MG_INVALID_SOCK (-1)
@@ -298,7 +299,7 @@ send:
 static void *server_thread(void *arg) {
   mg_http_server_t *srv = (mg_http_server_t *)arg;
   while (!srv->shutdown) {
-    struct sockaddr_in client_addr;
+    struct sockaddr_storage client_addr;  /* IPv4 or IPv6 listener */
 #ifdef _WIN32
     int caddrlen = sizeof(client_addr);
 #else
@@ -327,11 +328,68 @@ static void *server_thread(void *arg) {
   return NULL;
 }
 
+/* 127.0.0.0/8, ::1 and IPv4-mapped ::ffff:127.x.x.x. */
+static int addr_is_loopback(const struct sockaddr *sa) {
+  if (sa->sa_family == AF_INET) {
+    unsigned long ip = ntohl(((const struct sockaddr_in *)sa)->sin_addr.s_addr);
+    return (ip & 0xFF000000UL) == 0x7F000000UL;
+  }
+  if (sa->sa_family == AF_INET6) {
+    static const unsigned char lo[16] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1 };
+    static const unsigned char mapped[12] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xff, 0xff };
+    const unsigned char *b = ((const struct sockaddr_in6 *)sa)->sin6_addr.s6_addr;
+    if (memcmp(b, lo, 16) == 0) return 1;
+    return memcmp(b, mapped, 12) == 0 && b[12] == 127;
+  }
+  return 0;
+}
+
+/* Layered defense for non-loopback binds. The daemon ships PLAINTEXT, so
+ * exposing it remotely without protection means anyone on the network can
+ * read/write the entire graph. Two layers:
+ *   1. allow_remote: must be true to bind off-loopback (operator opt-in)
+ *   2. EITHER an auth_token OR tls_terminated_externally must be true,
+ *      so unauthenticated cleartext can never accidentally hit the wire.
+ * Both layers can be disabled (allow_remote:false → local-only, default).
+ * Loopback addresses (127.0.0.0/8, ::1, and names resolving to them, such
+ * as localhost) are always allowed. */
+static mg_err_t check_remote_bind(const mg_ctx_t *ctx, const char *bind_str) {
+  if (!ctx->config->http_allow_remote) {
+    fprintf(stderr,
+            "http: refusing to bind non-loopback address %s — set "
+            "`http.allow_remote: true` in config.yaml to override "
+            "(daemon has no native TLS).\n",
+            bind_str);
+    return MG_ERR_CONFIG;
+  }
+  {
+    const char *full_tok = mg_http_effective_token(ctx);
+    const char *ro_tok = (ctx->config->http_readonly_token &&
+                          *ctx->config->http_readonly_token)
+                         ? ctx->config->http_readonly_token : NULL;
+    if (!full_tok && !ro_tok && !ctx->config->http_tls_terminated_externally) {
+      fprintf(stderr,
+              "http: refusing remote bind %s — non-loopback exposure "
+              "without ANY protection. Either set http.auth_token (a "
+              "bearer secret), OR set http.tls_terminated_externally: "
+              "true to attest a TLS-terminating reverse proxy is in "
+              "front, OR turn off http.allow_remote.\n",
+              bind_str);
+      return MG_ERR_CONFIG;
+    }
+  }
+  return MG_OK;
+}
+
 mg_err_t mg_http_start(mg_ctx_t *ctx, mg_http_server_t **out) {
   mg_http_server_t *srv;
-  struct sockaddr_in addr;
-  mg_sock_t s;
+  struct addrinfo hints, *res = NULL, *ai;
+  char port_str[16];
+  const char *bind_str;
+  mg_sock_t s = MG_INVALID_SOCK;
+  mg_err_t err = MG_ERR_IO;
   int yes = 1;
+  int pass;
 
   if (!ctx || !ctx->config || !out) return MG_ERR_INVALID_ARG;
   *out = NULL;
@@ -348,72 +406,43 @@ mg_err_t mg_http_start(mg_ctx_t *ctx, mg_http_server_t **out) {
   }
 #endif
 
-  s = socket(AF_INET, SOCK_STREAM, 0);
-  if (s == MG_INVALID_SOCK) return MG_ERR_IO;
-
-  setsockopt(s, SOL_SOCKET, SO_REUSEADDR, (const char *)&yes, sizeof(yes));
-
-  memset(&addr, 0, sizeof(addr));
-  addr.sin_family = AF_INET;
-  addr.sin_port = htons((unsigned short)ctx->config->http_port);
-  if (ctx->config->http_bind && *ctx->config->http_bind) {
-    addr.sin_addr.s_addr = inet_addr(ctx->config->http_bind);
-    if (addr.sin_addr.s_addr == INADDR_NONE) {
-      MG_CLOSE_SOCK(s);
-      return MG_ERR_CONFIG;
-    }
-  } else {
-    addr.sin_addr.s_addr = htonl(0x7F000001);  /* 127.0.0.1 — safe default */
+  /* getaddrinfo, not inet_addr: the bind may be a name (localhost) or an
+   * IPv6 address (::1), both documented as valid local binds. */
+  bind_str = (ctx->config->http_bind && *ctx->config->http_bind)
+             ? ctx->config->http_bind : "127.0.0.1";
+  snprintf(port_str, sizeof(port_str), "%d", ctx->config->http_port);
+  memset(&hints, 0, sizeof(hints));
+  hints.ai_family = AF_UNSPEC;
+  hints.ai_socktype = SOCK_STREAM;
+  hints.ai_flags = AI_NUMERICSERV;
+  if (getaddrinfo(bind_str, port_str, &hints, &res) != 0 || !res) {
+    fprintf(stderr, "http: cannot resolve bind address %s\n", bind_str);
+    return MG_ERR_CONFIG;
   }
 
-  /* Layered defense for non-loopback binds. The daemon ships PLAINTEXT, so
-   * exposing it remotely without protection means anyone on the network can
-   * read/write the entire graph. Two layers:
-   *   1. allow_remote: must be true to bind off-loopback (operator opt-in)
-   *   2. EITHER an auth_token OR tls_terminated_externally must be true,
-   *      so unauthenticated cleartext can never accidentally hit the wire.
-   * Both layers can be disabled (allow_remote:false → local-only, default).
-   * localhost / 127.0.0.0/8 / ::1 are always allowed. */
-  {
-    const char *bind_str = (ctx->config->http_bind && *ctx->config->http_bind)
-                           ? ctx->config->http_bind : "127.0.0.1";
-    unsigned long ip = ntohl(addr.sin_addr.s_addr);
-    int is_loopback = ((ip & 0xFF000000UL) == 0x7F000000UL);  /* 127.0.0.0/8 */
-    int is_named_local = (strcmp(bind_str, "localhost") == 0);
-    if (!is_loopback && !is_named_local) {
-      if (!ctx->config->http_allow_remote) {
-        fprintf(stderr,
-                "http: refusing to bind non-loopback address %s — set "
-                "`http.allow_remote: true` in config.yaml to override "
-                "(daemon has no native TLS).\n",
-                bind_str);
-        MG_CLOSE_SOCK(s);
-        return MG_ERR_CONFIG;
-      }
-      {
-        const char *full_tok = mg_http_effective_token(ctx);
-        const char *ro_tok = (ctx->config->http_readonly_token &&
-                              *ctx->config->http_readonly_token)
-                             ? ctx->config->http_readonly_token : NULL;
-        if (!full_tok && !ro_tok && !ctx->config->http_tls_terminated_externally) {
-          fprintf(stderr,
-                  "http: refusing remote bind %s — non-loopback exposure "
-                  "without ANY protection. Either set http.auth_token (a "
-                  "bearer secret), OR set http.tls_terminated_externally: "
-                  "true to attest a TLS-terminating reverse proxy is in "
-                  "front, OR turn off http.allow_remote.\n",
-                  bind_str);
-          MG_CLOSE_SOCK(s);
-          return MG_ERR_CONFIG;
+  /* IPv4 first: localhost often resolves to ::1 before 127.0.0.1, and the
+   * clients (MCP server, viewer, curl examples) talk to 127.0.0.1. */
+  for (pass = 0; pass < 2 && s == MG_INVALID_SOCK; ++pass) {
+    for (ai = res; ai; ai = ai->ai_next) {
+      if ((pass == 0) != (ai->ai_family == AF_INET)) continue;
+      if (!addr_is_loopback(ai->ai_addr)) {
+        err = check_remote_bind(ctx, bind_str);
+        if (err != MG_OK) {
+          freeaddrinfo(res);
+          return err;
         }
       }
+      s = socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
+      if (s == MG_INVALID_SOCK) continue;
+      setsockopt(s, SOL_SOCKET, SO_REUSEADDR, (const char *)&yes, sizeof(yes));
+      if (bind(s, ai->ai_addr, (int)ai->ai_addrlen) == 0) break;
+      MG_CLOSE_SOCK(s);
+      s = MG_INVALID_SOCK;
     }
   }
-
-  if (bind(s, (struct sockaddr *)&addr, sizeof(addr)) != 0) {
-    fprintf(stderr, "http: bind failed on %s:%d\n",
-            ctx->config->http_bind, ctx->config->http_port);
-    MG_CLOSE_SOCK(s);
+  freeaddrinfo(res);
+  if (s == MG_INVALID_SOCK) {
+    fprintf(stderr, "http: bind failed on %s:%d\n", bind_str, ctx->config->http_port);
     return MG_ERR_IO;
   }
   if (listen(s, 16) != 0) {
@@ -449,8 +478,13 @@ mg_err_t mg_http_start(mg_ctx_t *ctx, mg_http_server_t **out) {
     else                         auth_state = "NO AUTH (opted out)";
     fprintf(stderr, "\n");
     fprintf(stderr, "================ graft HTTP API ================\n");
-    fprintf(stderr, "  listening on http://%s:%d  (plaintext, %s)\n",
-            bind_str, ctx->config->http_port, auth_state);
+    if (strchr(bind_str, ':')) {  /* IPv6 literal: http://[::1]:port */
+      fprintf(stderr, "  listening on http://[%s]:%d  (plaintext, %s)\n",
+              bind_str, ctx->config->http_port, auth_state);
+    } else {
+      fprintf(stderr, "  listening on http://%s:%d  (plaintext, %s)\n",
+              bind_str, ctx->config->http_port, auth_state);
+    }
     if (ctx->config->http_allow_remote) {
       fprintf(stderr, "  ALLOW_REMOTE: enabled — bind is NOT loopback.\n");
       if (ctx->config->http_tls_terminated_externally) {
