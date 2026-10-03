@@ -33,6 +33,7 @@ to `## [x.y.z] - YYYY-MM-DD` and becomes the body of the GitHub Release.
 
 ### Fixed
 
+- The source-build scripts ended by suggesting `graft insert --summary ... --detail ...`, flags removed long ago: the request went out with an empty title and body and the daemon rejected it. They now print `--title` / `--body`, and the CLI refuses an unknown option or a known one missing its value (exit code 2) instead of silently ignoring it ([#14](https://github.com/AEndrix03/Graft/issues/14)).
 - Building from source on Linux and macOS works again: `src/cli/autostart.c` called the POSIX `mg_spawn_daemon` with the Windows-only process-handle argument added by the daemon log fix, so the CLI failed to compile on every non-Windows platform.
 - The MCP server pins `mcp<2`. A fresh `pip install -e .` pulled `mcp` 2.x, where `FastMCP` no longer exists, and the server refused to start with "mcp SDK not installed".
 - The daemon's startup failure reason now reaches the user. `graftd` already printed the real cause on stderr ("embed init failed", "storage open failed", "socket listen failed"), but on Windows it was spawned DETACHED with no stdio redirection, so the output was discarded and the CLI only said "socket did not become ready in 20000 ms". The spawned daemon now inherits a handle to the log on both platforms, the log lives at `$GRAFT_HOME/graftd.log` as the docs always claimed (it used to sit next to the binary), and a failed auto-start quotes the tail of it.

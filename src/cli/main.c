@@ -344,6 +344,19 @@ static int mg_parse_int(const char *flag, const char *s) {
 
 /* -------------- per-op argument writers -------------- */
 
+/* An option a builder does not recognise, or a known one missing its value,
+ * is a hard error. Ignoring it used to send a request with empty fields
+ * (e.g. the removed --summary / --detail) that the daemon then rejected, or
+ * silently dropped what a misspelled flag meant to say. */
+static void mg_reject_arg(const char *cmd, const char *arg) {
+    fprintf(stderr, "graft %s: unknown option or missing value: '%s'\n", cmd, arg);
+    exit(2);
+}
+
+static int mg_is_option(const char *arg) {
+    return arg[0] == '-' && arg[1] == '-';
+}
+
 static int build_insert(int argc, char **argv, mpack_writer_t *w) {
     const char *title = NULL, *body = NULL;
     const char *author_flag = NULL;
@@ -355,10 +368,14 @@ static int build_insert(int argc, char **argv, mpack_writer_t *w) {
         else if (!strcmp(argv[i], "--body")    && i + 1 < argc) body  = argv[++i];
         else if (!strcmp(argv[i], "--author")  && i + 1 < argc) author_flag = argv[++i];
         else if (!strcmp(argv[i], "--expires-at") && i + 1 < argc) expires_at = (int64_t)mg_parse_ll("--expires-at", argv[++i]);
-        else if ((!strcmp(argv[i], "--keyword") || !strcmp(argv[i], "--tag")) && i + 1 < argc
-                 && n_kws < MG_CLI_MAX_KEYWORDS) {
+        else if ((!strcmp(argv[i], "--keyword") || !strcmp(argv[i], "--tag")) && i + 1 < argc) {
+            if (n_kws >= MG_CLI_MAX_KEYWORDS) {
+                fprintf(stderr, "graft insert: at most %d keywords\n", MG_CLI_MAX_KEYWORDS);
+                exit(2);
+            }
             kws[n_kws++] = argv[++i];
         }
+        else mg_reject_arg("insert", argv[i]);
     }
     char *author = mg_resolve_author(author_flag);
     int n_fields = 3
@@ -389,6 +406,7 @@ static int build_query(int argc, char **argv, mpack_writer_t *w) {
     bool explain = false;
     for (int i = 2; i < argc; i++) {
         if (!strcmp(argv[i], "--explain")) explain = true;
+        else if (mg_is_option(argv[i])) mg_reject_arg("query", argv[i]);
         else if (!text) text = argv[i];
     }
     mpack_start_map(w, explain ? 2 : 1);
@@ -406,6 +424,7 @@ static int build_retrieve(int argc, char **argv, mpack_writer_t *w) {
     int top_k = 0;
     for (int i = 2; i < argc; i++) {
         if (!strcmp(argv[i], "--top-k") && i + 1 < argc) top_k = mg_parse_int("--top-k", argv[++i]);
+        else if (mg_is_option(argv[i])) mg_reject_arg("retrieve", argv[i]);
         else if (!text) text = argv[i];
     }
     int n = 1 + (top_k > 0 ? 1 : 0);
@@ -425,13 +444,18 @@ static int build_explore(int argc, char **argv, mpack_writer_t *w) {
     int n_kws = 0;
     int depth = 0, beam = 0;
     for (int i = 2; i < argc; i++) {
-        if (!strcmp(argv[i], "--keyword") && i + 1 < argc
-            && n_kws < MG_CLI_MAX_KEYWORDS) {
+        if (!strcmp(argv[i], "--keyword") && i + 1 < argc) {
+            if (n_kws >= MG_CLI_MAX_KEYWORDS) {
+                fprintf(stderr, "graft explore: at most %d keywords\n", MG_CLI_MAX_KEYWORDS);
+                exit(2);
+            }
             kws[n_kws++] = argv[++i];
         } else if (!strcmp(argv[i], "--depth") && i + 1 < argc) {
             depth = mg_parse_int("--depth", argv[++i]);
         } else if (!strcmp(argv[i], "--beam") && i + 1 < argc) {
             beam = mg_parse_int("--beam", argv[++i]);
+        } else if (mg_is_option(argv[i])) {
+            mg_reject_arg("explore", argv[i]);
         } else if (!text) {
             text = argv[i];
         }
@@ -458,6 +482,7 @@ static int build_get(int argc, char **argv, mpack_writer_t *w) {
     const char *id = NULL;
     for (int i = 2; i < argc; i++) {
         if (!strcmp(argv[i], "--markdown")) g_markdown = 1;
+        else if (mg_is_option(argv[i])) mg_reject_arg(argv[1], argv[i]);
         else if (!id) id = argv[i];
     }
     if (!id) id = "";
@@ -471,6 +496,7 @@ static int build_classify(int argc, char **argv, mpack_writer_t *w) {
     const char *title = NULL;
     for (int i = 2; i < argc; i++) {
         if (!strcmp(argv[i], "--title") && i + 1 < argc) title = argv[++i];
+        else mg_reject_arg("classify", argv[i]);
     }
     mpack_start_map(w, 1);
     mpack_write_cstr(w, "title"); mpack_write_cstr(w, title ? title : "");

@@ -187,4 +187,19 @@ if(GRAFT_BUILD_TESTS)
       set_tests_properties(${TNAME} PROPERTIES ENVIRONMENT_MODIFICATION "${MG_TEST_PATHS}")
     endif()
   endforeach()
+
+  # The CLI must refuse an option it does not know, or a known one without its
+  # value, before it ever talks to the daemon (no daemon runs during ctest).
+  add_test(NAME cli_rejects_unknown_option
+           COMMAND graft insert --summary hello --body world)
+  add_test(NAME cli_rejects_missing_value
+           COMMAND graft insert --body world --title)
+  add_test(NAME cli_rejects_unknown_query_option
+           COMMAND graft query --top-k 3 hello)
+  set_tests_properties(cli_rejects_unknown_option PROPERTIES
+    PASS_REGULAR_EXPRESSION "unknown option or missing value: '--summary'")
+  set_tests_properties(cli_rejects_missing_value PROPERTIES
+    PASS_REGULAR_EXPRESSION "unknown option or missing value: '--title'")
+  set_tests_properties(cli_rejects_unknown_query_option PROPERTIES
+    PASS_REGULAR_EXPRESSION "unknown option or missing value: '--top-k'")
 endif()

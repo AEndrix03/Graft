@@ -616,7 +616,7 @@ The CLI is installed at:
 
 Open a NEW shell (so the PATH change is picked up) and try:
   graft profile list
-  graft insert --summary "hello graft" --detail "first node" --keyword test
+  graft insert --title "hello graft" --body "first node" --keyword test
   graft query  "hello graft"
   graft analytics
 

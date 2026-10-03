@@ -36,6 +36,8 @@ Exit codes:
 - [`upgrade`](#upgrade)   (CLI-only)
 - [`view`](#view)         (opens the browser viewer at the daemon's HTTP layer)
 
+An option a command does not know, or a known option without its value, is an error (exit code `2`) before anything reaches the daemon.
+
 ---
 
 ## insert
