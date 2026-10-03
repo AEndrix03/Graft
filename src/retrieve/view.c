@@ -93,15 +93,13 @@ static const char *edge_kind_to_string(int k) {
 /* Use the existing helper from src/retrieve/util.c. */
 extern void mg_retrieve_hex_encode(const uint8_t *bytes, size_t len, char *out);
 
-mg_err_t mg_op_view(mg_ctx_t *ctx, mpack_node_t args, mpack_writer_t *result) {
+static mg_err_t view_dump(mg_ctx_t *ctx, mpack_writer_t *result) {
   sqlite3_stmt *stmt = NULL;
   sqlite3 *db;
   float R[3 * MG_EMBEDDING_DIM];
   int n_nodes = 0, n_edges = 0;
   int rc;
 
-  (void)args;
-  if (!ctx || !ctx->storage || !result) return MG_ERR_INVALID_ARG;
   db = ctx->storage->db;
 
   build_proj_matrix(R);
@@ -269,4 +267,17 @@ mg_err_t mg_op_view(mg_ctx_t *ctx, mpack_node_t args, mpack_writer_t *result) {
 
   mpack_complete_map(result);
   return MG_OK;
+}
+
+mg_err_t mg_op_view(mg_ctx_t *ctx, mpack_node_t args, mpack_writer_t *result) {
+  mg_err_t err;
+
+  (void)args;
+  if (!ctx || !ctx->storage || !result) return MG_ERR_INVALID_ARG;
+  /* The dump talks to the raw handle, so take the storage mutex like every
+   * mg_storage_* call does: other workers share this connection. */
+  mg_storage_lock(ctx->storage);
+  err = view_dump(ctx, result);
+  mg_storage_unlock(ctx->storage);
+  return err;
 }
