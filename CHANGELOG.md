@@ -33,6 +33,7 @@ to `## [x.y.z] - YYYY-MM-DD` and becomes the body of the GitHub Release.
 
 ### Fixed
 
+- `graft profile export` copied only `graft.db`, so after a daemon crash it silently dropped memories committed to `graft.db-wal` but not yet checkpointed. Export and import now use the SQLite backup API: the snapshot includes the WAL, and an import can no longer have a stale WAL replayed over it ([#10](https://github.com/AEndrix03/Graft/issues/10)).
 - A keyword containing `,` is now rejected. The content hash joins keywords with `,`, so `["a,b", "c"]` and `["a", "b,c"]` hashed alike and the second insert came back as a false duplicate. Existing hashes are unchanged; the CLI says to pass each keyword as its own `--keyword` ([#12](https://github.com/AEndrix03/Graft/issues/12)).
 - A `GRAFT_DB_KEY` with many single quotes overflowed a heap buffer when opening the database: each quote is doubled in `PRAGMA key`, but the buffer was sized for the key's own length. The statement is now built with `sqlite3_mprintf` ([#9](https://github.com/AEndrix03/Graft/issues/9)).
 - The source-build scripts ended by suggesting `graft insert --summary ... --detail ...`, flags removed long ago: the request went out with an empty title and body and the daemon rejected it. They now print `--title` / `--body`, and the CLI refuses an unknown option or a known one missing its value (exit code 2) instead of silently ignoring it ([#14](https://github.com/AEndrix03/Graft/issues/14)).

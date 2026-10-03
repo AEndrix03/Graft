@@ -199,6 +199,57 @@ void mg_storage_close(mg_storage_t *s) {
   free(s);
 }
 
+static void apply_db_key(sqlite3 *db) {
+  const char *key = getenv("GRAFT_DB_KEY");
+  char *pragma;
+  if (!key || !*key) {
+    return;
+  }
+  pragma = sqlite3_mprintf("PRAGMA key=%Q;", key);
+  if (pragma) {
+    sqlite3_exec(db, pragma, NULL, NULL, NULL);
+    sqlite3_free(pragma);
+  }
+}
+
+/* Copy a database with the SQLite backup API instead of copying its main
+ * file: the source is opened like any reader, so transactions committed to
+ * its -wal but not yet checkpointed (a daemon that crashed) are included, and
+ * the destination is written through a connection, so a stale -wal next to
+ * it cannot be replayed over the new content. */
+mg_err_t mg_storage_backup_file(const char *src_path, const char *dst_path) {
+  sqlite3 *src = NULL;
+  sqlite3 *dst = NULL;
+  sqlite3_backup *bk;
+  mg_err_t err = MG_ERR_STORAGE;
+
+  if (!src_path || !dst_path) {
+    return MG_ERR_INVALID_ARG;
+  }
+  if (sqlite3_open_v2(src_path, &src, SQLITE_OPEN_READONLY, NULL) != SQLITE_OK ||
+      sqlite3_open_v2(dst_path, &dst, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, NULL) != SQLITE_OK) {
+    goto done;
+  }
+  apply_db_key(src);
+  apply_db_key(dst);
+  bk = sqlite3_backup_init(dst, "main", src, "main");
+  if (bk) {
+    int rc = sqlite3_backup_step(bk, -1);
+    if (sqlite3_backup_finish(bk) == SQLITE_OK && rc == SQLITE_DONE) {
+      err = MG_OK;
+    }
+  }
+done:
+  sqlite3_close(src);
+  sqlite3_close(dst);
+#ifndef _WIN32
+  if (err == MG_OK) {
+    chmod(dst_path, S_IRUSR | S_IWUSR);
+  }
+#endif
+  return err;
+}
+
 /* Returns 1 if the legacy `summary` column exists on `nodes` (i.e. pre-rename
  * schema). Returns 0 if the table is absent or already on the new schema.
  * Returns -1 on error. */

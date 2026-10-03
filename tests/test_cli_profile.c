@@ -165,8 +165,28 @@ static void test_import_export(void) {
   expect(RUN("graft", "profile", "add", "empty") == 0, "add a profile with no DB");
   expect(RUN("graft", "profile", "export", "empty", "--path", out) == 1,
          "exporting a profile with no DB fails");
-  expect(RUN("graft", "profile", "export", "imp", "--path", out) == 0, "export");
+  /* A daemon that crashed leaves committed writes in graft.db-wal, not yet
+   * checkpointed into graft.db. Keeping a connection open while exporting
+   * holds the keyword in the WAL the same way. */
+  {
+    mg_storage_t *held = NULL;
+    mg_keyword_id_t kw = 0;
+    expect(mg_storage_open(db, &held) == MG_OK && mg_storage_apply_schema(held) == MG_OK,
+           "open the profile DB");
+    expect(mg_storage_upsert_keyword(held, "only-in-wal", NULL, &kw) == MG_OK,
+           "commit a keyword to the WAL");
+    expect(RUN("graft", "profile", "export", "imp", "--path", out) == 0, "export");
+    if (held) mg_storage_close(held);
+  }
   expect(file_exists(out), "export writes the target file");
+  {
+    mg_storage_t *exp = NULL;
+    int64_t n_kw = 0;
+    expect(mg_storage_open(out, &exp) == MG_OK
+           && mg_storage_count(exp, 2, &n_kw) == MG_OK && n_kw == 1,
+           "export includes writes still in the WAL");
+    if (exp) mg_storage_close(exp);
+  }
   expect(RUN("graft", "profile", "import", "--name", "roundtrip", "--file", out) == 0,
          "an exported file can be imported back");
 

@@ -23,6 +23,10 @@ typedef struct {
 mg_err_t mg_storage_open(const char *db_path, mg_storage_t **out);
 void     mg_storage_close(mg_storage_t *s);
 
+/* Consistent snapshot of the database at src_path written to dst_path (its
+ * previous content is replaced), committed WAL frames included. */
+mg_err_t mg_storage_backup_file(const char *src_path, const char *dst_path);
+
 /* Schema: idempotent, applica migrations all'apertura */
 mg_err_t mg_storage_apply_schema(mg_storage_t *s);
 

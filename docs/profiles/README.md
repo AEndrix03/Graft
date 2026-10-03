@@ -75,15 +75,15 @@ graft profile set work --shell fish
 
 ## Export / import
 
-Profiles are plain SQLite files. Export is a `cp`:
+Profiles are plain SQLite files. Export writes a snapshot with the SQLite backup API:
 
 ```bash
 graft profile export work --path work-2026-05.graftprofile
 ```
 
-It refuses if a daemon is currently running for that profile (would copy a live WAL → inconsistent state). Stop the daemon first or work on a profile that's not the active one.
+It refuses if a daemon is currently running for that profile, so the snapshot cannot miss writes still in flight. Stop the daemon first or work on a profile that's not the active one. Writes a crashed daemon left in `graft.db-wal`, committed but not yet checkpointed, are included.
 
-Import is the inverse:
+Import is the inverse, written the same way, so a stale `graft.db-wal` next to the target cannot be replayed over the imported data:
 
 ```bash
 graft profile import --name work-restored --file work-2026-05.graftprofile
