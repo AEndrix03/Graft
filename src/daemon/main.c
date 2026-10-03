@@ -10,10 +10,16 @@
  *   read_frame -> mg_dispatch -> write_frame
  * until the peer closes or an I/O error occurs.
  *
- * Shutdown: SIGINT/SIGTERM set g_shutdown and close the listening fd,
- * which makes the next accept() return -1 and the main loop exits.
- * Per-client threads are detached; outstanding clients will see a
- * read EOF when their fd is closed at shutdown.
+ * Shutdown: SIGINT/SIGTERM only set g_shutdown. The accept loop waits in
+ * select() with a short timeout and re-checks the flag, so it exits on
+ * every platform (closing the listening fd from the handler wakes accept()
+ * on Windows but not on Linux, and races with fd reuse). Then, in order:
+ * close the listening socket, stop the HTTP server (which drains its own
+ * client threads), drain the per-client threads here, and only then free
+ * the shared mg_ctx_t resources. Per-client threads are detached but
+ * counted in a worker group (graft/workers.h): draining shuts down their
+ * sockets, so a client idling on an open connection does not hold
+ * shutdown up, and waits for the ones still inside mg_dispatch().
  */
 
 #include "graft/ops.h"
@@ -25,6 +31,7 @@
 #include "graft/config.h"
 #include "graft/error.h"
 #include "graft/http.h"
+#include "graft/workers.h"
 #include "internal.h"
 
 #include <pthread.h>
@@ -94,22 +101,19 @@ static mg_http_server_t     *g_http_srv  = NULL;
 static void on_signal(int sig) {
     (void)sig;
     g_shutdown = 1;
-    int fd = g_listen_fd;
-    if (fd >= 0) {
-        g_listen_fd = -1;
-        mg_daemon_socket_close(fd);
-    }
 }
 
 typedef struct {
-    int       fd;
-    mg_ctx_t *ctx;
+    int           fd;
+    mg_ctx_t     *ctx;
+    mg_workers_t *workers;
 } client_arg_t;
 
 static void *handle_client(void *vp) {
     client_arg_t *ca = (client_arg_t *)vp;
-    int       fd  = ca->fd;
-    mg_ctx_t *ctx = ca->ctx;
+    int           fd      = ca->fd;
+    mg_ctx_t     *ctx     = ca->ctx;
+    mg_workers_t *workers = ca->workers;
     free(ca);
 
     for (;;) {
@@ -131,6 +135,7 @@ static void *handle_client(void *vp) {
         free(resp);
         if (e != MG_OK) break;
     }
+    mg_workers_leave(workers, fd);  /* last touch of ctx: shutdown may free it now */
     mg_daemon_socket_close(fd);
     return NULL;
 }
@@ -167,6 +172,8 @@ int main(int argc, char **argv) {
     mg_embed_ctx_t  *embed   = NULL;
     mg_verify_ctx_t *verify  = NULL;
     mg_rerank_ctx_t *rerank  = NULL;
+    mg_workers_t    *workers = NULL;
+    int drained = 1;   /* 0 = some worker may still use the shared state */
     int rc = 1;
 
     err = mg_storage_open(cfg.db_path, &storage);
@@ -204,8 +211,19 @@ int main(int argc, char **argv) {
     ctx.rerank  = rerank;
     ctx.config  = &cfg;
 
+    workers = mg_workers_new();
+    if (!workers) {
+        fprintf(stderr, "out of memory\n");
+        goto cleanup;
+    }
+
     signal(SIGINT,  on_signal);
     signal(SIGTERM, on_signal);
+#ifndef _WIN32
+    /* A client that hangs up mid-response (or a socket shut down by the
+     * drain) must fail the send(), not kill the daemon. */
+    signal(SIGPIPE, SIG_IGN);
+#endif
 
     g_listen_fd = mg_daemon_socket_listen(cfg.socket_path);
     if (g_listen_fd < 0) {
@@ -221,16 +239,27 @@ int main(int argc, char **argv) {
     }
 
     while (!g_shutdown) {
+        int ready = mg_daemon_socket_poll(g_listen_fd, 200);  /* re-check g_shutdown every 200 ms */
+        if (ready < 0) break;
+        if (ready == 0) continue;
         int cfd = mg_daemon_socket_accept(g_listen_fd);
-        if (cfd < 0) break;
+        if (cfd < 0) continue;
 
         client_arg_t *ca = (client_arg_t *)malloc(sizeof(*ca));
         if (!ca) { mg_daemon_socket_close(cfd); continue; }
-        ca->fd  = cfd;
-        ca->ctx = &ctx;
+        ca->fd      = cfd;
+        ca->ctx     = &ctx;
+        ca->workers = workers;
 
+        /* Count the worker before it exists, so the drain can never miss it. */
+        if (mg_workers_enter(workers, cfd) != 0) {
+            free(ca);
+            mg_daemon_socket_close(cfd);
+            continue;
+        }
         pthread_t th;
         if (pthread_create(&th, NULL, handle_client, ca) != 0) {
+            mg_workers_leave(workers, cfd);
             free(ca);
             mg_daemon_socket_close(cfd);
             continue;
@@ -239,22 +268,42 @@ int main(int argc, char **argv) {
     }
 
     fprintf(stderr, "graftd: shutting down\n");
-    if (g_http_srv) {
-        mg_http_stop(g_http_srv);
-        g_http_srv = NULL;
-    }
-    if (g_listen_fd >= 0) {
-        mg_daemon_socket_close(g_listen_fd);
-        g_listen_fd = -1;
-    }
+    /* Stop accepting first, then let every in-flight request finish before
+     * anything in ctx is freed. */
+    mg_daemon_socket_close(g_listen_fd);
+    g_listen_fd = -1;
 #ifdef _WIN32
     DeleteFileA(cfg.socket_path);
 #else
     unlink(cfg.socket_path);
 #endif
+    if (g_http_srv) {
+        if (!mg_http_stop(g_http_srv)) drained = 0;
+        g_http_srv = NULL;
+    }
+    {
+        int left = mg_workers_drain(workers, MG_WORKERS_DRAIN_TIMEOUT_MS);
+        if (left > 0) {
+            fprintf(stderr, "graftd: %d client thread(s) still running after "
+                    "%d ms\n", left, MG_WORKERS_DRAIN_TIMEOUT_MS);
+            drained = 0;
+        }
+    }
     rc = 0;
 
 cleanup:
+    if (g_listen_fd >= 0) {
+        mg_daemon_socket_close(g_listen_fd);
+        g_listen_fd = -1;
+    }
+    if (!drained) {
+        /* Freeing the models and the database under a running request is a
+         * use-after-free; leave them to the process exit instead. */
+        fprintf(stderr, "graftd: skipping teardown, exiting with requests "
+                "still in flight\n");
+        return rc;
+    }
+    mg_workers_free(workers);
     if (rerank)  mg_rerank_shutdown(rerank);
     if (verify)  mg_verify_shutdown(verify);
     if (embed)   mg_embed_shutdown(embed);
