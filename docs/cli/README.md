@@ -82,13 +82,17 @@ Verified **cache lookup**. Embeds the input, runs `vector_topk(10)`, then for ea
 - **WEAK**   — returns `title` and `signals`. The `body` is intentionally `null`. (Don't quote a fact you can't verify.)
 - **MISS**   — returns `signals` and a small `fallback_retrieve` list (capped at `retrieval.query_fallback_top_k`, default 5) so the caller can still surface neighbours.
 
+`--explain` adds `candidates` to any of the three: every candidate the verifier
+scored, in vector order, with `id_hex`, `title`, `vec_rank`, its own `hit` and
+`signals`. Use it to see why a question got the answer it did.
+
 Defaults:
 
 | Threshold | Default | Tune in `config.yaml` |
 | --------- | ------- | --------------------- |
 | Cosine sanity floor | `0.30` | hard-coded |
-| `STRONG` requires `s_vec >= 0.7` | `0.70` | hard-coded |
-| `STRONG` requires `s_lex >= …`   | `0.15` | `cache.strong_hit_min_lex` |
+| `STRONG` (lexical path) requires `s_vec >= …` and `s_lex >= …` | `0.70`, `0.15` | `verification.lex_strong_min_vec`, `cache.strong_hit_min_lex` |
+| `STRONG` (semantic path) requires `s_vec >= …` | `0.75` | `verification.sem_strong_min_vec` |
 | `WEAK` requires `s_vec >= …`     | `0.85` | `cache.weak_hit_min_vec` |
 | `WEAK` requires `s_lex >= …`     | `0.05` | `cache.min_lex_overlap` |
 

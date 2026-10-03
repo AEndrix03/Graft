@@ -196,9 +196,10 @@ Working today:
 
 Coming next:
 
-- **Fewer confident wrong answers.** The benchmark shows graft sometimes answers
-  with confidence when the question is on the same technology but a different
-  problem. Tighter verification, tested on questions it was not tuned on.
+- **Finding the right note more often.** In the benchmark every answer the agent
+  still got wrong with graft came from a lookup that missed or picked a
+  neighbouring note. Wrong notes it simply sets aside, so the work goes into
+  recall, not into stricter gates.
 - **Recall without asking.** An optional plugin that looks up memory on every
   prompt, so it no longer depends on the agent remembering to search.
 - **Signed Windows binaries** and prebuilt macOS archives.

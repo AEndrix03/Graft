@@ -13,6 +13,7 @@ to `## [x.y.z] - YYYY-MM-DD` and becomes the body of the GitHub Release.
 
 ### Added
 
+- `graft query --explain` lists every candidate the verifier scored, in vector order, with its rank, hit level and signals, to see why a question got the answer it did.
 - **Plugin marketplace for Claude Code and Codex.** The repo is now a marketplace for both agents: `/plugin marketplace add AEndrix03/Graft` then `/plugin install graft@graft` on Claude Code, `codex plugin marketplace add AEndrix03/Graft` then `codex plugin add graft@graft` on Codex. The plugin carries the six skills (namespaced as `graft:<name>`) and updates through the marketplace.
 - `/graft-init` installs the `graft` CLI when it is missing, after asking, by running the official installer; offers `graft upgrade` when the CLI is older than the plugin; and offers to remove skill copies left by an older `graft setup`, which would otherwise show every skill twice.
 - `bench/`: reproducible benchmarks. `run.py` measures recall quality and latency on a private daemon with built-in defaults, over 65 notes and an independently written held-out question set (the author's dev set is kept apart and reported as optimistic). `agent.py` asks Claude Code the same questions with and without graft and grades the answers, reporting right and made-up answers, tokens and time. `charts.py` renders the README charts from the results.

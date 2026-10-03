@@ -101,7 +101,7 @@ http:
 | --- | ------- | ------------- |
 | `strong_hit_min_ce`  | `0.6` | Minimum cross-encoder score for STRONG, **only when CE is enabled**. |
 | `strong_hit_min_lex` | `0.15` | Minimum trigram Jaccard for STRONG. Hard floor on lexical overlap. |
-| `weak_hit_min_vec`   | `0.85` | Minimum cosine for WEAK. Note: STRONG has a hard-coded `s_vec ≥ 0.7` floor in code. |
+| `weak_hit_min_vec`   | `0.85` | Minimum cosine for WEAK. STRONG's vector floors are `verification.lex_strong_min_vec` (`0.70`) and `verification.sem_strong_min_vec` (`0.75`). |
 | `min_lex_overlap`    | `0.05` | Minimum trigram Jaccard for WEAK. |
 
 Read [`retrieval/`](../retrieval/) for the full gating formula.

@@ -57,13 +57,18 @@ Default thresholds:
 | Field | Default | Where |
 | ----- | ------- | ----- |
 | Vector sanity floor (early MISS)       | `0.30` | hard-coded |
-| `s_vec` for STRONG                     | `0.70` | hard-coded |
-| `s_lex` for STRONG                     | `0.15` | `cache.strong_hit_min_lex` |
+| `s_vec` for STRONG, lexical path       | `0.70` | `verification.lex_strong_min_vec` |
+| `s_lex` for STRONG, lexical path       | `0.15` | `cache.strong_hit_min_lex` |
+| `s_vec` for STRONG, semantic path      | `0.75` | `verification.sem_strong_min_vec` |
 | `s_vec` for WEAK                       | `0.85` | `cache.weak_hit_min_vec` |
 | `s_lex` for WEAK                       | `0.05` | `cache.min_lex_overlap` |
 | `s_ce` for STRONG (when CE enabled)    | `0.60` | `cache.strong_hit_min_ce` |
 
-The `cache.weak_hit_min_vec >= STRONG vector floor` ordering is intentional: a WEAK hit requires **more** vector similarity than a STRONG hit because it gets *less* lexical / CE confirmation.
+The `cache.weak_hit_min_vec >= STRONG vector floor` ordering is intentional: a WEAK hit requires **more** vector similarity than a STRONG hit because it gets *less* lexical / CE confirmation. In practice WEAK is rare.
+
+Why not stricter STRONG thresholds? [`bench/`](../../bench/) tried raising them (0.75 / 0.80, WEAK from 0.75): confident answers to unanswerable questions halved, but answers that were right dropped to WEAK, which carries no body. An agent given a wrong note set it aside every time; an agent given only a title lost the answer. End to end the stricter values were worse, so the defaults stayed.
+
+`graft query --explain` lists every candidate the verifier scored, with its vector rank and signals, to see why a question got the answer it did.
 
 ### What you actually get back
 

@@ -161,7 +161,7 @@ static int usage(void) {
         "usage:\n"
         "  graft insert --title T --body B [--keyword K | --tag K]...\n"
         "                  [--author NAME] [--expires-at UNIX_MS]\n"
-        "  graft query <text>\n"
+        "  graft query <text> [--explain]\n"
         "  graft retrieve <text> [--top-k N]\n"
         "  graft explore <text> [--keyword K]... [--depth N] [--beam N]\n"
         "  graft get <hex_id> [--markdown]\n"
@@ -385,9 +385,18 @@ static int build_insert(int argc, char **argv, mpack_writer_t *w) {
 }
 
 static int build_query(int argc, char **argv, mpack_writer_t *w) {
-    const char *text = (argc >= 3) ? argv[2] : "";
-    mpack_start_map(w, 1);
-    mpack_write_cstr(w, "text"); mpack_write_cstr(w, text);
+    const char *text = NULL;
+    bool explain = false;
+    for (int i = 2; i < argc; i++) {
+        if (!strcmp(argv[i], "--explain")) explain = true;
+        else if (!text) text = argv[i];
+    }
+    mpack_start_map(w, explain ? 2 : 1);
+    mpack_write_cstr(w, "text"); mpack_write_cstr(w, text ? text : "");
+    if (explain) {
+        mpack_write_cstr(w, "explain");
+        mpack_write_bool(w, true);
+    }
     mpack_finish_map(w);
     return 0;
 }
