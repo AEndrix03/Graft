@@ -54,6 +54,12 @@ Rules of thumb:
 
 If the user is going through `/memoryze` or `/learn` in their agent, the skill enforces this shape. If they're using the CLI directly, no one will stop a sloppy title.
 
+### Bootstrapping a project
+
+`/learn bootstrap` fills an empty graph for a repository without asking anything, so the shape rules matter even more: nobody reviews the nodes. It does not mirror the repository. It inserts what a future session would otherwise have to rediscover (decisions and their why, invariants, module boundaries, build and release procedures, gotchas, public contracts), one fact per node, each with `--source file:` on the files it came from, and leaves out file summaries, generated code, boilerplate and secrets. A broad "what this project is" note is the one to be wary of: it is close to every question about the project, so it gets a confident hit on questions it does not answer.
+
+The work is split into bounded runs by topic. [`graft project status`](../cli/README.md#project) tells the agent whether the project was bootstrapped, which topics are still pending and how many files already back a node; [`graft sources diff`](../cli/README.md#sources) tells it which nodes to revalidate. A re-run with nothing changed and nothing pending inserts nothing.
+
 ---
 
 ## The insert pipeline

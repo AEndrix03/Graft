@@ -1,7 +1,7 @@
 ---
 name: graft
 description: >-
-  Persistent graph memory shared across conversations and agents. Graft is a prompter, not a cache: it hands you notes that may be close to the problem in front of you, and a close note is already a win - it gives you a starting point and reminds you what was decided before. Search it before non-trivial work, and write to it whenever the answer you just produced was not already there. Companion skills: `/recall` (search), `/memoryze` (save), `/learn` (bulk ingest; `/learn docs` for a repository's documentation), `/memory-audit` (health check). The daemon auto-starts on the first command.
+  Persistent graph memory shared across conversations and agents. Graft is a prompter, not a cache: it hands you notes that may be close to the problem in front of you, and a close note is already a win - it gives you a starting point and reminds you what was decided before. Search it before non-trivial work, and write to it whenever the answer you just produced was not already there. Companion skills: `/recall` (search), `/memoryze` (save), `/learn` (bulk ingest; `/learn docs` for a repository's documentation; `/learn bootstrap` for the unattended cold start of a project), `/memory-audit` (health check). The daemon auto-starts on the first command.
 ---
 
 # graft - the prompter in your pocket
@@ -106,7 +106,9 @@ lists the notes whose files changed or disappeared, so you can revalidate them
 (fix them as below, or confirm them with `graft sources refresh <hex_id>`).
 
 Use `/memoryze` for 1-5 notes out of the conversation, `/learn` for bulk ingestion
-from files outside it, `/learn docs` to take in all of a repository's documentation.
+from files outside it, `/learn docs` to take in all of a repository's documentation,
+`/learn bootstrap` to build a new project's memory progressively (`graft project status`
+says whether it was bootstrapped and which topics are still pending).
 
 ## Fixing stale evidence
 
