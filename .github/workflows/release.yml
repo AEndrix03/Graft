@@ -432,22 +432,22 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p assets
+          mkdir -p release-assets
           # tarball + checksum
-          cp dist/graft-linux-x86_64.tar.gz assets/
+          cp dist/graft-linux-x86_64.tar.gz release-assets/
           # brew bottle + source tarball + json sidecar
-          cp dist/*.bottle.tar.gz dist/*.bottle.json assets/ 2>/dev/null || true
-          cp dist/graft-${VERSION}.tar.gz assets/ 2>/dev/null || true
+          cp dist/*.bottle.tar.gz dist/*.bottle.json release-assets/ 2>/dev/null || true
+          cp dist/graft-${VERSION}.tar.gz release-assets/ 2>/dev/null || true
           # scoop zip
-          cp dist/graft-windows-x86_64.zip assets/
-          ls -la assets/
+          cp dist/graft-windows-x86_64.zip release-assets/
+          ls -la release-assets/
 
       - name: Compute scoop metadata
         id: scoopmeta
         shell: bash
         run: |
           set -euo pipefail
-          sha="$(cat dist/sha 2>/dev/null || sha256sum assets/graft-windows-x86_64.zip | awk '{print $1}')"
+          sha="$(cat dist/sha 2>/dev/null || sha256sum release-assets/graft-windows-x86_64.zip | awk '{print $1}')"
           name="graft-windows-x86_64.zip"
           echo "sha=$sha"   >> "$GITHUB_OUTPUT"
           echo "name=$name" >> "$GITHUB_OUTPUT"
@@ -458,7 +458,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          src="assets/graft-${VERSION}.tar.gz"
+          src="release-assets/graft-${VERSION}.tar.gz"
           if [ ! -f "$src" ]; then
             echo "missing source tarball for brew formula" >&2; exit 1
           fi
@@ -469,7 +469,7 @@ jobs:
       - name: Generate checksums
         shell: bash
         run: |
-          cd assets
+          cd release-assets
           sha256sum graft-linux-x86_64.* graft-windows-x86_64.zip graft-${VERSION}.tar.gz *.bottle.tar.gz > SHA256SUMS
 
       - name: Generate SBOM
@@ -477,7 +477,7 @@ jobs:
         with:
           path: .
           format: spdx-json
-          output-file: assets/graft-sbom.spdx.json
+          output-file: release-assets/graft-sbom.spdx.json
           upload-artifact: false
 
       - name: Install cosign
@@ -487,7 +487,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          cd assets
+          cd release-assets
           for f in graft-linux-x86_64.* graft-windows-x86_64.zip graft-${VERSION}.tar.gz *.bottle.tar.gz SHA256SUMS; do
             [ -f "$f" ] || continue
             cosign sign-blob --yes "$f" \
@@ -498,7 +498,7 @@ jobs:
       - name: Attest build provenance
         uses: actions/attest-build-provenance@v2
         with:
-          subject-path: "assets/graft-*"
+          subject-path: "release-assets/graft-*"
 
       - name: Resolve release notes
         id: notes
@@ -529,7 +529,7 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git tag "${TAG}"
           git push origin "${TAG}"
-          gh release create "${TAG}" assets/* \
+          gh release create "${TAG}" release-assets/* \
             --title "${TAG}" \
             --verify-tag \
             ${NOTES_FLAG}
