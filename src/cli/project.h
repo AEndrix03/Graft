@@ -51,6 +51,21 @@ void mg_project_state_free(mg_project_state_t *st);
 int  mg_project_state_mark(mg_project_state_t *st, const char *name, const char *state,
                            int priority, const char *note, int64_t now_ms);
 
+/* Where a directory's project state lives, as every `project` subcommand
+ * (and `graft status`) resolves it: the project of dir, the active profile,
+ * its DB (GRAFT_DB_PATH wins) and the state file next to it. Returns 0, -1
+ * when dir is not a directory, -2 when the profile DB cannot be resolved,
+ * -3 when the state path does not fit. */
+typedef struct {
+    char root[4096];
+    char project[4096];
+    char profile[128];
+    char db[4096];
+    char state_file[4096];
+} mg_project_ctx_t;
+
+int  mg_project_resolve(const char *dir, mg_project_ctx_t *c);
+
 /* Files of `project` (kind file) supporting at least one live node, and the
  * number of those nodes, read straight from the SQLite file (read-only).
  * Returns 0; 1 when the DB does not exist yet (counts 0); -1 when it cannot

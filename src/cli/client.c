@@ -85,6 +85,14 @@ void mg_cli_print_value(mpack_node_t n, int indent) {
 }
 
 int mg_cli_exchange(const char *req, size_t req_len, void **resp, size_t *resp_len) {
+    return mg_cli_exchange_opts(req, req_len, resp, resp_len, 0);
+}
+
+/* stderr only when the caller did not ask for silence */
+#define SAY(...) do { if (!(flags & MG_CLI_QUIET)) fprintf(stderr, __VA_ARGS__); } while (0)
+
+int mg_cli_exchange_opts(const char *req, size_t req_len, void **resp, size_t *resp_len,
+                         int flags) {
     const char *sock_path = getenv("GRAFT_SOCKET");
     if (!sock_path || !*sock_path) sock_path = "/tmp/graft.sock";
 
@@ -93,32 +101,37 @@ int mg_cli_exchange(const char *req, size_t req_len, void **resp, size_t *resp_l
 
     int fd = -1;
     if (mg_daemon_socket_connect(sock_path, &fd) != MG_OK) {
+        if (flags & MG_CLI_NO_AUTOSTART) {
+            SAY("connect failed: %s (daemon not running)\n", sock_path);
+            mg_daemon_socket_shutdown();
+            return 1;
+        }
         /* Daemon down — try to spawn it next to this binary, then retry once.
          * This pays a one-time cost (~1-2s) on the first command of a session
          * and saves the user from having to start the daemon manually. */
         /* Roomy: the message quotes the tail of the daemon log. */
         char ae[2048] = { 0 };
         if (mg_autostart_daemon(sock_path, ae, sizeof(ae)) != MG_OK) {
-            fprintf(stderr, "connect failed: %s\nauto-start: %s\n", sock_path, ae);
+            SAY("connect failed: %s\nauto-start: %s\n", sock_path, ae);
             mg_daemon_socket_shutdown();
             return 1;
         }
         if (mg_daemon_socket_connect(sock_path, &fd) != MG_OK) {
-            fprintf(stderr, "connect failed after auto-start: %s\n", sock_path);
+            SAY("connect failed after auto-start: %s\n", sock_path);
             mg_daemon_socket_shutdown();
             return 1;
         }
     }
 
     if (mg_wire_write_frame(fd, req, req_len) != MG_OK) {
-        fprintf(stderr, "send failed\n");
+        SAY("send failed\n");
         mg_daemon_socket_close(fd);
         mg_daemon_socket_shutdown();
         return 1;
     }
 
     if (mg_wire_read_frame(fd, resp, resp_len) != MG_OK) {
-        fprintf(stderr, "recv failed\n");
+        SAY("recv failed\n");
         mg_daemon_socket_close(fd);
         mg_daemon_socket_shutdown();
         return 1;
@@ -133,6 +146,11 @@ int mg_cli_exchange(const char *req, size_t req_len, void **resp, size_t *resp_l
  * the usual envelope. Returns 0 ok, 1 transport failure, 3 daemon error. */
 int mg_cli_call(const char *op, const char *args, size_t args_len,
                        mpack_tree_t *tree, void **resp) {
+    return mg_cli_call_opts(op, args, args_len, tree, resp, 0);
+}
+
+int mg_cli_call_opts(const char *op, const char *args, size_t args_len,
+                     mpack_tree_t *tree, void **resp, int flags) {
     char *req = NULL;
     size_t req_len = 0, resp_len = 0;
     mpack_writer_t w;
@@ -144,29 +162,33 @@ int mg_cli_call(const char *op, const char *args, size_t args_len,
     mpack_write_object_bytes(&w, args, args_len);
     mpack_finish_map(&w);
     if (mpack_writer_destroy(&w) != mpack_ok) {
-        fprintf(stderr, "request encode failed\n");
+        SAY("request encode failed\n");
         free(req);
         return 1;
     }
-    int rc = mg_cli_exchange(req, req_len, resp, &resp_len);
+    int rc = mg_cli_exchange_opts(req, req_len, resp, &resp_len, flags);
     free(req);
     if (rc != 0) return 1;
 
     mpack_tree_init_data(tree, (const char *)*resp, resp_len);
     mpack_tree_parse(tree);
     if (mpack_tree_error(tree) != mpack_ok) {
-        fprintf(stderr, "response decode error\n");
+        SAY("response decode error\n");
         return 1;
     }
     mpack_node_t root = mpack_tree_root(tree);
     mpack_node_t st = mpack_node_map_cstr_optional(root, "status");
     if (!mpack_node_is_missing(st) && !mpack_node_is_nil(st) && mpack_node_int(st) != 0) {
-        mg_cli_print_value(root, 0);
-        printf("\n");
+        if (!(flags & MG_CLI_QUIET)) {
+            mg_cli_print_value(root, 0);
+            printf("\n");
+        }
         return 3;
     }
     return 0;
 }
+
+#undef SAY
 
 /* Prints a locally built {status:0, result:...} envelope. */
 int mg_cli_print_built(char *buf, size_t len) {

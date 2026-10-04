@@ -23,6 +23,17 @@ int mg_cli_exchange(const char *req, size_t req_len, void **resp, size_t *resp_l
 int mg_cli_call(const char *op, const char *args, size_t args_len,
                 mpack_tree_t *tree, void **resp);
 
+/* Flags for the _opts variants. NO_AUTOSTART fails fast (1) when the
+ * daemon is not running instead of spawning it; QUIET prints nothing, not
+ * even a daemon error envelope (still returned as 3). */
+#define MG_CLI_NO_AUTOSTART 1
+#define MG_CLI_QUIET        2
+
+int mg_cli_exchange_opts(const char *req, size_t req_len, void **resp, size_t *resp_len,
+                         int flags);
+int mg_cli_call_opts(const char *op, const char *args, size_t args_len,
+                     mpack_tree_t *tree, void **resp, int flags);
+
 /* Prints a locally built {status, result} envelope like a daemon reply. */
 int mg_cli_print_built(char *buf, size_t len);
 

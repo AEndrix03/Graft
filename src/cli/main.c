@@ -12,6 +12,8 @@
  *   graft sources    diff|refresh ...   (see sources.c)
  *   graft project    status|mark|reset  (see project.c)
  *   graft maintain   status|scan|apply-safe|resolve|log ...   (see maintain.c)
+ *   graft status     [--root DIR]                  (see status.c)
+ *   graft hook       session-start|prompt          (see hook.c)
  *
  * Connects to the daemon socket (default /tmp/graft.sock, override via
  * env GRAFT_SOCKET), sends a single request frame, prints the parsed
@@ -26,6 +28,8 @@
 #include "sources.h"
 #include "project.h"
 #include "maintain.h"
+#include "status.h"
+#include "hook.h"
 #include "usage_log.h"
 #include "profile.h"
 #include "setup.h"
@@ -107,6 +111,8 @@ static int usage(void) {
         "  graft maintain scan [--limit N] [--root DIR] [--no-sources]\n"
         "  graft maintain resolve [<candidate-id>] --action A [--node ID] [--by ID] [--note T]\n"
         "  graft maintain log [--limit N] [--node ID]\n"
+        "  graft status [--root DIR]\n"
+        "  graft hook session-start|prompt   (Claude Code plugin hooks; JSON on stdin)\n"
         "  graft analytics [--since 7d|24h] [--seconds-per-hit 60]\n"
         "  graft profile <list|current|add|remove|set|import|export> ...\n"
         "  graft setup [claudecode|codex|opencode]   (default: every agent found)\n"
@@ -563,6 +569,10 @@ int main(int argc, char **argv) {
 
     /* `project` reads its state file and the DB itself: no daemon. */
     if (!strcmp(cmd, "project")) return mg_project_cmd(argc, argv);
+
+    /* `status` and `hook` ask a running daemon at most; they never start it. */
+    if (!strcmp(cmd, "status")) return mg_status_cmd(argc, argv);
+    if (!strcmp(cmd, "hook"))   return mg_hook_cmd(argc, argv);
 
     /* ---- build request ---- */
     char  *req     = NULL;
