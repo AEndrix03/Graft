@@ -11,6 +11,10 @@ to `## [x.y.z] - YYYY-MM-DD` and becomes the body of the GitHub Release.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-04
+
+Graft now looks after itself: the agent bootstraps a project's memory, keeps it in sync with the files it came from, and maintains it without asking you. Install from the Claude Code or Codex marketplace, and eight bugs found in review are fixed.
+
 ### Added
 
 - **Zero-touch lifecycle.** After `/graft-init` the agent runs graft on its own: the rule it writes (and the `graft` skill's new *Lifecycle* section) has it bootstrap a project progressively the first time it meets it, recall before substantial work, supersede a note the code contradicts on the spot, save durable knowledge after the work (with `--source file:` when it comes from a file), and do maintenance only when it is due and only a bounded batch, without asking the user in the normal path. The new `graft status [--root DIR]` gives it everything in one cheap JSON (well under a second, never starts the daemon): the project's bootstrap state, `maintain status` when a daemon is running, the changed / removed sources as of the last scan, and a `next` list of housekeeping steps (`bootstrap`, `apply-safe`, `resolve`, `refresh-sources`, `scan`) with priorities. The Claude Code plugin adds two hooks run by the binary itself (`graft hook session-start|prompt`): a one-line housekeeping hint at session start, and the note of a `STRONG` match injected as context on each prompt. Both never start the daemon, stay silent on any failure, and can be turned off with `GRAFT_HOOKS=0` or `GRAFT_HOOK_PROMPT=0` ([#6](https://github.com/AEndrix03/Graft/issues/6)).
@@ -139,6 +143,7 @@ Each adapter ships **skills** (when to search, when to save) and, where the harn
 - Glossary in `docs/concepts.md`, use cases in `docs/use-cases.md`.
 - Contributor guide in `CONTRIBUTING.md` with commit-msg policy (Conventional Commits, English ASCII subject ≤ 70 chars).
 
-[Unreleased]: https://github.com/AEndrix03/Graft/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/AEndrix03/Graft/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/AEndrix03/Graft/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/AEndrix03/Graft/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/AEndrix03/Graft/releases/tag/v0.1.0

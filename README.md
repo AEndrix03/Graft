@@ -184,7 +184,7 @@ Different prompt. Same underlying problem.
 
 ## Project status
 
-> **Alpha — v0.1.x.** The CLI and its JSON output may still change before 1.0.
+> **Alpha — v0.2.x.** The CLI and its JSON output may still change before 1.0.
 
 Working today:
 
