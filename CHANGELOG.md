@@ -33,11 +33,12 @@ to `## [x.y.z] - YYYY-MM-DD` and becomes the body of the GitHub Release.
 - GitHub Release notes now contain only that version's `CHANGELOG.md` section instead of the whole file, and the release workflow refuses to start when the version has no dated changelog entry.
 - `graft setup` installs skills and nothing else. All hook installation, `settings.json` / `hooks.json` / `config.toml` merging and instruction-file writing were removed from the binary (~290 lines, plus the shipped hook scripts). Agent wiring is done by `/graft-init` from inside the agent.
 - `/graft-init` asks one question (global or project) instead of four, and writes the rule to `CLAUDE.md` + `.claude/rules/graft.md` on Claude Code, or `AGENTS.md` elsewhere.
-- The `graft` skill was rewritten around the prompter model: a near hit is useful, a miss is a gap to fill, short search-engine-style queries, `classify` for keywords, verify before trusting a `STRONG`, delete + re-insert for stale nodes, and a one-line end-of-turn recap.
+- The `graft` skill was rewritten around the prompter model: a near hit is useful, a miss is a gap to fill, short search-engine-style queries, `classify` for keywords, verify before trusting a `STRONG`, supersede (`graft maintain resolve`) rather than delete a stale node, and a one-line end-of-turn recap.
 - `scripts/install.sh` / `scripts/install.ps1` are now `scripts/build-from-source.sh` / `scripts/build-from-source.ps1` - they build from source and are for contributors, GPU builds and platforms without a prebuilt archive.
 
 ### Fixed
 
+- On Windows a second daemon connection from the same process failed, and the CLI then auto-started a second `graftd` on the same socket: closing a connection called `WSACleanup` without resetting the "Winsock initialised" flag.
 - Concurrent daemon requests could interleave their SQLite transactions: every worker shares one connection, and `SQLITE_OPEN_FULLMUTEX` serializes single calls, not a `BEGIN IMMEDIATE ... COMMIT` sequence, so parallel inserts, consolidate or sync failed with storage errors or committed another request's half-done work. Every storage call now holds a mutex on the connection for its whole duration. Two identical inserts racing past the content-hash check now both return the same node, the second with `duplicate: true`, instead of failing ([#7](https://github.com/AEndrix03/Graft/issues/7)).
 - `graft profile merge --overwrite` could delete graph relationships that existed only in the target. When the target held the same content under a different node id, the merge's `INSERT OR REPLACE` deleted the target node, and with it every edge and keyword link pointing at it, then re-created the node under the source id. The merge now maps each source node onto the target node with the same content hash (or id), updates its metadata in place, inserts only nodes the target lacks, and imports the source's edges, keyword links and embeddings onto the retained ids ([#11](https://github.com/AEndrix03/Graft/issues/11)).
 - Stopping the daemon while a request was in flight could crash it: client threads were detached and nothing waited for them, so shutdown freed the database, the models and the HTTP server while a request was still using them. The daemon and the HTTP server now count their client threads; shutdown stops accepting, shuts down the client sockets so an idle or half-sent connection cannot hold it up, and waits for the threads still working (up to 30 s per listener, after which it exits without freeing the state they use). SIGINT/SIGTERM no longer close the listening socket from the signal handler, which did not wake `accept()` on Linux ([#8](https://github.com/AEndrix03/Graft/issues/8)).
@@ -55,8 +56,8 @@ to `## [x.y.z] - YYYY-MM-DD` and becomes the body of the GitHub Release.
 
 ### Removed
 
-- The three harness hook scripts (`query_inject.js`, `mark_candidate.js`, `propose_memoryze.js`) and `scripts/install-codex-hooks.*`.
-- The duplicated per-agent skill copies under `integrations/claude-code/skills/`; `integrations/standard/skills/` is the single source.
+- The harness hook scripts (`query_inject.js`, `mark_candidate.js`, `propose_memoryze.js`) are no longer installed by `graft setup`; they stay available as an opt-in in `integrations/optional/hooks/`, and the Claude Code plugin now ships its own prompt and session hooks. `scripts/install-codex-hooks.*` is gone.
+- The duplicated per-agent skill copies under `integrations/claude-code/skills/`; `plugins/graft/skills/` is the single source.
 
 ## [0.1.1] - 2026-09-25
 
