@@ -191,6 +191,10 @@ Working today:
 - one local binary and daemon, memory in a single SQLite file on your machine
 - multilingual: a question in Italian finds a note written in English
 - plugins for Claude Code and Codex, skills for OpenCode, MCP for Claude Desktop and ChatGPT
+- set up once, then hands off: the agent bootstraps each new project, searches,
+  fixes stale notes, saves what it learned and keeps the graph tidy on its own
+- on Claude Code, recall without asking: the plugin looks up every prompt and
+  hands the agent a close note when there is one
 - a graph viewer to browse every memory, and usage stats to see what actually gets reused
 - a reproducible benchmark in [`bench/`](./bench/)
 
@@ -200,8 +204,8 @@ Coming next:
   still got wrong with graft came from a lookup that missed or picked a
   neighbouring note. Wrong notes it simply sets aside, so the work goes into
   recall, not into stricter gates.
-- **Recall without asking.** An optional plugin that looks up memory on every
-  prompt, so it no longer depends on the agent remembering to search.
+- **Recall without asking beyond Claude Code.** The same per-prompt lookup for
+  the other agents, where their hook systems allow it.
 - **Signed Windows binaries** and prebuilt macOS archives.
 
 ---

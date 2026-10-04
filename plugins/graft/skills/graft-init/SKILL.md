@@ -111,39 +111,38 @@ The rule text, verbatim:
 # graft - use the memory graph
 
 You have a persistent memory graph (`graft`) shared across every session. It is a
-prompter, not a cache: it hands you notes that may be close to the problem, and a
-close note is already a win - it shortens the reasoning and tells you what was
-decided before. You are also the one who maintains it.
+prompter, not a cache: a close note is already a win. You run it - the user should
+never have to think about it. The `graft` skill has the full lifecycle; these
+rules always apply.
 
-**Before non-trivial work** - a bug, an error, a design decision, a "how do I",
-anything the user says you have seen before, any substantial piece of code you
-are about to write - search the graph first. Use the `recall` skill
-(`/graft:recall` when graft came from the plugin, `/recall` otherwise), or the
-raw loop: `graft classify --title "<short query>"` to find the vocabulary, then
-`graft query`, then `graft retrieve --top-k 5` or `graft explore --beam 5`, then
-`graft get <id>` on whatever looks relevant.
+**Housekeeping, once per session in a project**: `graft status` (cheap, never
+starts the daemon; a `graft:` session hint, when present, already carries it)
+and act on its `next` list, bounded and never blocking the user's task:
+`bootstrap` - one `/learn bootstrap` pass, task area first, in the background if
+you can; `apply-safe` - run it; `resolve` / `refresh-sources` / `scan` - one
+small batch, the `memory-audit` way. Empty `next` - nothing to do.
 
-**Query it like a search engine**: 3-8 words, nouns and technologies, no
-sentences. Long questions produce false misses.
+**Before non-trivial work** (a bug, an error, a design decision, a "how do I", a
+substantial piece of code) search first: the `recall` skill, or
+`graft query "<3-8 words>"`, then `graft retrieve --top-k 5`, `graft get <id>`.
+`STRONG` means "something close exists", not "this is correct": check it.
 
-**`STRONG` means "something close exists", not "this is correct"**. Read the node
-and check it against the code in front of you before you rely on it.
+**A note contradicted by what you see is repaired now**: insert the corrected
+note, then `graft maintain resolve --node <old> --action supersede --by <new>`
+(`--action stale` if you cannot write the correction). Never leave two
+contradicting notes.
 
-**When a note is contradicted by current reality**, fix the graph:
-`graft get <id>`, `graft delete <id>`, then `graft insert` the corrected note.
-Never leave two contradicting notes about the same thing.
+**After substantial work, close the gap**: insert what the graph did not have -
+the fix, the gotcha, the decision and its reason, a reusable procedure (the
+`memoryze` skill), with `--source file:<path>` when it comes from a file. Never
+save secrets, transcripts, or what the code or git history already says.
 
-**At the end of the work, close the gap.** If what you just figured out was not
-in the graph, insert it - often more than one node: the fix, the gotcha, the
-decision and its reason. A miss today is only a waste if you leave it a miss.
-Use the `memoryze` skill for notes from the conversation, `learn` for bulk
-ingestion from files. Never save secrets, tokens, or anything derivable from the code.
+**Stay invisible.** Never ask the user about graft in the normal path; raise it
+only when it is broken, data loss is suspected, or an irreversible action cannot
+be decided from context. One recap line in a turn where graft gave or took
+something is enough.
 
-**End every turn in which you touched graft with a one-line recap** of how you
-used it - hits, what you took from them, what you added. One line, not a section.
-
-Skip all of this only for mechanical edits (rename, typo, format) and questions
-fully answered by code already on screen.
+Skip all of this for mechanical edits and questions answered by code on screen.
 ```
 
 ## Step 4 - idempotency
@@ -162,8 +161,9 @@ Never duplicate the block, never remove content outside the markers.
 Two lines, no more:
 
 1. `Wired graft into <path>` (one line per file written).
-2. One sentence: search before non-trivial work, insert what was missing at the
-   end, recap in one line per turn.
+2. One sentence: from now on the agent runs graft by itself - bootstrap,
+   search, repair, save and maintenance, bounded and without asking - and
+   nothing else is needed from the user.
 
 Do not paste the rule back to the user.
 

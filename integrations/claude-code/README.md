@@ -1,9 +1,32 @@
 # Claude Code — graft skill suite
 
-Un solo livello di integrazione: **skill**, distribuite come plugin dal
-marketplace di questo repo (oppure copiate da `graft setup`). `/graft-init`
+Due livelli: **skill**, distribuite come plugin dal marketplace di questo repo
+(oppure copiate da `graft setup`), e due **hook del plugin**. `/graft-init`
 installa la CLI se manca e scrive la regola d'uso nel CLAUDE.md e in
-`.claude/rules/graft.md`. Nessun hook, nessuna modifica a `settings.json`.
+`.claude/rules/graft.md`. Nessuna modifica a `settings.json`.
+
+Dopo il setup l'utente non deve piu' pensare a graft: la regola e' un ciclo di
+vita zero-touch. Una volta per sessione l'agente chiama `graft status` (economico,
+non avvia il daemon) e fa la manutenzione che la lista `next` chiede, sempre a
+lotti limitati e senza bloccare il task: bootstrap progressivo dei progetti nuovi
+(`/learn bootstrap`), `apply-safe`, pochi candidati di `graft maintain`. Cerca prima
+del lavoro non banale, ripara subito le note smentite dal codice (`supersede`),
+salva quello che ha imparato, e non chiede nulla all'utente salvo guasti, sospetta
+perdita di dati o azioni irreversibili non decidibili dal contesto.
+
+## Hook del plugin
+
+`plugins/graft/hooks/hooks.json`, attivi solo col plugin installato e abilitato:
+
+| Evento | Comando | Cosa fa |
+| ------ | ------- | ------- |
+| `SessionStart` | `graft hook session-start` | Se c'e' manutenzione da fare nel progetto, inietta una riga `graft:` con i passi di `graft status`. Altrimenti niente. |
+| `UserPromptSubmit` | `graft hook prompt` | `graft query` sul prompt; solo su un hit `STRONG` inietta la nota (id, titolo, inizio del corpo). |
+
+Non avviano mai il daemon, sono silenziosi ed escono 0 su qualunque errore (graft
+assente, daemon spento, binario vecchio), timeout 5 s. Opt-out: `GRAFT_HOOKS=0`
+(entrambi) o `GRAFT_HOOK_PROMPT=0` (solo il lookup per prompt), nell'ambiente o in
+`settings.json` → `env`. `graft setup` (senza plugin) non installa hook.
 
 ## Skill
 
@@ -94,9 +117,9 @@ Per ridurre i prompt di permesso, in `~/.claude/settings.json` (o project-scoped
 
 ## Note di flusso
 
-- **Sempre `/recall` prima di rispondere a un problema non banale.** Le skill lo enfatizzano, ma serve anche disciplina dell'agente.
+- **Le skill manuali restano** (`/recall`, `/memoryze`, `/learn`, `/memory-audit`) per chi vuole guidare a mano o fare debug; nel flusso normale l'agente le usa da solo.
 - **`/memoryze` solo dopo aver risolto qualcosa di non ovvio.** Salvare risposte triviali fa scendere il hit-rate e introduce rumore.
-- **`/memory-audit` periodicamente.** La frequenza giusta dipende dal volume: ogni 100 inserts circa, o all'inizio di una sessione lunga.
+- **La manutenzione parte da sola** quando `graft status` / `graft maintain status` la raccomandano; `/memory-audit` serve per un passaggio completo su richiesta.
 - **Profili distinti per contesti molto diversi** (`work`, `personal`, project-specific) — evita che ricerche lavorative peschino conoscenza personale e viceversa.
 
 ## Note tecniche
