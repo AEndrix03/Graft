@@ -100,6 +100,11 @@ The title is the retrieval anchor: phrase it the way you would *search* for it
 later, not the way you solved it. `insert` is idempotent - the same
 title+body+keywords returns the existing id with `"duplicate": true`.
 
+When a note is derived from a file, add `--source file:<path>` (repeatable): graft
+stores the file's project-relative path and fingerprint. `graft sources diff` then
+lists the notes whose files changed or disappeared, so you can revalidate them
+(fix them as below, or confirm them with `graft sources refresh <hex_id>`).
+
 Use `/memoryze` for 1-5 notes out of the conversation, `/learn` for bulk ingestion
 from files outside it.
 
@@ -159,6 +164,9 @@ Resolution: `$GRAFT_PROFILE`, else `default`. No global state file.
 | Suggested keywords for a title | `graft classify --title "<text>"` |
 | Full node by id | `graft get <hex_id>` |
 | Save a note | `graft insert --title T --body B --keyword K` |
+| Save with provenance | `graft insert ... --source file:<path>` |
+| Notes whose source files changed | `graft sources diff [--changed-only]` |
+| Mark a note revalidated | `graft sources refresh <hex_id>` |
 | Remove a node | `graft delete <hex_id>` |
 | Graph statistics | `graft stats` |
 | Hit-rate / usage report | `graft analytics [--since 7d]` |

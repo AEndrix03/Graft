@@ -9,11 +9,12 @@ That file holds:
 - a **FTS5 mirror** of `(title, body)` for BM25 lexical retrieval,
 - the **keywords** and the `node ↔ keyword` link table,
 - the **edges** (semantic, keyword, supersedes, contradicts) with their weights,
-- a small **`similarity_samples`** table the daemon uses to compute the percentiles you see in `graft stats`.
+- a small **`similarity_samples`** table the daemon uses to compute the percentiles you see in `graft stats`,
+- the **provenance** of each node (`sources` and the `node ↔ source` link table, see below).
 
 Backups: `cp graft.db dest/`. Migration to a new machine: `graft profile export work --path work.graftprofile` and `graft profile import --name work --file work.graftprofile`. The file **is** a regular SQLite DB — you can open it in `sqlite3` and inspect it.
 
-## Schema (current — v3)
+## Schema (current — v4)
 
 ```sql
 CREATE TABLE nodes (
@@ -64,7 +65,30 @@ CREATE TABLE similarity_samples (
   kind    INTEGER NOT NULL,    -- 0 insert_topk, 1 query_top1
   cosine  REAL NOT NULL
 );
+
+-- v4: provenance (issue #4)
+CREATE TABLE sources (
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  project      TEXT NOT NULL DEFAULT '',   -- '' for url / conversation / manual
+  kind         TEXT NOT NULL,              -- file | url | conversation | manual
+  locator      TEXT NOT NULL,              -- root-relative path, url, or tag
+  fingerprint  TEXT,                       -- latest BLAKE3 hex seen through any node
+  observed_at  INTEGER NOT NULL,           -- unix ms of that observation
+  UNIQUE (project, kind, locator)
+);
+
+CREATE TABLE node_sources (
+  node_id      BLOB NOT NULL REFERENCES nodes(id) ON DELETE CASCADE,
+  source_id    INTEGER NOT NULL REFERENCES sources(id) ON DELETE CASCADE,
+  role         TEXT NOT NULL DEFAULT 'primary',  -- primary | supporting
+  fingerprint  TEXT,                     -- version this node derives from / was revalidated against
+  observed_at  INTEGER NOT NULL,
+  PRIMARY KEY (node_id, source_id)
+);
+CREATE INDEX idx_ns_source ON node_sources(source_id);
 ```
+
+One source supports any number of nodes and a node may cite any number of sources. The fingerprint that matters for freshness is the **link's**: two nodes derived from different versions of the same file each remember their own, so `graft sources diff` can tell which of them is stale. The source row keeps the newest observation for reference. `project` is the normalized `origin` remote of the repository (`github.com/Owner/Repo`) or, without one, the absolute project root, so a profile shared across repositories never confuses two `README.md` files (see [CLI → insert](../cli/README.md#insert)). No source content is stored, only its fingerprint.
 
 Plus two virtual tables managed by `sqlite-vec` for the embedding side (`node_vec` storing one 1024-dim row per node, and an internal staging table during top-k).
 
@@ -83,6 +107,7 @@ Schema version is detected at open time, in `src/storage/schema.c`:
 
 - **v2** rename pass — columns `summary` / `detail` were renamed to `title` / `body`, FTS5 / triggers were rebuilt with the new column names, the `author` and `expires_at` columns were added. Idempotent — a fresh DB is a no-op.
 - **v3** added `origin` (local vs. remote-mirrored) and an index on it. Powers profile sync.
+- **v4** added the `sources` / `node_sources` provenance tables. Purely additive (`CREATE TABLE IF NOT EXISTS`, `mg_storage_schema_v4_sql`), so it runs online on every open with no table rebuild; an older DB just gains two empty tables and its nodes stay valid without provenance.
 
 If you see a schema-related error on first open after a pull, it usually means the daemon was running mid-update: stop it (`pkill graftd` or close the CLI shell), and re-run `graft stats`.
 
@@ -143,7 +168,7 @@ The daemon writes one row to `similarity_samples` for each candidate at insert t
 `graft consolidate` runs:
 
 1. `mg_storage_prune_expired` — delete nodes whose `expires_at` is past.
-2. Remove legacy / invalid graph rows: orphan edges, orphan `node_keywords`, duplicate edges that violate the unique index, edges with weights outside `[0, 1]`.
+2. Remove legacy / invalid graph rows: orphan edges, orphan `node_keywords`, duplicate edges that violate the unique index, edges with weights outside `[0, 1]`, and `sources` rows no node links to any more (a node delete already cascades its `node_sources` links).
 3. `ANALYZE` to refresh planner statistics so subsequent queries pick good indexes.
 4. Compute and emit a report: `n_nodes`, `n_edges`, `n_keywords`, `isolated_nodes`, `physical_bidirectional_pairs`, `contradictions_found`.
 

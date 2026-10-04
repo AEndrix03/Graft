@@ -88,8 +88,11 @@ graft classify --title "<the title you drafted>"
 graft insert \
   --title "<final title>" \
   --body  "<final body, Markdown is fine>" \
-  --keyword <kw1> --keyword <kw2> --keyword <kw3>
+  --keyword <kw1> --keyword <kw2> --keyword <kw3> \
+  [--source file:<path>]   # when the node is derived from a file
 ```
+
+When a node is derived from a file (code, docs, config), pass `--source file:<path>` (repeatable, path relative to the cwd or absolute): graft records the file and its fingerprint, and `graft sources diff` later flags the node when that file changes. Use `--source conversation` for knowledge that only exists in the chat. Re-inserting identical content with a new `--source` just attaches it to the existing node.
 
 After all inserts, **report back to the user**:
 - The IDs (`id_hex`) created and which were duplicates of existing nodes.

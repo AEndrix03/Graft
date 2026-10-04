@@ -108,6 +108,7 @@ Mechanics (`mg_storage_merge_from`):
 - A matched target node is never deleted or re-keyed, so its edges and keyword links survive. With `--overwrite` it adopts the source's metadata (author, created_at, expires_at, last_access, access_count, state); a same-id match also takes the source's title / body, keywords and embedding. Without `--overwrite` the target's values stay. The target's id and sync origin are kept either way.
 - The source's keyword links, embeddings and edges are imported onto the resolved target ids, so a source edge to a node the target already holds is attached to the target's node. With `--overwrite` an edge present on both sides takes the source weight.
 - Keyword ids are **remapped by text** (the keyword `text` column is `UNIQUE COLLATE NOCASE`), so the source's auto-increment ids don't leak into the target.
+- **Provenance** follows the same rules: source rows are matched by `(project, kind, locator)`, and each node's source links land on the resolved target id. When both sides hold the same link, the newer observation wins, so a node revalidated on either side keeps its refreshed fingerprint.
 - The whole pass runs in one transaction; either everything goes in or nothing does.
 
 Use cases:
@@ -134,6 +135,8 @@ What `sync` does:
 1. **Pull** the remote: read the remote file, insert rows the local doesn't have (as `origin = REMOTE`), apply delete-wins-remote rules to rows that aren't `LOCAL`.
 2. **Push** the local: copy any rows marked local (origin = LOCAL) into the remote file as a `merge_from`.
 3. Mark all just-pushed local rows as "pushed" so the next pull doesn't treat them as new.
+
+Node provenance (`graft insert --source`) travels with both halves: the pull imports the source links of every node both sides hold, the push copies them for every node the remote holds, and the newer observation wins a conflict. A `graft sources refresh` done on one machine therefore reaches the other on the next sync. Export / import copy the whole database, provenance included.
 
 Since 2026-05, `sync` is routed through the per-profile daemon (`remote_sync` op): the daemon is auto-started if down and uses its already-open storage handle. You no longer need to stop the daemon before running sync.
 

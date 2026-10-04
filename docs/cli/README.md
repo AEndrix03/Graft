@@ -30,6 +30,7 @@ Exit codes:
 - [`classify`](#classify)
 - [`stats`](#stats)
 - [`consolidate`](#consolidate)
+- [`sources`](#sources)     (provenance freshness: `diff`, `refresh`)
 - [`analytics`](#analytics) (CLI-only — never touches the daemon)
 - [`profile`](#profile)   (CLI-only)
 - [`setup`](#setup)       (CLI-only)
@@ -49,10 +50,24 @@ graft insert \
   --keyword spring-boot --keyword validation --keyword gotcha \
   [--author "name@host"] \
   [--expires-at <unix-ms>] \
+  [--source file:src/auth/JwtService.java] \
   [--tag <kw>]   # alias for --keyword
 ```
 
 Idempotent on the content hash (`title + body + sorted keywords`). The first insert returns `duplicate: false`; an identical second insert returns `duplicate: true` and the existing `id_hex`.
+
+`--source` (repeatable, at most 64) records where the memory comes from:
+
+| Locator | Stored as |
+|---|---|
+| `file:<path>` | the path relative to its project root, `/`-separated, plus the project id and the BLAKE3 fingerprint of the file's bytes |
+| `url:<url>` | the URL verbatim |
+| `conversation[:tag]` | learned in a conversation |
+| `manual[:tag]` | written by hand |
+
+A `file:` path is resolved from the working directory by the CLI itself, which also hashes the file; a missing file is an error (exit `2`) before the daemon is contacted. The **project root** is the nearest ancestor holding a `.git` entry (a linked worktree's `.git` file is followed to its repository); without one, the working directory when it contains the file, else the file's own directory. The **project id** keeps one profile shared across many repositories collision-free (`README.md` in two repos are two sources): it is the repository's `origin` remote normalized to `host/path` (scheme, credentials and the trailing `.git` dropped, host lowercased, so the ssh and https clones of a repo agree, e.g. `github.com/AEndrix03/Graft`), or the absolute root path when there is no `origin`.
+
+Inserting identical content again with new `--source` values attaches them to the existing node (`duplicate: true`, plus `sources_attached`), so repeated ingestion runs accumulate provenance instead of failing; re-attaching a file source records its current fingerprint. Nodes inserted without `--source` carry no provenance and are otherwise unaffected. See [`sources`](#sources) for checking freshness later.
 
 Response shape:
 
@@ -163,10 +178,15 @@ author: ...      # skipped if missing
 date: 2026-05-12T13:00:00Z
 expire on: ...   # skipped if 0
 keywords: #spring-boot #validation
+sources:         # skipped if none
+  - file:src/auth/JwtService.java @3f9a1c27b0de (changed)
+  - conversation
 ---
 
 <body>
 ```
+
+The JSON form carries the same provenance as `sources: [{kind, locator, project, fingerprint, role, observed_at}]`. In the Markdown form a file source shows the first 12 hex digits of the fingerprint recorded for this node and, when it belongs to the working directory's project, its state (`unchanged`, `changed`, `removed`); a file source of another project shows that project instead.
 
 Optional rows are omitted when their underlying field is absent. Designed for human consumption; agents continue to use the JSON form.
 
@@ -238,9 +258,60 @@ Safe maintenance pass:
 - prune expired nodes,
 - remove legacy orphan / duplicate / invalid edges,
 - refresh SQLite planner stats (`ANALYZE`),
+- delete source rows no node links to any more (`maintenance.orphan_sources_deleted`; deleting a node already drops its links),
 - report graph-health signals (isolated nodes, bidirectional pairs, contradictions found).
 
 The pass is **non-destructive** for semantic content — it never merges nodes by similarity. Manual content consolidation is on the roadmap; for now you do it via [`/memoryze`](../integrations/) or by editing in the viewer.
+
+---
+
+## sources
+
+```bash
+graft sources diff [--root <dir>] [--changed-only]
+graft sources refresh <hex_id> [--root <dir>]
+```
+
+Provenance freshness for the `file:` sources recorded with [`insert --source`](#insert). Both commands resolve the project of `--root` (default: the working directory) exactly like `insert` does, so they can run from any subdirectory of the repository. The daemon only reads the recorded rows (no embedding); the files are re-hashed by the CLI, and nothing but their BLAKE3 fingerprint is ever computed from them.
+
+`diff` re-hashes every file source recorded for the project and classifies it:
+
+| State | Meaning |
+|---|---|
+| `unchanged` | the file still matches the fingerprint recorded on every node it supports |
+| `changed` | it no longer matches the fingerprint of at least one node |
+| `removed` | the file is gone |
+| `unavailable` | it exists but cannot be read |
+
+```json
+{
+  "status": 0,
+  "result": {
+    "project": "github.com/AEndrix03/Graft",
+    "root": "/home/me/src/graft",
+    "summary": { "sources": 12, "unchanged": 10, "changed": 1, "removed": 1,
+                 "unavailable": 0, "nodes_to_revalidate": 2 },
+    "sources": [
+      { "kind": "file", "locator": "src/auth/JwtService.java", "state": "changed",
+        "fingerprint": "<current blake3 hex>",
+        "nodes": [ { "id_hex": "019e...", "title": "...", "state": "changed",
+                     "recorded_fingerprint": "<blake3 hex>" } ] }
+    ]
+  }
+}
+```
+
+Each node carries its own state, because each link records the version that node was derived from (or last revalidated against). `--changed-only` leaves `unchanged` sources out of the list (the summary still counts them). Superseded nodes are not listed. A changed source never deletes anything: the agent compares the memory with the file and keeps it, supersedes it with a corrected node, or deletes it.
+
+`refresh` is the "keep it" step: after revalidating a node, it re-hashes the node's file sources of this project and stores the new fingerprints (and `observed_at`) on its links, without touching the node's content. A removed file is reported and left as is; a source of another project is reported as `skipped`.
+
+```json
+{ "status": 0, "result": { "id_hex": "019e...", "project": "...", "updated": 1,
+  "sources": [ { "locator": "src/auth/JwtService.java", "state": "changed", "refreshed": true,
+                 "previous_fingerprint": "...", "fingerprint": "..." } ] } }
+```
+
+`state` is what was found before the refresh. Exit codes: `2` for usage errors or a `--root` that is not a directory, `3` when the daemon reports an error (e.g. unknown node id).
 
 ---
 
