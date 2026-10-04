@@ -87,63 +87,6 @@ static const char *file_state(const char *root, str_ref_t locator, str_ref_t rec
     return ref_eq(recorded, current) ? "unchanged" : "changed";
 }
 
-/* Sends {op, args} and parses the reply into *tree (backed by *resp, which
- * the caller frees after mpack_tree_destroy). A daemon error is printed as
- * the usual envelope. Returns 0 ok, 1 transport failure, 3 daemon error. */
-static int call_daemon(const char *op, const char *args, size_t args_len,
-                       mpack_tree_t *tree, void **resp) {
-    char *req = NULL;
-    size_t req_len = 0, resp_len = 0;
-    mpack_writer_t w;
-    mpack_writer_init_growable(&w, &req, &req_len);
-    mpack_start_map(&w, 2);
-    mpack_write_cstr(&w, "op");
-    mpack_write_cstr(&w, op);
-    mpack_write_cstr(&w, "args");
-    mpack_write_object_bytes(&w, args, args_len);
-    mpack_finish_map(&w);
-    if (mpack_writer_destroy(&w) != mpack_ok) {
-        fprintf(stderr, "request encode failed\n");
-        free(req);
-        return 1;
-    }
-    int rc = mg_cli_exchange(req, req_len, resp, &resp_len);
-    free(req);
-    if (rc != 0) return 1;
-
-    mpack_tree_init_data(tree, (const char *)*resp, resp_len);
-    mpack_tree_parse(tree);
-    if (mpack_tree_error(tree) != mpack_ok) {
-        fprintf(stderr, "response decode error\n");
-        return 1;
-    }
-    mpack_node_t root = mpack_tree_root(tree);
-    mpack_node_t st = mpack_node_map_cstr_optional(root, "status");
-    if (!mpack_node_is_missing(st) && !mpack_node_is_nil(st) && mpack_node_int(st) != 0) {
-        mg_cli_print_value(root, 0);
-        printf("\n");
-        return 3;
-    }
-    return 0;
-}
-
-/* Prints a locally built {status:0, result:...} envelope. */
-static int print_built(char *buf, size_t len) {
-    mpack_tree_t tree;
-    int rc = 0;
-    mpack_tree_init_data(&tree, buf, len);
-    mpack_tree_parse(&tree);
-    if (mpack_tree_error(&tree) != mpack_ok) {
-        fprintf(stderr, "output encode error\n");
-        rc = 1;
-    } else {
-        mg_cli_print_value(mpack_tree_root(&tree), 0);
-        printf("\n");
-    }
-    mpack_tree_destroy(&tree);
-    return rc;
-}
-
 static int resolve(const char *sub, const char *dir, char *root, char *project) {
     if (mg_source_resolve_project(dir, root, MG_CLI_PATH, project, MG_CLI_PATH) != 0) {
         fprintf(stderr, "graft sources %s: not a directory: %s\n", sub, dir);
@@ -183,7 +126,7 @@ static int cmd_diff(int argc, char **argv) {
 
     mpack_tree_t tree;
     void *resp = NULL;
-    rc = call_daemon("sources_list", args, args_len, &tree, &resp);
+    rc = mg_cli_call("sources_list", args, args_len, &tree, &resp);
     free(args);
     if (rc != 0) {
         if (resp) { mpack_tree_destroy(&tree); free(resp); }
@@ -194,7 +137,7 @@ static int cmd_diff(int argc, char **argv) {
     char *out = NULL;
     size_t out_len = 0;
     rc = mg_sources_diff_report(result, root, project, changed_only, &out, &out_len);
-    if (rc == 0) rc = print_built(out, out_len);
+    if (rc == 0) rc = mg_cli_print_built(out, out_len);
     free(out);
     mpack_tree_destroy(&tree);
     free(resp);
@@ -314,6 +257,43 @@ int mg_sources_diff_report(mpack_node_t list_result, const char *root, const cha
     return 0;
 }
 
+size_t mg_sources_write_stale_links(mpack_node_t list_result, const char *root,
+                                    mpack_writer_t *w) {
+    mpack_node_t list = mpack_node_map_cstr_optional(list_result, "sources");
+    size_t n = mpack_node_type(list) == mpack_type_array ? mpack_node_array_length(list) : 0;
+    size_t written = 0;
+    mpack_build_array(w);
+    for (size_t i = 0; i < n; i++) {
+        mpack_node_t src = mpack_node_array_at(list, i);
+        mpack_node_t nodes = mpack_node_map_cstr_optional(src, "nodes");
+        size_t nn = mpack_node_type(nodes) == mpack_type_array ? mpack_node_array_length(nodes) : 0;
+        char fp[MG_SOURCE_FP_HEX + 1];
+        str_ref_t none = { NULL, 0 };
+        /* hash once per source, then compare every link's recorded version */
+        const char *s = nn ? file_state(root, field(src, "locator"), none, fp) : "unavailable";
+        if (!strcmp(s, "unavailable")) continue;
+        for (size_t j = 0; j < nn; j++) {
+            mpack_node_t node = mpack_node_array_at(nodes, j);
+            str_ref_t rec = field(node, "fingerprint");
+            const char *ls = !strcmp(s, "removed") ? "removed"
+                           : ref_eq(rec, fp) ? "unchanged" : "changed";
+            if (!strcmp(ls, "unchanged") || !field(node, "id_hex").p) continue;
+            mpack_build_map(w);
+            mpack_write_cstr(w, "id_hex");  write_ref(w, field(node, "id_hex"));
+            mpack_write_cstr(w, "locator"); write_ref(w, field(src, "locator"));
+            mpack_write_cstr(w, "state");   mpack_write_cstr(w, ls);
+            mpack_write_cstr(w, "recorded_fingerprint"); write_ref(w, rec);
+            mpack_write_cstr(w, "fingerprint");
+            if (fp[0]) mpack_write_cstr(w, fp);
+            else       mpack_write_nil(w);
+            mpack_complete_map(w);
+            written++;
+        }
+    }
+    mpack_complete_array(w);
+    return written;
+}
+
 static int cmd_refresh(int argc, char **argv) {
     const char *dir = ".";
     const char *id = NULL;
@@ -342,7 +322,7 @@ static int cmd_refresh(int argc, char **argv) {
 
     mpack_tree_t tree;
     void *resp = NULL;
-    rc = call_daemon("sources_list", args, args_len, &tree, &resp);
+    rc = mg_cli_call("sources_list", args, args_len, &tree, &resp);
     free(args);
     if (rc != 0) {
         if (resp) { mpack_tree_destroy(&tree); free(resp); }
@@ -388,7 +368,7 @@ static int cmd_refresh(int argc, char **argv) {
 
         mpack_tree_t rtree;
         void *rresp = NULL;
-        if (rc == 0) rc = call_daemon("sources_refresh", args, args_len, &rtree, &rresp);
+        if (rc == 0) rc = mg_cli_call("sources_refresh", args, args_len, &rtree, &rresp);
         free(args);
         if (rc == 0) {
             mpack_node_t rr = mpack_node_map_cstr_optional(mpack_tree_root(&rtree), "result");
@@ -439,7 +419,7 @@ static int cmd_refresh(int argc, char **argv) {
     mpack_complete_map(&w);
     mpack_complete_map(&w);
     free(st);
-    rc = mpack_writer_destroy(&w) == mpack_ok ? print_built(out, out_len) : 1;
+    rc = mpack_writer_destroy(&w) == mpack_ok ? mg_cli_print_built(out, out_len) : 1;
     free(out);
     mpack_tree_destroy(&tree);
     free(resp);

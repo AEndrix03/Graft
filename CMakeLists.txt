@@ -104,6 +104,7 @@ file(GLOB GRAFT_SRC CONFIGURE_DEPENDS
   src/verify/*.c
   src/rerank/*.c
   src/stats/*.c
+  src/maintain/*.c
   src/config/*.c
   src/http/*.c
   src/daemon/wire.c
@@ -141,6 +142,7 @@ add_library(graft_cli STATIC
   src/cli/client.c
   src/cli/sources.c
   src/cli/project.c
+  src/cli/maintain.c
   src/cli/usage_log.c
   src/cli/profile.c
   src/cli/setup.c
@@ -236,4 +238,25 @@ if(GRAFT_BUILD_TESTS)
   set_tests_properties(cli_project_mark_run PROPERTIES
     ENVIRONMENT "GRAFT_DB_PATH=${CMAKE_BINARY_DIR}/cli_project_test.db"
     PASS_REGULAR_EXPRESSION "\"bootstrapped\": true")
+  # `graft maintain` validates its arguments before contacting the daemon.
+  add_test(NAME cli_rejects_unknown_maintain_option
+           COMMAND graft maintain scan --bogus)
+  add_test(NAME cli_rejects_maintain_missing_value
+           COMMAND graft maintain resolve abc --action)
+  add_test(NAME cli_rejects_maintain_resolve_without_action
+           COMMAND graft maintain resolve abc --note n)
+  add_test(NAME cli_rejects_maintain_bad_limit
+           COMMAND graft maintain log --limit 0)
+  add_test(NAME cli_rejects_maintain_extra_argument
+           COMMAND graft maintain status now)
+  set_tests_properties(cli_rejects_unknown_maintain_option PROPERTIES
+    PASS_REGULAR_EXPRESSION "unknown option or missing value: '--bogus'")
+  set_tests_properties(cli_rejects_maintain_missing_value PROPERTIES
+    PASS_REGULAR_EXPRESSION "unknown option or missing value: '--action'")
+  set_tests_properties(cli_rejects_maintain_resolve_without_action PROPERTIES
+    PASS_REGULAR_EXPRESSION "--action is required")
+  set_tests_properties(cli_rejects_maintain_bad_limit PROPERTIES
+    PASS_REGULAR_EXPRESSION "--limit expects a positive integer")
+  set_tests_properties(cli_rejects_maintain_extra_argument PROPERTIES
+    PASS_REGULAR_EXPRESSION "unknown option or missing value: 'now'")
 endif()

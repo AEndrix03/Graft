@@ -1,4 +1,5 @@
 #include "graft/storage.h"
+#include "internal.h"
 
 #include <sqlite3.h>
 
@@ -24,6 +25,7 @@ extern const char *mg_storage_schema_sql(void);
 extern const char *mg_storage_migration_v2_sql(void);
 extern const char *mg_storage_migration_v3_sql(void);
 extern const char *mg_storage_schema_v4_sql(void);
+extern const char *mg_storage_schema_v5_sql(void);
 
 /* The daemon runs one thread per connection and every worker shares this
  * handle. SQLITE_OPEN_FULLMUTEX only serializes single API calls: a
@@ -266,6 +268,10 @@ void mg_storage_close(mg_storage_t *s) {
   free(s);
 }
 
+sqlite3 *mg_storage_sqlite(mg_storage_t *s) {
+  return s ? s->db : NULL;
+}
+
 void mg_storage_lock(mg_storage_t *s) {
   if (s) {
     storage_mutex_lock(&s->lock);
@@ -393,6 +399,10 @@ static mg_err_t storage_apply_schema_unlocked(mg_storage_t *s) {
     return err;
   }
   err = exec_sql(s->db, mg_storage_schema_v4_sql());
+  if (err != MG_OK) {
+    return err;
+  }
+  err = exec_sql(s->db, mg_storage_schema_v5_sql());
   if (err != MG_OK) {
     return err;
   }
@@ -612,7 +622,7 @@ static mg_err_t storage_source_links_unlocked(mg_storage_t *s, const char *proje
       "WHERE (?1 IS NULL OR s.project = ?1) "
       "  AND (?2 IS NULL OR s.kind = ?2) "
       "  AND (?3 IS NULL OR ns.node_id = ?3) "
-      "  AND (?3 IS NOT NULL OR n.state != 2) "
+      "  AND (?3 IS NOT NULL OR n.state IN (0,1)) "
       "ORDER BY s.project, s.kind, s.locator, n.id;", &stmt) != MG_OK) {
     return MG_ERR_STORAGE;
   }
@@ -963,17 +973,18 @@ static mg_err_t storage_get_keyword_text_unlocked(mg_storage_t *s, mg_keyword_id
 
 static mg_err_t topk_scan(mg_storage_t *s, const mg_embedding_t query, int k, mg_keyword_id_t kw_id, int use_kw, mg_node_score_t *out, int *out_count) {
   sqlite3_stmt *stmt = NULL;
-  /* Exclude superseded and expired nodes from semantic search. Expiration is
+  /* Only ACTIVE / STALE nodes are searchable: superseded and retired ones
+   * (states 2, 3) and expired ones are excluded. Expiration is
    * stored as Unix milliseconds; strftime('%s') is seconds, so scale it. */
   const char *sql_all = "SELECT v.id,v.embedding FROM node_vec v "
                         "JOIN nodes n ON n.id=v.id "
-                        "WHERE n.state != 2 "
+                        "WHERE n.state IN (0,1) "
                         "AND (n.expires_at IS NULL OR n.expires_at = 0 "
                         "OR n.expires_at > (CAST(strftime('%s','now') AS INTEGER) * 1000));";
   const char *sql_kw  = "SELECT v.id,v.embedding FROM node_vec v "
                         "JOIN node_keywords nk ON nk.node_id=v.id "
                         "JOIN nodes n ON n.id=v.id "
-                        "WHERE nk.keyword_id=? AND n.state != 2 "
+                        "WHERE nk.keyword_id=? AND n.state IN (0,1) "
                         "AND (n.expires_at IS NULL OR n.expires_at = 0 "
                         "OR n.expires_at > (CAST(strftime('%s','now') AS INTEGER) * 1000));";
   int rc;
@@ -1116,7 +1127,7 @@ static mg_err_t storage_fts_search_unlocked(mg_storage_t *s, const char *query_t
   snprintf(sql, sizeof(sql),
            "SELECT nodes.id, -%s FROM node_fts "
            "JOIN nodes ON nodes.rowid=node_fts.rowid "
-           "WHERE node_fts MATCH ? AND nodes.state != 2 "
+           "WHERE node_fts MATCH ? AND nodes.state IN (0,1) "
            "AND (nodes.expires_at IS NULL OR nodes.expires_at = 0 "
            "OR nodes.expires_at > (CAST(strftime('%%s','now') AS INTEGER) * 1000)) "
            "ORDER BY %s LIMIT ?;",
@@ -1150,14 +1161,14 @@ static mg_err_t storage_neighbors_unlocked(mg_storage_t *s, const mg_node_id_t s
       "  SELECT e.src,e.dst,e.kind,e.keyword_id,e.weight FROM edges e "
       "  JOIN nodes dst ON dst.id=e.dst "
       "  WHERE e.src=? AND (?=-1 OR e.kind=?) "
-      "    AND dst.state != 2 "
+      "    AND dst.state IN (0,1) "
       "    AND (dst.expires_at IS NULL OR dst.expires_at = 0 "
       "         OR dst.expires_at > (CAST(strftime('%s','now') AS INTEGER) * 1000)) "
       "  UNION ALL "
       "  SELECT e.dst AS src,e.src AS dst,e.kind,e.keyword_id,e.weight FROM edges e "
       "  JOIN nodes dst ON dst.id=e.src "
       "  WHERE e.dst=? AND e.kind IN (0,1) AND (?=-1 OR e.kind=?)"
-      "    AND dst.state != 2 "
+      "    AND dst.state IN (0,1) "
       "    AND (dst.expires_at IS NULL OR dst.expires_at = 0 "
       "         OR dst.expires_at > (CAST(strftime('%s','now') AS INTEGER) * 1000)) "
       ") ORDER BY weight DESC;",
@@ -1420,7 +1431,7 @@ static mg_err_t storage_consolidate_unlocked(mg_storage_t *s, mg_storage_consoli
 
   (void)scalar_i64(s,
     "SELECT COUNT(*) FROM nodes n "
-    "WHERE n.state != 2 "
+    "WHERE n.state IN (0,1) "
     "  AND NOT EXISTS (SELECT 1 FROM edges e WHERE e.src = n.id OR e.dst = n.id) "
     "  AND NOT EXISTS (SELECT 1 FROM node_keywords nk WHERE nk.node_id = n.id);",
     &out->isolated_nodes);

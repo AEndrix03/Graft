@@ -280,7 +280,8 @@ const expiryStr = computed(() => isoUtc(meta.value.expires_at));
   color: var(--accent);
   border: 1px solid var(--accent);
 }
-.state-pill.superseded {
+.state-pill.superseded,
+.state-pill.retired {
   background: rgba(91,100,120,0.15);
   border-color: var(--node-superseded);
   color: var(--node-superseded);

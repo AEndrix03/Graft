@@ -32,6 +32,7 @@ Exit codes:
 - [`consolidate`](#consolidate)
 - [`sources`](#sources)     (provenance freshness: `diff`, `refresh`)
 - [`project`](#project)     (bootstrap coverage state: `status`, `mark`, `reset`; CLI-only)
+- [`maintain`](#maintain)   (autonomous maintenance: `status`, `scan`, `resolve`, `apply-safe`, `log`)
 - [`analytics`](#analytics) (CLI-only — never touches the daemon)
 - [`profile`](#profile)   (CLI-only)
 - [`setup`](#setup)       (CLI-only)
@@ -187,7 +188,7 @@ sources:         # skipped if none
 <body>
 ```
 
-The JSON form carries the same provenance as `sources: [{kind, locator, project, fingerprint, role, observed_at}]`. In the Markdown form a file source shows the first 12 hex digits of the fingerprint recorded for this node and, when it belongs to the working directory's project, its state (`unchanged`, `changed`, `removed`); a file source of another project shows that project instead.
+The JSON form carries the same provenance as `sources: [{kind, locator, project, fingerprint, role, observed_at}]`, and the node's lifecycle `state` (`active`, `stale`, `superseded`, `retired`): `get` still answers for a retired node, which no search returns. In the Markdown form a file source shows the first 12 hex digits of the fingerprint recorded for this node and, when it belongs to the working directory's project, its state (`unchanged`, `changed`, `removed`); a file source of another project shows that project instead.
 
 Optional rows are omitted when their underlying field is absent. Designed for human consumption; agents continue to use the JSON form.
 
@@ -262,7 +263,7 @@ Safe maintenance pass:
 - delete source rows no node links to any more (`maintenance.orphan_sources_deleted`; deleting a node already drops its links),
 - report graph-health signals (isolated nodes, bidirectional pairs, contradictions found).
 
-The pass is **non-destructive** for semantic content — it never merges nodes by similarity. Manual content consolidation is on the roadmap; for now you do it via [`/memoryze`](../integrations/) or by editing in the viewer.
+The pass is **non-destructive** for semantic content — it never merges nodes by similarity. Semantic cleanup goes through [`maintain`](#maintain): Graft reports candidates, the agent decides, one narrow action applies the decision. `maintain apply-safe` runs this same pass.
 
 ---
 
@@ -363,6 +364,116 @@ The bootstrap coverage state of a project in the active profile: what [`/learn b
 `reset` deletes the project's state (`{project, state_file, removed}`); provenance and nodes are untouched.
 
 The state lives next to the DB it describes, in `<db dir>/projects/<hash of the project id>.tsv` (one per profile, or per `GRAFT_DB_PATH`): a small line-oriented file written atomically, not meant to be edited by hand. Exit codes: `2` for usage errors or a `--root` that is not a directory, `1` when the state file cannot be read or written.
+
+---
+
+## maintain
+
+```bash
+graft maintain status
+graft maintain scan [--limit N] [--root <dir>] [--no-sources]
+graft maintain resolve [<candidate-id>] --action <action> [--node <id>] [--by <id>] [--note <text>] [--actor <name>]
+graft maintain apply-safe
+graft maintain log [--limit N] [--node <id>]
+```
+
+The maintenance protocol: Graft does the mechanical part itself (`apply-safe`) and reports what needs judgment as **candidates** (`scan`); the integrated agent checks each candidate against the current code / docs and applies its decision with one narrow, audited, reversible action (`resolve`). The protocol is described in [`maintenance/`](../maintenance/#autonomous-maintenance-graft-maintain).
+
+### status
+
+Cheap (indexed counts and the candidate cache, no embedding): what an agent checks before deciding whether maintenance is due.
+
+```json
+{ "last_apply_safe_at": 1791148203000, "last_scan_at": 1791148203000,
+  "inserts_since_apply_safe": 12, "inserts_since_scan": 3,
+  "pending": { "total": 2, "by_kind": { "contradiction": 0, "source_removed": 0, "source_changed": 1,
+               "possible_supersession": 0, "near_duplicate": 1,
+               "keyword_fragmentation": 0, "isolated_low_value": 0 } },
+  "nodes": { "active": 120, "stale": 3, "superseded": 9, "retired": 1, "retired_due": 0 },
+  "retention_days": 30, "trigger_inserts": 50,
+  "recommended": [ "resolve" ] }
+```
+
+`recommended` lists what is due: `apply-safe` (never run, `trigger_inserts` inserts since the last run, or retired nodes past retention), `scan` (never run on a graph with more than one active node, or `trigger_inserts` inserts since the last scan) and `resolve` (pending candidates). Empty means nothing to do.
+
+### scan
+
+Emits candidates, most urgent first, **without changing any node, edge or source**; it only replaces the candidate cache that `status` counts and `resolve` reads. Like `sources diff`, it re-hashes on the CLI side the `file:` sources recorded for the project of `--root` (default: the working directory); `--no-sources` skips that (no provenance candidates). Nodes without file sources are simply not provenance candidates.
+
+```json
+{ "summary": { "pending": 2, "by_kind": { "...": 0 }, "dismissed": 1, "truncated": false,
+               "scanned_nodes": 120, "sources_checked": true },
+  "candidates": [
+    { "id": "14c40c58e7bab133", "kind": "possible_supersession", "score": 0.9923,
+      "nodes": [ { "id_hex": "019a...", "title": "Auth uses sessions", "state": "active",
+                   "created_at": 1791140000000, "access_count": 4 },
+                 { "id_hex": "019b...", "title": "Auth uses JWT", "state": "active",
+                   "created_at": 1791148203000, "access_count": 0 } ],
+      "signals": { "semantic_similarity": 0.9923, "shared_keywords": [ "auth" ],
+                   "newer": "b", "age_gap_hours": 2, "source_changed": false },
+      "suggested_actions": [ "supersede_a", "supersede_b", "keep_both", "merge" ] } ] }
+```
+
+| Kind (priority order) | Found when | Signals | Suggested actions |
+|---|---|---|---|
+| `contradiction` | a `CONTRADICTS` edge joins two active nodes | `edge_weight`, `shared_keywords` | `supersede_a`, `supersede_b`, `stale`, `keep_both` |
+| `source_removed` | a file source of an active node is gone | `project`, `sources[]` | `retire`, `stale`, `supersede`, `keep` |
+| `source_changed` | a file source of an active node no longer matches the fingerprint recorded on its link | `project`, `sources[]` with recorded and current fingerprint | `refresh`, `stale`, `supersede`, `retire` |
+| `possible_supersession` | a near-duplicate pair sharing a keyword, created at least an hour apart | as `near_duplicate` | `supersede_a`, `supersede_b`, `keep_both`, `merge` |
+| `near_duplicate` | two active nodes with cosine >= `maintenance.near_duplicate_min` | `semantic_similarity`, `shared_keywords`, `newer`, `age_gap_hours`, `source_changed` | `merge`, `supersede_a`, `supersede_b`, `keep_both` |
+| `keyword_fragmentation` | a keyword carried by one active node while a spelling variant (case, `-` / `_`, plural) is in use | `keyword`, `similar_keyword`, uses of both | `keep`, `supersede` |
+| `isolated_low_value` | an active node with no edge, never read, older than `maintenance.isolated_min_age_days` | `age_days` | `keep`, `retire`, `stale` |
+
+Pair candidates list the **older node first** (`a`), so `supersede_a` ("a is replaced by b") is the usual outcome of a supersession. Candidate ids are deterministic (kind + node ids): the same finding keeps its id across scans. The work is bounded: near-duplicates compare the newest `maintenance.scan_max_nodes` active nodes pairwise and keep at most `maintenance.scan_neighbors` partners per node; at most `maintenance.scan_cap` candidates are kept and `--limit` (default 20) of them returned.
+
+### resolve
+
+Applies one decision, in one transaction with its audit row. A candidate id targets its nodes; `--node` acts on any node directly (next to a candidate id it must be one of the candidate's nodes).
+
+| Action | Effect |
+|---|---|
+| `keep`, `keep_both` | dismiss the candidate: it stays hidden until its evidence changes (node content, current source fingerprint) |
+| `stale` | `ACTIVE -> STALE`: still searchable, flagged as doubtful |
+| `retire` | soft delete: hidden from `query` / `retrieve` / `explore`, restorable, physically deleted by `apply-safe` after `maintenance.retention_days` |
+| `restore` | `STALE` / `SUPERSEDED` / `RETIRED -> ACTIVE`, dropping the `SUPERSEDES` edges that point at the node |
+| `supersede --by <id>` | `SUPERSEDED` by `<id>`, with a `SUPERSEDES` edge. On a pair candidate, `--by` one of the two supersedes the other |
+| `supersede_a`, `supersede_b` | pair candidates: `a` superseded by `b`, or `b` by `a` |
+| `merge --by <id>` | after inserting the merged note `<id>`: every candidate node is superseded by it |
+| `refresh` | `source_changed` only: store the fingerprints the scan observed on the node's links (the memory was revalidated) |
+
+Without `--node`, `stale` / `retire` / `restore` / `supersede` need a single-node candidate. The result lists the touched nodes with their new state. Saving again the exact content of a retired node (`insert` deduplicates on content) restores it.
+
+### apply-safe
+
+The mechanical pass, safe to run any time:
+
+1. purge retired nodes whose retention window has elapsed (one `purge` audit row each);
+2. collapse exact duplicates: active / stale nodes with byte-identical title and body (they differ only in keywords). The oldest is kept, the others are superseded by it and their provenance links copied to it; `restore` undoes it;
+3. the [`consolidate`](#consolidate) pass (expired nodes, orphan / duplicate / invalid rows, orphan sources, `ANALYZE`);
+4. drop cached candidates whose nodes are no longer active;
+5. record the run (`last_apply_safe_at`; `inserts_since_apply_safe` starts again from 0).
+
+```json
+{ "previous_apply_safe_at": 0, "last_apply_safe_at": 1791148203000, "inserts_since_last": 2,
+  "retention_days": 30, "purged_retired": 0, "collapsed_duplicates": 0, "candidates_dropped": 0,
+  "consolidate": { "expired_deleted": 0, "duplicate_edges_deleted": 0, "orphan_edges_deleted": 0,
+                   "orphan_node_keywords_deleted": 0, "invalid_edges_deleted": 0,
+                   "orphan_sources_deleted": 0, "sqlite_analyzed": true },
+  "graph": { "n_nodes": 2, "n_edges": 2, "n_keywords": 1 } }
+```
+
+### log
+
+The audit trail, newest first: every resolution, purge, collapse and apply-safe run. `--node` keeps the rows naming that node; `--limit` defaults to 50.
+
+```json
+{ "entries": [ { "id": 1, "ts": 1791148203000, "actor": "agent", "action": "keep",
+                 "candidate_id": "14c40c58e7bab133", "kind": "near_duplicate",
+                 "nodes": [ "019a...", "019b..." ],
+                 "detail": "dismissed until the evidence changes", "note": "both are fine" } ] }
+```
+
+`actor` is `--actor`, else `GRAFT_AUTHOR`, else `agent`. Exit codes: `2` for usage errors or a `--root` that is not a directory, `3` when the daemon refuses (unknown candidate, a transition the node's state does not allow, a missing `--by`).
 
 ---
 
@@ -482,7 +593,7 @@ Read by the CLI:
 | `GRAFT_PROFILE` | `default` | Active profile (the CLI computes socket / DB paths from it). |
 | `GRAFT_HOME`    | `~/.graft` | Where profiles, sockets, usage log live. |
 | `GRAFT_CONFIG`  | _(auto-discovered)_ | Override the path to `config.yaml`. |
-| `GRAFT_AUTHOR`  | `<user>@<host>` | Default author on `insert`. Empty string opts out. |
+| `GRAFT_AUTHOR`  | `<user>@<host>` | Default author on `insert` (empty string opts out), and the audit `actor` of `maintain resolve` (default `agent`). |
 | `GRAFT_USAGE_LOG` | `$GRAFT_HOME/usage.jsonl` | Override the usage log path. |
 
 The full list lives in [`configuration/`](../configuration/).

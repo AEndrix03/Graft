@@ -10,11 +10,12 @@ That file holds:
 - the **keywords** and the `node ↔ keyword` link table,
 - the **edges** (semantic, keyword, supersedes, contradicts) with their weights,
 - a small **`similarity_samples`** table the daemon uses to compute the percentiles you see in `graft stats`,
-- the **provenance** of each node (`sources` and the `node ↔ source` link table, see below).
+- the **provenance** of each node (`sources` and the `node ↔ source` link table, see below),
+- the **maintenance** bookkeeping: candidate cache, dismissals, retirements, audit log and counters (see [maintenance](../maintenance/#autonomous-maintenance-graft-maintain)).
 
 Backups: `cp graft.db dest/`. Migration to a new machine: `graft profile export work --path work.graftprofile` and `graft profile import --name work --file work.graftprofile`. The file **is** a regular SQLite DB — you can open it in `sqlite3` and inspect it.
 
-## Schema (current — v4)
+## Schema (current — v5)
 
 ```sql
 CREATE TABLE nodes (
@@ -27,7 +28,7 @@ CREATE TABLE nodes (
   expires_at    INTEGER NOT NULL DEFAULT 0,   -- unix ms; 0 = no expiration
   last_access   INTEGER NOT NULL,
   access_count  INTEGER NOT NULL DEFAULT 0,
-  state         INTEGER NOT NULL DEFAULT 0,   -- 0 active, 1 stale, 2 superseded
+  state         INTEGER NOT NULL DEFAULT 0,   -- 0 active, 1 stale, 2 superseded, 3 retired
   origin        INTEGER NOT NULL DEFAULT 0    -- 0 local, 1 remote (profile sync)
 );
 
@@ -86,6 +87,52 @@ CREATE TABLE node_sources (
   PRIMARY KEY (node_id, source_id)
 );
 CREATE INDEX idx_ns_source ON node_sources(source_id);
+
+-- v5: maintenance (issue #5)
+CREATE INDEX idx_nodes_created ON nodes(created_at);   -- "inserts since" as a range count
+
+CREATE TABLE maintenance_meta (          -- last_apply_safe_at, last_scan_at (unix ms)
+  key    TEXT PRIMARY KEY,
+  value  INTEGER NOT NULL
+);
+
+CREATE TABLE maintenance_retired (       -- one row per RETIRED node
+  node_id     BLOB PRIMARY KEY REFERENCES nodes(id) ON DELETE CASCADE,
+  retired_at  INTEGER NOT NULL,          -- start of the retention window
+  prev_state  INTEGER NOT NULL
+);
+
+CREATE TABLE maintenance_candidates (    -- the last scan's pending candidates
+  id          TEXT PRIMARY KEY,          -- deterministic: kind + node ids
+  kind        TEXT NOT NULL,
+  priority    INTEGER NOT NULL,
+  score       REAL NOT NULL,
+  nodes       TEXT NOT NULL,             -- comma-separated hex ids
+  evidence    TEXT NOT NULL,             -- digest of what the candidate rests on
+  payload     BLOB NOT NULL,             -- the emitted candidate map (MessagePack)
+  created_at  INTEGER NOT NULL
+);
+
+CREATE TABLE maintenance_dismissals (    -- `keep` decisions
+  candidate_id  TEXT PRIMARY KEY,
+  kind          TEXT NOT NULL,
+  evidence      TEXT NOT NULL,           -- the candidate returns when this changes
+  dismissed_at  INTEGER NOT NULL,
+  note          TEXT
+);
+
+CREATE TABLE maintenance_log (           -- audit trail, never pruned
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  ts            INTEGER NOT NULL,
+  actor         TEXT NOT NULL,
+  action        TEXT NOT NULL,           -- keep, stale, retire, restore, supersede*, merge,
+                                         -- refresh, purge, collapse_duplicate, apply_safe
+  candidate_id  TEXT,
+  kind          TEXT,
+  nodes         TEXT NOT NULL DEFAULT '',
+  detail        TEXT,
+  note          TEXT
+);
 ```
 
 One source supports any number of nodes and a node may cite any number of sources. The fingerprint that matters for freshness is the **link's**: two nodes derived from different versions of the same file each remember their own, so `graft sources diff` can tell which of them is stale. The source row keeps the newest observation for reference. `project` is the normalized `origin` remote of the repository (`github.com/Owner/Repo`) or, without one, the absolute project root, so a profile shared across repositories never confuses two `README.md` files (see [CLI → insert](../cli/README.md#insert)). No source content is stored, only its fingerprint.
@@ -108,6 +155,7 @@ Schema version is detected at open time, in `src/storage/schema.c`:
 - **v2** rename pass — columns `summary` / `detail` were renamed to `title` / `body`, FTS5 / triggers were rebuilt with the new column names, the `author` and `expires_at` columns were added. Idempotent — a fresh DB is a no-op.
 - **v3** added `origin` (local vs. remote-mirrored) and an index on it. Powers profile sync.
 - **v4** added the `sources` / `node_sources` provenance tables. Purely additive (`CREATE TABLE IF NOT EXISTS`, `mg_storage_schema_v4_sql`), so it runs online on every open with no table rebuild; an older DB just gains two empty tables and its nodes stay valid without provenance.
+- **v5** added the maintenance tables and `idx_nodes_created` (`mg_storage_schema_v5_sql`), additive the same way. State `3` (retired) is new; an older binary treats a retired node like any non-superseded one, so downgrading after retiring nodes makes them searchable again.
 
 If you see a schema-related error on first open after a pull, it usually means the daemon was running mid-update: stop it (`pkill graftd` or close the CLI shell), and re-run `graft stats`.
 
@@ -130,7 +178,7 @@ When you call `insert` with a `supersedes` field, the following **all happens in
 
 After that:
 
-- `query`, `retrieve`, and `explore` filter `state != ACTIVE` out of candidate selection.
+- `query`, `retrieve`, and `explore` only consider `ACTIVE` and `STALE` nodes: superseded and retired ones are out of candidate selection and graph traversal.
 - `get <old_id>` still returns the old node — history is preserved.
 - The viewer renders superseded nodes in muted gray.
 - A red `SUPERSEDES` edge in the viewer makes the chain visible.
@@ -172,7 +220,7 @@ The daemon writes one row to `similarity_samples` for each candidate at insert t
 3. `ANALYZE` to refresh planner statistics so subsequent queries pick good indexes.
 4. Compute and emit a report: `n_nodes`, `n_edges`, `n_keywords`, `isolated_nodes`, `physical_bidirectional_pairs`, `contradictions_found`.
 
-The pass is **non-destructive** for semantic content — it never silently merges two nodes by similarity. Manual content consolidation is a future feature; today you do it explicitly through the viewer or through `/memoryze` from your agent.
+The pass is **non-destructive** for semantic content — it never silently merges two nodes by similarity. Semantic consolidation goes through `graft maintain` (candidates the agent resolves); `graft maintain apply-safe` runs this pass after purging retired nodes past retention and collapsing exact duplicates.
 
 ## What the daemon does at startup
 
@@ -180,7 +228,7 @@ The pass is **non-destructive** for semantic content — it never silently merge
 
 1. `sqlite3_open(db_path)` with the appropriate flags (`OPEN_READWRITE | OPEN_CREATE`).
 2. `sqlite3_enable_load_extension`, then load `sqlite-vec` (it's statically linked, registered via its init function).
-3. Run the schema migration block: detect the schema version, apply v2 / v3 if needed.
+3. Run the schema migration block: detect the schema version, apply v2 / v3 if needed (v4 / v5 are additive and always run).
 4. Run `mg_storage_apply_schema` to create any missing tables / indexes / triggers (idempotent).
 5. Prepare the cached statements used on the hot path (top-k, FTS5, edge inserts).
 

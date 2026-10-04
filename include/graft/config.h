@@ -60,6 +60,15 @@ typedef struct {
   float explore_decay_gamma;
   float explore_alpha;          /* peso semantic vs edge */
 
+  /* maintenance (graft maintain, issue #5) */
+  float maint_near_duplicate_min;     /* cosine at which two ACTIVE nodes are a near-duplicate candidate */
+  int   maint_scan_max_nodes;         /* newest ACTIVE nodes compared pairwise per scan */
+  int   maint_scan_neighbors;         /* near-duplicates kept per node */
+  int   maint_scan_cap;               /* candidates kept per scan (pending backlog bound) */
+  int   maint_isolated_min_age_days;  /* isolated, never-accessed nodes older than this are candidates */
+  int   maint_retention_days;         /* retired nodes are purged by apply-safe after this */
+  int   maint_trigger_inserts;        /* status recommends apply-safe / scan after this many inserts */
+
   /* http (REST + viewer; off by default) */
   bool   http_enabled;
   char  *http_bind;             /* default "127.0.0.1" — local-first */

@@ -16,7 +16,7 @@ Sei skill collaborano:
 | `recall`           | `/recall …`, "do we have X?", "ricordi se..."     | Cerca con strategia smart: query → retrieve → explore in cascata.        |
 | `memoryze`         | `/memoryze …`, "save this", "ricorda questo"      | Distilla la conversazione in 1-5 nodi ben formati e li inserisce.        |
 | `learn`            | `/learn …`, `/learn docs`, "ingest this folder"   | Batch-ingestion da fonti esterne (codebase, docs): plan + conferma + ingest. `/learn docs` ingerisce tutta la documentazione del repo, incrementale ai re-run. |
-| `memory-audit`     | `/memory-audit`, "is the graph healthy"           | Health check read-only: hit rate, hoarding, champions, duplicati.        |
+| `memory-audit`     | `/memory-audit`, "is the graph healthy"           | Manutenzione + health check: `graft maintain` (apply-safe, scan, resolve dei candidati), hit rate, hoarding, champions. |
 
 ## Installazione
 

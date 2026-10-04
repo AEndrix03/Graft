@@ -16,4 +16,14 @@ void mg_cli_print_value(mpack_node_t n, int indent);
  * failure on stderr. */
 int mg_cli_exchange(const char *req, size_t req_len, void **resp, size_t *resp_len);
 
+/* Sends {op, args} (args: one encoded mpack map) and parses the reply into
+ * *tree, backed by *resp (free() it after mpack_tree_destroy). A daemon
+ * error is printed as the usual envelope. Returns 0 ok, 1 transport
+ * failure, 3 daemon error. */
+int mg_cli_call(const char *op, const char *args, size_t args_len,
+                mpack_tree_t *tree, void **resp);
+
+/* Prints a locally built {status, result} envelope like a daemon reply. */
+int mg_cli_print_built(char *buf, size_t len);
+
 #endif

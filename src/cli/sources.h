@@ -23,4 +23,12 @@ const char *mg_sources_file_state(const char *project, const char *locator,
 int mg_sources_diff_report(mpack_node_t list_result, const char *root, const char *project,
                            int changed_only, char **out, size_t *out_len);
 
+/* The file links of a sources_list result that no longer match the files
+ * under root, written as one mpack array value for maintain_scan:
+ *   [ { id_hex, locator, state: "changed"|"removed",
+ *       recorded_fingerprint|nil, fingerprint|nil }, ... ]
+ * Unreadable files are left out. Returns the number of links written. */
+size_t mg_sources_write_stale_links(mpack_node_t list_result, const char *root,
+                                    mpack_writer_t *w);
+
 #endif

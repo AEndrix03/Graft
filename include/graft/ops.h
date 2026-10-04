@@ -32,6 +32,12 @@ mg_err_t mg_op_view(mg_ctx_t *ctx, mpack_node_t args, mpack_writer_t *result);
 mg_err_t mg_op_remote_sync(mg_ctx_t *ctx, mpack_node_t args, mpack_writer_t *result);
 mg_err_t mg_op_sources_list(mg_ctx_t *ctx, mpack_node_t args, mpack_writer_t *result);
 mg_err_t mg_op_sources_refresh(mg_ctx_t *ctx, mpack_node_t args, mpack_writer_t *result);
+/* Maintenance (issue #5, src/maintain/maintain.c). */
+mg_err_t mg_op_maintain_scan(mg_ctx_t *ctx, mpack_node_t args, mpack_writer_t *result);
+mg_err_t mg_op_maintain_apply_safe(mg_ctx_t *ctx, mpack_node_t args, mpack_writer_t *result);
+mg_err_t mg_op_maintain_resolve(mg_ctx_t *ctx, mpack_node_t args, mpack_writer_t *result);
+mg_err_t mg_op_maintain_log(mg_ctx_t *ctx, mpack_node_t args, mpack_writer_t *result);
+mg_err_t mg_op_maintain_status(mg_ctx_t *ctx, mpack_node_t args, mpack_writer_t *result);
 
 /* Parses the optional "sources" array of an insert request into storage
  * records stamped with observed_at. Each element is either a map
