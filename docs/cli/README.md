@@ -31,6 +31,7 @@ Exit codes:
 - [`stats`](#stats)
 - [`consolidate`](#consolidate)
 - [`sources`](#sources)     (provenance freshness: `diff`, `refresh`)
+- [`project`](#project)     (bootstrap coverage state: `status`, `mark`, `reset`; CLI-only)
 - [`analytics`](#analytics) (CLI-only — never touches the daemon)
 - [`profile`](#profile)   (CLI-only)
 - [`setup`](#setup)       (CLI-only)
@@ -312,6 +313,56 @@ Each node carries its own state, because each link records the version that node
 ```
 
 `state` is what was found before the refresh. Exit codes: `2` for usage errors or a `--root` that is not a directory, `3` when the daemon reports an error (e.g. unknown node id).
+
+---
+
+## project
+
+```bash
+graft project status [--root <dir>]
+graft project mark   [--root <dir>] [--topic <name>]... [--state covered|pending|skipped|drop]
+                     [--priority high|normal|low] [--note <text>] [--run]
+graft project reset  [--root <dir>]
+```
+
+The bootstrap coverage state of a project in the active profile: what [`/learn bootstrap`](../integrations/README.md) has covered and what is left, so a later run (or `/graft-init` at session start) knows without rescanning the repository. CLI-only: it never starts or calls the daemon, never loads the model. The project is resolved from `--root` (default: the working directory) exactly like [`insert --source`](#insert) does.
+
+`status` reports:
+
+```json
+{
+  "status": 0,
+  "result": {
+    "project": "github.com/AEndrix03/Graft",
+    "root": "/home/me/src/graft",
+    "profile": "default",
+    "state_file": "/home/me/.graft/profiles/default/projects/c2c197f1c59356277884ff481217e62d.tsv",
+    "bootstrapped": true,
+    "runs": 2,
+    "last_run_at": 1791147390000,
+    "provenance": { "files": 31, "nodes": 44 },
+    "topics": { "covered": 7, "pending": 3, "skipped": 1 },
+    "pending": [
+      { "topic": "http-viewer", "priority": "normal", "note": "src/http/, viewer/", "updated_at": 1791147390000 }
+    ],
+    "covered": [ "overview", "storage", "..." ],
+    "skipped": [ "vendored-deps" ]
+  }
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `bootstrapped` | at least one bootstrap run was marked (`mark --run`); it does not mean every topic is covered |
+| `last_run_at` | unix ms of the last marked run, `null` if none |
+| `provenance` | file sources of this project backing at least one live node, and those nodes, read from the profile DB (read-only; safe beside a running daemon). `{files: 0, nodes: 0}` when the DB does not exist yet; `null` plus a `provenance_error` when it cannot be read, e.g. a DB not yet opened by a graft with provenance |
+| `pending` | pending topics, high priority first, then in the order they were recorded |
+
+`mark` upserts topics (`--topic` is repeatable; every topic named gets the same `--state`, `--priority` and `--note`; an omitted priority or note keeps the stored one, `--state drop` removes the topic) and, with `--run`, records a completed bootstrap run (`runs + 1`, `last_run_at = now`). It prints the same report as `status`. Tabs and newlines in names and notes become spaces; names are capped at 200 bytes, notes at 500.
+
+`reset` deletes the project's state (`{project, state_file, removed}`); provenance and nodes are untouched.
+
+The state lives next to the DB it describes, in `<db dir>/projects/<hash of the project id>.tsv` (one per profile, or per `GRAFT_DB_PATH`): a small line-oriented file written atomically, not meant to be edited by hand. Exit codes: `2` for usage errors or a `--root` that is not a directory, `1` when the state file cannot be read or written.
 
 ---
 
