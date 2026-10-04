@@ -253,6 +253,7 @@ Outside a git repo, walk the tree yourself, honor any `.gitignore`, and apply th
 | `.txt` that is not prose | any `.txt` outside a docs folder (`docs/`, `doc/`, `documentation/`, `adr/`, `decisions/`, `rfcs/`) except `README.txt`; always `CMakeLists.txt`, `requirements*.txt`, `robots.txt` |
 | agent instructions | `CLAUDE.md`, `AGENTS.md`, `GEMINI.md`, `SKILL.md`, `.claude/**`, `.codex/**`, `.cursor/**`, `.github/copilot-instructions.md` — already in the agent's context every session |
 | templates and fixtures | `.github/ISSUE_TEMPLATE/**`, `PULL_REQUEST_TEMPLATE*`, paths under `testdata/`, `fixtures/`, `__snapshots__/` |
+| generated reports | paths under `results/`, `reports/`, `coverage/` — benchmark or test output, not documentation |
 | size / generated | larger than 1 MB, or `generated` / `do not edit` in the first 3 lines |
 | user excludes | anything the user named in the prompt |
 
@@ -278,11 +279,12 @@ graft sources diff --root "$ROOT"      # JSON with status 0 → provenance on
 
 If the command prints usage or a non-zero status, the installed graft predates provenance: **fall back** — insert without `--source`, end each body with a `Source: <repo-relative path>` line instead, and on a re-run rely on the pre-dedup query alone (slower, every doc is re-read). Say which mode is in use in the summary.
 
-With provenance on, `diff` reports each recorded file source as `unchanged`, `changed` or `removed`, with the node ids it supports:
+With provenance on, `diff` returns `{project, root, summary{sources, unchanged, changed, removed, unavailable, nodes_to_revalidate}, sources[{kind, locator, state, fingerprint, nodes[{id_hex, title, state, recorded_fingerprint}]}]}`; `--changed-only` drops the unchanged entries. `locator` is the repo-relative path, so match it against the discovered list:
 
 - **unchanged** — skip the file.
 - **new** (discovered, not recorded) — process normally.
 - **changed** — re-read the doc and `graft get` each node it supports. A node that still holds → `graft sources refresh <id>`. A node whose facts changed → `graft delete <id>` then insert the corrected node, re-attaching **every** source the old node had, not only this file. Knowledge the doc gained → new nodes.
+- **unavailable** — the file could not be read (permissions, a broken link): skip it and name it in the report.
 - **removed** — do not delete on your own; the knowledge may still be true or the file may have moved (a moved doc re-inserts as `duplicate: true` and gains its new source). List the affected node ids in the report and offer delete or re-save with an `unsure` keyword.
 
 ### D3 — Distill
