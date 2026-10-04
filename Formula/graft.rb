@@ -1,18 +1,19 @@
 class Graft < Formula
   desc "Persistent graph memory for AI agents"
   homepage "https://github.com/AEndrix03/Graft"
-  url "https://github.com/AEndrix03/Graft/releases/download/v0.1.1/graft-0.1.1.tar.gz"
-  sha256 "1842a93c9de91b187dcbda7fe4b85f00d3d67f0c4137a151ae41e5fa0815a9f5"
-  version "0.1.1"
+  url "https://github.com/AEndrix03/Graft/releases/download/v0.2.0/graft-0.2.0.tar.gz"
+  sha256 "e93e21c1f0dd80359a3554eae7d4a2860eca2fc4ddacc5228a53601b573da362"
+  version "0.2.0"
   license "Apache-2.0"
   head "https://github.com/AEndrix03/Graft.git", branch: "master"
 
 
 
+
   bottle do
-    root_url "https://github.com/AEndrix03/Graft/releases/download/v0.1.1"
+    root_url "https://github.com/AEndrix03/Graft/releases/download/v0.2.0"
     rebuild 0
-    sha256 cellar: :any, x86_64_linux: "f27bed9addbc16e326e64e53c90fc111ec87ccf5d2e6350b0a7a4d7fea32c310"
+    sha256 cellar: :any, x86_64_linux: "6794cf4d458fc457b9877e85c5492da23653c1fa1d49e9b4527d7d716415edbc"
   end
 
   depends_on "cmake" => :build
