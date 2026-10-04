@@ -1,0 +1,28 @@
+{
+  "description": "Graft zero-touch hooks: a housekeeping hint at session start, and a STRONG memory match injected as context on each prompt. Both run the graft binary, never start the daemon and stay silent when anything is missing. Opt out with GRAFT_HOOKS=0 (both) or GRAFT_HOOK_PROMPT=0 (per-prompt lookup only).",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|clear",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "graft hook session-start; exit 0",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "graft hook prompt; exit 0",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}
