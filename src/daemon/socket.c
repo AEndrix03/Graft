@@ -32,20 +32,28 @@ typedef SOCKET mg_sock_t;
 typedef int mg_sock_t;
 #endif
 
+#ifdef _WIN32
+/* Reset by shutdown so a process that talks to the daemon more than once
+ * (`graft sources refresh`) starts Winsock again for its next connect. */
+static int g_wsa_inited = 0;
+#endif
+
 void mg_daemon_socket_init(void) {
 #ifdef _WIN32
-    static int inited = 0;
-    if (!inited) {
+    if (!g_wsa_inited) {
         WSADATA wd;
         (void)WSAStartup(MAKEWORD(2, 2), &wd);
-        inited = 1;
+        g_wsa_inited = 1;
     }
 #endif
 }
 
 void mg_daemon_socket_shutdown(void) {
 #ifdef _WIN32
-    WSACleanup();
+    if (g_wsa_inited) {
+        WSACleanup();
+        g_wsa_inited = 0;
+    }
 #endif
 }
 
