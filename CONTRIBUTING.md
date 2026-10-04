@@ -50,7 +50,7 @@ The daemon serves `viewer/dist/` at `/` when `http.enabled: true`. See [`viewer/
 
 The installer activates `scripts/git-hooks/commit-msg` via `core.hooksPath`. Every commit is checked against:
 
-- **Conventional Commits**: `<type>(<scope>)?!?: <description>`
+- **Conventional Commits**: `<type>!?: <description>`. Write it without a scope: the hook still tolerates `(<scope>)`, but the project does not use it, because the type and the description already say what changed
 - **Subject only**, no body, no `Co-Authored-By:` trailer
 - **Total length ≤ 70 characters**
 - **ASCII only** (proxy for "write in English")
@@ -58,8 +58,8 @@ The installer activates `scripts/git-hooks/commit-msg` via `core.hooksPath`. Eve
 Allowed types: `feat`, `fix`, `chore`, `docs`, `style`, `refactor`, `test`, `perf`, `build`, `ci`, `revert`.
 
 ```
-feat(query): cap MISS fallback at 5 nodes
-fix(embed): respect hardware_accel=false on CPU-only builds
+feat: cap the MISS fallback at 5 nodes
+fix: respect hardware_accel=false on CPU-only builds
 docs: link integrations README
 ```
 
