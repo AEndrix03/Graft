@@ -297,7 +297,7 @@ int mg_project_provenance(const char *db_path, const char *project,
             "FROM sources s "
             "JOIN node_sources ns ON ns.source_id = s.id "
             "JOIN nodes n ON n.id = ns.node_id "
-            "WHERE s.project = ?1 AND s.kind = 'file' AND n.state != 2",
+            "WHERE s.project = ?1 AND s.kind = 'file' AND n.state IN (0, 1)",  /* active or stale: not superseded, not retired */
             -1, &stmt, NULL) == SQLITE_OK) {
         sqlite3_bind_text(stmt, 1, project, -1, SQLITE_STATIC);
         if (sqlite3_step(stmt) == SQLITE_ROW) {
