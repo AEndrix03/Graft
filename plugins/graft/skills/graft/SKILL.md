@@ -1,7 +1,7 @@
 ---
 name: graft
 description: >-
-  Persistent graph memory shared across conversations and agents. Graft is a prompter, not a cache: it hands you notes that may be close to the problem in front of you, and a close note is already a win - it gives you a starting point and reminds you what was decided before. Search it before non-trivial work, and write to it whenever the answer you just produced was not already there. Companion skills: `/recall` (search), `/memoryze` (save), `/learn` (bulk ingest), `/memory-audit` (health check). The daemon auto-starts on the first command.
+  Persistent graph memory shared across conversations and agents. Graft is a prompter, not a cache: it hands you notes that may be close to the problem in front of you, and a close note is already a win - it gives you a starting point and reminds you what was decided before. Search it before non-trivial work, and write to it whenever the answer you just produced was not already there. Companion skills: `/recall` (search), `/memoryze` (save), `/learn` (bulk ingest; `/learn docs` for a repository's documentation), `/memory-audit` (health check). The daemon auto-starts on the first command.
 ---
 
 # graft - the prompter in your pocket
@@ -101,7 +101,7 @@ later, not the way you solved it. `insert` is idempotent - the same
 title+body+keywords returns the existing id with `"duplicate": true`.
 
 Use `/memoryze` for 1-5 notes out of the conversation, `/learn` for bulk ingestion
-from files outside it.
+from files outside it, `/learn docs` to take in all of a repository's documentation.
 
 ## Fixing stale evidence
 

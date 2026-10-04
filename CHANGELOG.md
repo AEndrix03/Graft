@@ -13,6 +13,7 @@ to `## [x.y.z] - YYYY-MM-DD` and becomes the body of the GitHub Release.
 
 ### Added
 
+- `/learn docs [path]` ingests all the documentation of a repository (README, `docs/`, ADRs, guides, CONTRIBUTING, ARCHITECTURE) and nothing else: no issues, PRs, comments or web pages. Discovery is deterministic (tracked files only, skipping vendored, generated and submodule trees, licenses and agent instruction files), each document is distilled into retrieval-shaped nodes deduplicated against the graph, large doc sets run in bounded, resumable batches, and with `--source` provenance a re-run only processes new or changed documents ([#15](https://github.com/AEndrix03/Graft/issues/15)).
 - `graft query --explain` lists every candidate the verifier scored, in vector order, with its rank, hit level and signals, to see why a question got the answer it did.
 - **Plugin marketplace for Claude Code and Codex.** The repo is now a marketplace for both agents: `/plugin marketplace add AEndrix03/Graft` then `/plugin install graft@graft` on Claude Code, `codex plugin marketplace add AEndrix03/Graft` then `codex plugin add graft@graft` on Codex. The plugin carries the six skills (namespaced as `graft:<name>`) and updates through the marketplace.
 - `/graft-init` installs the `graft` CLI when it is missing, after asking, by running the official installer; offers `graft upgrade` when the CLI is older than the plugin; and offers to remove skill copies left by an older `graft setup`, which would otherwise show every skill twice.
