@@ -222,6 +222,75 @@ def register_tools(mcp: FastMCP) -> FastMCP:
         return _run(args, profile=profile)
 
     @mcp.tool()
+    def graft_maintain_status(profile: Optional[str] = None) -> dict:
+        """Cheap maintenance state: pending candidates, inserts since the last
+        apply-safe / scan, node counts by state, and what is recommended next."""
+        _require_scopes(READ_SCOPE)
+        return _run(["maintain", "status"], profile=profile)
+
+    @mcp.tool()
+    def graft_maintain_scan(
+        limit: int = 20,
+        root: Optional[str] = None,
+        no_sources: bool = False,
+        profile: Optional[str] = None,
+    ) -> dict:
+        """Emit maintenance candidates (near duplicates, supersessions,
+        contradictions, changed/removed file sources, ...) without changing the
+        graph. `root` is the project whose file sources are re-hashed (default:
+        the MCP server's working directory)."""
+        _require_scopes(WRITE_SCOPE)
+        args = ["maintain", "scan", "--limit", str(limit)]
+        if root:
+            args.extend(["--root", root])
+        if no_sources:
+            args.append("--no-sources")
+        return _run(args, profile=profile)
+
+    @mcp.tool()
+    def graft_maintain_resolve(
+        action: str,
+        candidate_id: Optional[str] = None,
+        node: Optional[str] = None,
+        by: Optional[str] = None,
+        note: Optional[str] = None,
+        profile: Optional[str] = None,
+    ) -> dict:
+        """Resolve a candidate (or act on a node id): keep, keep_both, stale,
+        retire, restore, supersede (with `by`), supersede_a, supersede_b,
+        merge (with `by`), refresh. Every resolution is audited and reversible."""
+        _require_scopes(WRITE_SCOPE)
+        args = ["maintain", "resolve"]
+        if candidate_id:
+            args.append(candidate_id)
+        args.extend(["--action", action])
+        if node:
+            args.extend(["--node", node])
+        if by:
+            args.extend(["--by", by])
+        if note:
+            args.extend(["--note", note])
+        return _run(args, profile=profile)
+
+    @mcp.tool()
+    def graft_maintain_apply_safe(profile: Optional[str] = None) -> dict:
+        """Mechanical maintenance: purge retired nodes past retention, collapse
+        exact duplicates, consolidate, record the run."""
+        _require_scopes(WRITE_SCOPE)
+        return _run(["maintain", "apply-safe"], profile=profile)
+
+    @mcp.tool()
+    def graft_maintain_log(
+        limit: int = 50, node: Optional[str] = None, profile: Optional[str] = None
+    ) -> dict:
+        """Audit log of maintenance resolutions and apply-safe runs, newest first."""
+        _require_scopes(READ_SCOPE)
+        args = ["maintain", "log", "--limit", str(limit)]
+        if node:
+            args.extend(["--node", node])
+        return _run(args, profile=profile)
+
+    @mcp.tool()
     def graft_profile_list() -> dict:
         """List all profiles and the active one."""
         _require_scopes(ADMIN_SCOPE)

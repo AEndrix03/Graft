@@ -96,8 +96,8 @@ mg_err_t mg_storage_attach_sources(mg_storage_t *s, const mg_node_id_t node_id,
                                    const mg_source_t *sources, size_t n_sources);
 
 /* Lists node<->source links, ordered by (project, kind, locator, node).
- * Each filter is optional (NULL = any). Superseded nodes are skipped unless
- * node_id names one. Free with mg_source_links_free. */
+ * Each filter is optional (NULL = any). Superseded and retired nodes are
+ * skipped unless node_id names one. Free with mg_source_links_free. */
 mg_err_t mg_storage_source_links(mg_storage_t *s, const char *project,
                                  const char *kind, const mg_node_id_t *node_id,
                                  mg_source_link_t **out, size_t *out_count);

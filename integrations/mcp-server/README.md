@@ -5,10 +5,10 @@ Bridges MCP-aware clients to `graft`. Local/dev stdio remains simple; production
 ## Tools
 
 Search/read tools require `graft:read` in remote mode:
-`graft_query`, `graft_retrieve`, `graft_explore`, `graft_classify`, `graft_get`, `graft_stats`, `graft_analytics`.
+`graft_query`, `graft_retrieve`, `graft_explore`, `graft_classify`, `graft_get`, `graft_stats`, `graft_analytics`, `graft_maintain_status`, `graft_maintain_log`.
 
 Write tools require `graft:write`:
-`graft_insert`.
+`graft_insert`, `graft_maintain_scan`, `graft_maintain_resolve`, `graft_maintain_apply_safe`.
 
 Admin tools require `graft:admin`:
 `graft_delete`, profile add/remove/import/export/merge/list/current.

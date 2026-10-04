@@ -1,4 +1,5 @@
 #include "graft/ops.h"
+#include "graft/maintain.h"
 
 #include <stdint.h>
 #include <stdlib.h>
@@ -217,6 +218,33 @@ static void write_insert_result(
   mpack_finish_map(result);
 }
 
+/* Saving the exact content of a retired node again means it is wanted
+ * after all: bring it back (audited like a `maintain resolve ... restore`)
+ * instead of answering with an id no search can reach. */
+static mg_err_t restore_if_retired(mg_storage_t *s, const mg_node_id_t id, int64_t now) {
+  mg_node_t node;
+  mg_maint_change_t change;
+  mg_maint_log_t log;
+  char hex[33];
+  int retired;
+  mg_err_t err = mg_storage_get_node(s, id, &node);
+  if (err != MG_OK) return err;
+  retired = node.state == MG_NODE_RETIRED;
+  mg_node_free(&node);
+  if (!retired) return MG_OK;
+  memset(&change, 0, sizeof(change));
+  change.to = MG_MAINT_TO_ACTIVE;
+  memcpy(change.node, id, MG_NODE_ID_BYTES);
+  write_id_hex(id, hex);
+  memset(&log, 0, sizeof(log));
+  log.ts = now;
+  log.actor = "insert";
+  log.action = "restore";
+  log.nodes = hex;
+  log.detail = "same content inserted again";
+  return mg_storage_maint_apply(s, &change, 1, NULL, NULL, NULL, NULL, &log);
+}
+
 mg_err_t mg_op_insert(mg_ctx_t *ctx, mpack_node_t args, mpack_writer_t *result) {
   if (!ctx || !ctx->storage || !ctx->embed || !ctx->config || !result) {
     return MG_ERR_INVALID_ARG;
@@ -325,6 +353,9 @@ mg_err_t mg_op_insert(mg_ctx_t *ctx, mpack_node_t args, mpack_writer_t *result) 
      * repeated ingestion runs accumulate provenance instead of failing. */
     if (n_sources > 0u) {
       err = mg_storage_attach_sources(ctx->storage, existing_id, sources, n_sources);
+    }
+    if (err == MG_OK) {
+      err = restore_if_retired(ctx->storage, existing_id, now);
     }
     if (err == MG_OK) {
       write_insert_result(result, existing_id, 0u, 0u, true, n_sources);

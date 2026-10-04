@@ -24,7 +24,11 @@ typedef enum {
 typedef enum {
   MG_NODE_ACTIVE     = 0,
   MG_NODE_STALE      = 1,
-  MG_NODE_SUPERSEDED = 2
+  MG_NODE_SUPERSEDED = 2,
+  /* Reversible soft delete (issue #5): hidden from query / retrieve /
+   * explore like SUPERSEDED, restorable until `graft maintain apply-safe`
+   * purges it after the retention window. */
+  MG_NODE_RETIRED    = 3
 } mg_node_state_t;
 
 typedef struct {

@@ -76,6 +76,7 @@ static const char *state_to_string(int s) {
     case 0: return "active";
     case 1: return "stale";
     case 2: return "superseded";
+    case 3: return "retired";
     default: return "unknown";
   }
 }

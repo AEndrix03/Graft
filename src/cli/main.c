@@ -10,6 +10,7 @@
  *   graft classify   --title "..."
  *   graft consolidate
  *   graft sources    diff|refresh ...   (see sources.c)
+ *   graft maintain   status|scan|apply-safe|resolve|log ...   (see maintain.c)
  *
  * Connects to the daemon socket (default /tmp/graft.sock, override via
  * env GRAFT_SOCKET), sends a single request frame, prints the parsed
@@ -22,6 +23,7 @@
 #include "graft/source.h"
 #include "client.h"
 #include "sources.h"
+#include "maintain.h"
 #include "usage_log.h"
 #include "profile.h"
 #include "setup.h"
@@ -96,6 +98,10 @@ static int usage(void) {
         "  graft consolidate\n"
         "  graft sources diff [--root DIR] [--changed-only]\n"
         "  graft sources refresh <hex_id> [--root DIR]\n"
+        "  graft maintain status|apply-safe\n"
+        "  graft maintain scan [--limit N] [--root DIR] [--no-sources]\n"
+        "  graft maintain resolve [<candidate-id>] --action A [--node ID] [--by ID] [--note T]\n"
+        "  graft maintain log [--limit N] [--node ID]\n"
         "  graft analytics [--since 7d|24h] [--seconds-per-hit 60]\n"
         "  graft profile <list|current|add|remove|set|import|export> ...\n"
         "  graft setup [claudecode|codex|opencode]   (default: every agent found)\n"
@@ -547,6 +553,8 @@ int main(int argc, char **argv) {
 
     /* `sources` re-hashes files client-side around its own daemon calls. */
     if (!strcmp(cmd, "sources")) return mg_sources_cmd(argc, argv);
+    /* `maintain scan` does the same for its provenance candidates. */
+    if (!strcmp(cmd, "maintain")) return mg_maintain_cmd(argc, argv);
 
     /* ---- build request ---- */
     char  *req     = NULL;

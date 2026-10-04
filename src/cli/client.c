@@ -127,3 +127,60 @@ int mg_cli_exchange(const char *req, size_t req_len, void **resp, size_t *resp_l
     mg_daemon_socket_shutdown();
     return 0;
 }
+
+/* Sends {op, args} and parses the reply into *tree (backed by *resp, which
+ * the caller frees after mpack_tree_destroy). A daemon error is printed as
+ * the usual envelope. Returns 0 ok, 1 transport failure, 3 daemon error. */
+int mg_cli_call(const char *op, const char *args, size_t args_len,
+                       mpack_tree_t *tree, void **resp) {
+    char *req = NULL;
+    size_t req_len = 0, resp_len = 0;
+    mpack_writer_t w;
+    mpack_writer_init_growable(&w, &req, &req_len);
+    mpack_start_map(&w, 2);
+    mpack_write_cstr(&w, "op");
+    mpack_write_cstr(&w, op);
+    mpack_write_cstr(&w, "args");
+    mpack_write_object_bytes(&w, args, args_len);
+    mpack_finish_map(&w);
+    if (mpack_writer_destroy(&w) != mpack_ok) {
+        fprintf(stderr, "request encode failed\n");
+        free(req);
+        return 1;
+    }
+    int rc = mg_cli_exchange(req, req_len, resp, &resp_len);
+    free(req);
+    if (rc != 0) return 1;
+
+    mpack_tree_init_data(tree, (const char *)*resp, resp_len);
+    mpack_tree_parse(tree);
+    if (mpack_tree_error(tree) != mpack_ok) {
+        fprintf(stderr, "response decode error\n");
+        return 1;
+    }
+    mpack_node_t root = mpack_tree_root(tree);
+    mpack_node_t st = mpack_node_map_cstr_optional(root, "status");
+    if (!mpack_node_is_missing(st) && !mpack_node_is_nil(st) && mpack_node_int(st) != 0) {
+        mg_cli_print_value(root, 0);
+        printf("\n");
+        return 3;
+    }
+    return 0;
+}
+
+/* Prints a locally built {status:0, result:...} envelope. */
+int mg_cli_print_built(char *buf, size_t len) {
+    mpack_tree_t tree;
+    int rc = 0;
+    mpack_tree_init_data(&tree, buf, len);
+    mpack_tree_parse(&tree);
+    if (mpack_tree_error(&tree) != mpack_ok) {
+        fprintf(stderr, "output encode error\n");
+        rc = 1;
+    } else {
+        mg_cli_print_value(mpack_tree_root(&tree), 0);
+        printf("\n");
+    }
+    mpack_tree_destroy(&tree);
+    return rc;
+}
