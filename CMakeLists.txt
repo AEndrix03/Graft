@@ -143,6 +143,8 @@ add_library(graft_cli STATIC
   src/cli/sources.c
   src/cli/project.c
   src/cli/maintain.c
+  src/cli/status.c
+  src/cli/hook.c
   src/cli/usage_log.c
   src/cli/profile.c
   src/cli/setup.c
@@ -259,4 +261,19 @@ if(GRAFT_BUILD_TESTS)
     PASS_REGULAR_EXPRESSION "--limit expects a positive integer")
   set_tests_properties(cli_rejects_maintain_extra_argument PROPERTIES
     PASS_REGULAR_EXPRESSION "unknown option or missing value: 'now'")
+  # `graft status` never starts the daemon: with none listening it still
+  # answers, from the project state alone, with maintenance null.
+  add_test(NAME cli_rejects_unknown_status_option
+           COMMAND graft status --bogus)
+  add_test(NAME cli_rejects_unknown_hook_event
+           COMMAND graft hook bogus)
+  add_test(NAME cli_status_without_daemon
+           COMMAND graft status)
+  set_tests_properties(cli_rejects_unknown_status_option PROPERTIES
+    PASS_REGULAR_EXPRESSION "unknown option or missing value: '--bogus'")
+  set_tests_properties(cli_rejects_unknown_hook_event PROPERTIES
+    PASS_REGULAR_EXPRESSION "usage: graft hook <session-start\\|prompt>")
+  set_tests_properties(cli_status_without_daemon PROPERTIES
+    ENVIRONMENT "GRAFT_HOME=${CMAKE_BINARY_DIR}/cli_status_home;GRAFT_DB_PATH=${CMAKE_BINARY_DIR}/cli_status_test.db;GRAFT_SOCKET=${CMAKE_BINARY_DIR}/cli_status_no_daemon.sock"
+    PASS_REGULAR_EXPRESSION "\"maintenance\": null")
 endif()

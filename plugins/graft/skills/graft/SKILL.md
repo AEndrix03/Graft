@@ -1,7 +1,7 @@
 ---
 name: graft
 description: >-
-  Persistent graph memory shared across conversations and agents. Graft is a prompter, not a cache: it hands you notes that may be close to the problem in front of you, and a close note is already a win - it gives you a starting point and reminds you what was decided before. Search it before non-trivial work, and write to it whenever the answer you just produced was not already there. Companion skills: `/recall` (search), `/memoryze` (save), `/learn` (bulk ingest; `/learn docs` for a repository's documentation; `/learn bootstrap` for the unattended cold start of a project), `/memory-audit` (maintenance pass + health check). The daemon auto-starts on the first command.
+  Persistent graph memory shared across conversations and agents. Graft is a prompter, not a cache: it hands you notes that may be close to the problem in front of you, and a close note is already a win - it gives you a starting point and reminds you what was decided before. Search it before non-trivial work, and write to it whenever the answer you just produced was not already there. Companion skills: `/recall` (search), `/memoryze` (save), `/learn` (bulk ingest; `/learn docs` for a repository's documentation; `/learn bootstrap` for the unattended cold start of a project), `/memory-audit` (maintenance pass + health check). After `/graft-init` the agent runs the whole lifecycle itself (bootstrap, recall, repair, writeback, bounded maintenance) from one cheap `graft status` call, without asking the user. The daemon auto-starts on the first command.
 ---
 
 # graft - the prompter in your pocket
@@ -20,6 +20,66 @@ Two consequences, and everything else in this skill follows from them:
    note - so that next time the stack answers. The more notes, the more hits.
 
 Nobody else is going to fill it. If you do not write, the graph does not grow.
+
+## Lifecycle - running graft without being asked
+
+After `/graft-init` the user should not have to think about graft again. You own
+the whole loop, and every step of it is bounded: nothing here may turn a user's
+request into a long ingestion or a maintenance session.
+
+**Once per session in a project: `graft status`.** One cheap call (a state file,
+a read-only count, at most one daemon call without embedding; it never starts the
+daemon) that returns the project's bootstrap state, the maintenance status and a
+`next` list, most urgent first. On Claude Code the plugin's session hook runs it
+for you and hands you a one-line `graft:` hint when something is due; no hint
+means nothing was due at session start (re-check after a session with many
+inserts). Act on `next`:
+
+| `action` | What to do (one bounded batch, then back to the user's work) |
+| -------- | ------------------------------------------------------------ |
+| `bootstrap` | First encounter (`bootstrapped: false`) or pending topics: one `/learn bootstrap` pass, the area of the current task first. Run it in a sub-agent or background task if you can; otherwise answer the user first and bootstrap after. Never before the user's answer. |
+| `apply-safe` | `graft maintain apply-safe`. Mechanical and safe; just run it. |
+| `resolve` | `graft maintain scan --limit 5`, adjudicate those candidates the `memory-audit` way, stop. |
+| `refresh-sources` | `graft sources diff --changed-only`, revalidate the few notes whose files moved on (`graft sources refresh <id>`, or correct and supersede). |
+| `scan` | `graft maintain scan --limit 20` when the session has room; otherwise leave it for the next one. |
+
+`maintenance: null` means the daemon is not running yet: skip maintenance this
+time, it will show up once the first search has started the daemon. `sources`
+counts files that changed as of the last scan, not now - `graft sources diff` is
+the fresh (and costlier) check.
+
+**Before substantial work: recall.** See *When to search* below. On Claude Code
+the plugin's prompt hook may already have put a `STRONG` note in your context
+("graft memory: ..."); treat it like any `STRONG` hit - read it, check it.
+
+**During work: repair what is wrong, immediately.** When a note you recalled is
+contradicted by the code, the docs or the user, insert the corrected note and
+supersede the old one in the same turn:
+
+```bash
+graft insert --title ... --body ... --keyword ... [--source file:<path>]   # -> <new>
+graft maintain resolve --node <old> --action supersede --by <new> --note "<why>"
+graft maintain resolve --node <old> --action stale --note "<why>"   # when you cannot write the correction
+```
+
+Superseding is audited and reversible (`graft maintain log`, `--action restore`);
+`graft delete` is not, so keep it for notes that must disappear (a secret saved by
+mistake).
+
+**After substantial work: persist what lasts.** Decisions and their reasons,
+fixes and gotchas, new invariants, reusable procedures - see *Writing back* below,
+with `--source file:<path>` whenever the note is derived from a file. Not the
+chain of thought, not the transcript, not what the code already says.
+
+**Stay out of the way.** Normal operation is silent apart from the one-line
+recap. Bring graft to the user only when it is broken (install, daemon, model),
+when you suspect data loss or corruption, or when an irreversible action cannot be
+decided from the context. The manual skills (`/recall`, `/memoryze`, `/learn`,
+`/memory-audit`) remain for the user who wants to drive by hand or debug.
+
+**Opting out of the hooks** (Claude Code plugin): `GRAFT_HOOKS=0` in the
+environment (or in `settings.json` `env`) turns both off, `GRAFT_HOOK_PROMPT=0`
+only the per-prompt lookup.
 
 ## How much to trust a hit
 
@@ -118,14 +178,16 @@ confidence.
 
 ```bash
 graft get    <hex_id>     # 1. read what is there
-graft delete <hex_id>     # 2. remove the outdated node
-graft insert --title ... --body ... --keyword ...   # 3. insert the current truth
+graft insert --title ... --body ... --keyword ...   # 2. insert the current truth -> <new>
+graft maintain resolve --node <hex_id> --action supersede --by <new> --note "<why>"   # 3.
 ```
 
-Delete + insert, not "leave it and add another": two contradicting notes about the
-same thing is the worst state the graph can be in. If the note is merely
-suspicious and you cannot verify it, re-save it with an `unsure` keyword and a
-body that says what you could not confirm, rather than deleting.
+Supersede, not "leave it and add another": two contradicting notes about the same
+thing is the worst state the graph can be in. The superseded note drops out of
+search but stays in the audit log and can be restored. If the note is merely
+suspicious and you cannot verify it, mark it instead:
+`graft maintain resolve --node <hex_id> --action stale --note "<what you could not confirm>"`.
+Use `graft delete` only for what must vanish for good (a secret saved by mistake).
 
 ## End-of-turn recap
 
@@ -169,6 +231,8 @@ Resolution: `$GRAFT_PROFILE`, else `default`. No global state file.
 | Save with provenance | `graft insert ... --source file:<path>` |
 | Notes whose source files changed | `graft sources diff [--changed-only]` |
 | Mark a note revalidated | `graft sources refresh <hex_id>` |
+| Is any housekeeping due here? | `graft status` |
+| Replace an outdated note | `graft maintain resolve --node <old> --action supersede --by <new>` |
 | Remove a node | `graft delete <hex_id>` |
 | Graph statistics | `graft stats` |
 | Hit-rate / usage report | `graft analytics [--since 7d]` |

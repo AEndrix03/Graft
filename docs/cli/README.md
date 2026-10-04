@@ -33,6 +33,8 @@ Exit codes:
 - [`sources`](#sources)     (provenance freshness: `diff`, `refresh`)
 - [`project`](#project)     (bootstrap coverage state: `status`, `mark`, `reset`; CLI-only)
 - [`maintain`](#maintain)   (autonomous maintenance: `status`, `scan`, `resolve`, `apply-safe`, `log`)
+- [`status`](#status-1)     (one-call housekeeping state for agents; never starts the daemon)
+- [`hook`](#hook)         (the Claude Code plugin hooks: `session-start`, `prompt`)
 - [`analytics`](#analytics) (CLI-only — never touches the daemon)
 - [`profile`](#profile)   (CLI-only)
 - [`setup`](#setup)       (CLI-only)
@@ -477,6 +479,62 @@ The audit trail, newest first: every resolution, purge, collapse and apply-safe 
 
 ---
 
+## status
+
+```text
+graft status [--root <dir>]
+```
+
+Everything an agent needs to decide, at the start of a turn, whether any graft housekeeping is due in the project of `--root` (default: the working directory), in one call. It reads the `project` state file and the DB read-only, and asks the daemon for `maintain status` **only if a daemon is already running**: starting one loads the embedding model, which nothing here needs. Budget: well under a second (about 40 ms on a warm machine).
+
+```json
+{ "project": { "name": "github.com/owner/repo", "root": "/home/u/repo", "profile": "default",
+               "git": true, "bootstrapped": false, "runs": 0, "last_run_at": null,
+               "topics": { "covered": 0, "pending": 0, "skipped": 0 }, "next_topic": null,
+               "provenance": { "files": 0, "nodes": 0 } },
+  "daemon": "running",
+  "maintenance": { "...": "the maintain status result, verbatim" },
+  "sources": { "changed": 0, "removed": 0, "as_of": null },
+  "next": [
+    { "action": "apply-safe", "priority": "high",
+      "reason": "mechanical cleanup due (52 inserts since the last pass)",
+      "command": "graft maintain apply-safe" },
+    { "action": "bootstrap", "priority": "normal", "reason": "project not bootstrapped yet",
+      "command": "/learn bootstrap (one bounded pass, the task area first)" } ] }
+```
+
+- `daemon`: `running` or `not running`. With no daemon, `maintenance` and `sources` are `null` and `maintenance_error` says why; the project part and a `bootstrap` step still come back.
+- `sources`: notes backed by files that changed or disappeared **as of the last `maintain scan`** (its `source_changed` / `source_removed` candidates), not a fresh re-hash: re-hashing every recorded file on each call is not cheap. `graft sources diff` is the fresh check.
+- `next`: the housekeeping worth doing now, most urgent first; empty means nothing. `priority` is `high`, `normal` or `low`.
+
+| `action` | When | Priority |
+| -------- | ---- | -------- |
+| `apply-safe` | `maintain status` recommends it | high |
+| `resolve` | pending candidates other than sources | high with a contradiction among them, else normal |
+| `refresh-sources` | `source_changed` / `source_removed` candidates | normal |
+| `bootstrap` | a git project never bootstrapped (normal), or a bootstrapped one with pending topics (low) | normal / low |
+| `scan` | `maintain status` recommends it | low |
+
+A directory that is not inside a git checkout is never offered a bootstrap (a home or downloads folder is not a project). Exit codes: `2` for an unknown option or a `--root` that is not a directory, `1` when the project state cannot be read.
+
+---
+
+## hook
+
+```text
+graft hook session-start     # reads the SessionStart JSON on stdin
+graft hook prompt            # reads the UserPromptSubmit JSON on stdin
+```
+
+The commands behind the Claude Code plugin hooks (`plugins/graft/hooks/hooks.json`). Each reads the hook's JSON on stdin and prints either nothing or one `{"hookSpecificOutput": {"hookEventName": ..., "additionalContext": ...}}` object:
+
+- `session-start`: the `status` logic for the JSON's `cwd` (falling back to the working directory); when `next` is not empty, one line listing the steps.
+- `prompt`: skips slash commands, `!` / `#` prompts and prompts under 3 words or 12 characters; otherwise sends the first 1000 bytes of the prompt as a `query`, and on a `STRONG` hit only injects the note's id, title and the first 800 bytes of its body.
+
+Neither starts the daemon. Any run-time failure (no daemon, malformed input, an older daemon) prints nothing and exits `0`; only an unknown event name exits `2`. `GRAFT_HOOKS=0` (or `off`, `false`, `no`) turns both off, `GRAFT_HOOK_PROMPT=0` only `prompt`.
+
+---
+
 ## analytics
 
 ```bash
@@ -595,6 +653,8 @@ Read by the CLI:
 | `GRAFT_CONFIG`  | _(auto-discovered)_ | Override the path to `config.yaml`. |
 | `GRAFT_AUTHOR`  | `<user>@<host>` | Default author on `insert` (empty string opts out), and the audit `actor` of `maintain resolve` (default `agent`). |
 | `GRAFT_USAGE_LOG` | `$GRAFT_HOME/usage.jsonl` | Override the usage log path. |
+| `GRAFT_HOOKS` | _(on)_ | `0` / `off` / `false` / `no`: `graft hook` prints nothing (turns off the Claude Code plugin hooks). |
+| `GRAFT_HOOK_PROMPT` | _(on)_ | Same, for `graft hook prompt` only. |
 
 The full list lives in [`configuration/`](../configuration/).
 

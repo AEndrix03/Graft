@@ -433,33 +433,38 @@ static int64_t unix_ms(void) {
     return (int64_t)time(NULL) * 1000;
 }
 
-typedef struct {
-    char root[MG_CLI_PATH];
-    char project[MG_CLI_PATH];
-    char profile[128];
-    char db[MG_CLI_PATH];
-    char state_file[MG_CLI_PATH];
-} ctx_t;
-
-static int resolve(const char *sub, const char *dir, ctx_t *c) {
+int mg_project_resolve(const char *dir, mg_project_ctx_t *c) {
     const char *db = getenv("GRAFT_DB_PATH");
     if (mg_source_resolve_project(dir, c->root, sizeof(c->root),
-                                  c->project, sizeof(c->project)) != 0) {
-        fprintf(stderr, "graft project %s: not a directory: %s\n", sub, dir);
-        return 2;
-    }
+                                  c->project, sizeof(c->project)) != 0) return -1;
     (void)mg_profile_active(c->profile, sizeof(c->profile));
     if (db && *db) {
         snprintf(c->db, sizeof(c->db), "%s", db);
     } else if (mg_profile_db_path(c->profile, c->db, sizeof(c->db), 1) != 0) {
-        fprintf(stderr, "graft project %s: cannot resolve the profile DB\n", sub);
-        return 1;
+        return -2;
     }
     if (mg_project_state_path(c->db, c->project, c->state_file, sizeof(c->state_file)) != 0) {
+        return -3;
+    }
+    return 0;
+}
+
+typedef mg_project_ctx_t ctx_t;
+
+static int resolve(const char *sub, const char *dir, ctx_t *c) {
+    switch (mg_project_resolve(dir, c)) {
+    case 0:
+        return 0;
+    case -1:
+        fprintf(stderr, "graft project %s: not a directory: %s\n", sub, dir);
+        return 2;
+    case -2:
+        fprintf(stderr, "graft project %s: cannot resolve the profile DB\n", sub);
+        return 1;
+    default:
         fprintf(stderr, "graft project %s: state path too long\n", sub);
         return 1;
     }
-    return 0;
 }
 
 static int print_built(char *buf, size_t len) {

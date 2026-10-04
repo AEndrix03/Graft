@@ -1,10 +1,17 @@
 # Codex - graft integration
 
-Codex can use two layers:
+Codex uses two layers:
 
 - Skills: user-scoped instructions loaded by Codex.
-- `AGENTS.md`: static instructions loaded as model context.
-- Hooks: deterministic `UserPromptSubmit`, `PostToolUse`, and `Stop` helpers.
+- `AGENTS.md`: the usage rule `graft-init` writes, loaded as model context.
+
+The rule is a zero-touch lifecycle: once per session in a project the agent runs
+`graft status` (one cheap call that never starts the daemon) and does the bounded
+housekeeping its `next` list asks for (a progressive `/learn bootstrap` pass on a
+new project, `apply-safe`, a few maintenance candidates), searches before
+non-trivial work, supersedes notes the code contradicts, saves what it learned,
+and does not ask the user about graft in the normal path. No hooks ship for Codex
+(the per-prompt lookup hook is Claude Code only).
 
 The shared source is the plugin in `plugins/graft`; this directory is an adapter
 and manual-install reference for Codex.
