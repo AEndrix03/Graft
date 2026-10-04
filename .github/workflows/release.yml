@@ -221,6 +221,13 @@ jobs:
           src_tarball = os.environ["SRC_TARBALL"]
           src_sha = os.environ["SRC_SHA"]
           t = re.sub(r"\n  livecheck do\n.*?  end\n", "\n", t, count=1, flags=re.S)
+          # The formula on master carries the previous release's stable
+          # section and bottle (written by `publish`); drop them like
+          # `publish` does, or brew builds the previous source tarball.
+          t = re.sub(r"\n  bottle do\n.*?  end\n",    "\n", t, count=1, flags=re.S)
+          t = re.sub(r'^  url\s+"[^"]+"\n',           "",   t, count=1, flags=re.M)
+          t = re.sub(r'^  sha256\s+"[0-9a-f]+"\n',    "",   t, count=1, flags=re.M)
+          t = re.sub(r'^  version\s+"[^"]+"\n',       "",   t, count=1, flags=re.M)
           head_match = re.search(r"^  head .*$", t, flags=re.M)
           head_line = head_match.group(0) if head_match else None
           if head_line:
