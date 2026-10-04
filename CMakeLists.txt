@@ -138,6 +138,8 @@ target_link_libraries(graftd graft_core)
 # Everything the CLI does except main(), so tests can link the subcommands.
 add_library(graft_cli STATIC
   src/cli/autostart.c
+  src/cli/client.c
+  src/cli/sources.c
   src/cli/usage_log.c
   src/cli/profile.c
   src/cli/setup.c
@@ -204,4 +206,18 @@ if(GRAFT_BUILD_TESTS)
     PASS_REGULAR_EXPRESSION "unknown option or missing value: '--title'")
   set_tests_properties(cli_rejects_unknown_query_option PROPERTIES
     PASS_REGULAR_EXPRESSION "unknown option or missing value: '--top-k'")
+  # --source file: is resolved and fingerprinted client-side, so a missing
+  # file fails before any daemon is contacted.
+  add_test(NAME cli_rejects_missing_source_file
+           COMMAND graft insert --title t --body b --source file:no-such-file.md)
+  add_test(NAME cli_rejects_unknown_source_kind
+           COMMAND graft insert --title t --body b --source bogus:x)
+  add_test(NAME cli_rejects_unknown_sources_option
+           COMMAND graft sources diff --bogus)
+  set_tests_properties(cli_rejects_missing_source_file PROPERTIES
+    PASS_REGULAR_EXPRESSION "source file not found: no-such-file.md")
+  set_tests_properties(cli_rejects_unknown_source_kind PROPERTIES
+    PASS_REGULAR_EXPRESSION "unknown source 'bogus:x'")
+  set_tests_properties(cli_rejects_unknown_sources_option PROPERTIES
+    PASS_REGULAR_EXPRESSION "unknown option or missing value: '--bogus'")
 endif()
