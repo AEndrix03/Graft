@@ -10,6 +10,7 @@
  *   graft classify   --title "..."
  *   graft consolidate
  *   graft sources    diff|refresh ...   (see sources.c)
+ *   graft project    status|mark|reset  (see project.c)
  *
  * Connects to the daemon socket (default /tmp/graft.sock, override via
  * env GRAFT_SOCKET), sends a single request frame, prints the parsed
@@ -22,6 +23,7 @@
 #include "graft/source.h"
 #include "client.h"
 #include "sources.h"
+#include "project.h"
 #include "usage_log.h"
 #include "profile.h"
 #include "setup.h"
@@ -96,6 +98,9 @@ static int usage(void) {
         "  graft consolidate\n"
         "  graft sources diff [--root DIR] [--changed-only]\n"
         "  graft sources refresh <hex_id> [--root DIR]\n"
+        "  graft project status [--root DIR]\n"
+        "  graft project mark [--root DIR] [--topic NAME]... [--state S] [--run]\n"
+        "  graft project reset [--root DIR]\n"
         "  graft analytics [--since 7d|24h] [--seconds-per-hit 60]\n"
         "  graft profile <list|current|add|remove|set|import|export> ...\n"
         "  graft setup [claudecode|codex|opencode]   (default: every agent found)\n"
@@ -547,6 +552,9 @@ int main(int argc, char **argv) {
 
     /* `sources` re-hashes files client-side around its own daemon calls. */
     if (!strcmp(cmd, "sources")) return mg_sources_cmd(argc, argv);
+
+    /* `project` reads its state file and the DB itself: no daemon. */
+    if (!strcmp(cmd, "project")) return mg_project_cmd(argc, argv);
 
     /* ---- build request ---- */
     char  *req     = NULL;

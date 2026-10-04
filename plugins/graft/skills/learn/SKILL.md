@@ -1,7 +1,7 @@
 ---
 name: learn
 description: >-
-  Batch knowledge ingestion from external sources (a folder, a codebase, a docs tree, a set of files). Plans the ingestion as a list of well-shaped nodes with reconciled keywords, shows the user the plan for approval, then executes idempotently. Triggered by `/learn`, "ingest this folder into memory", "porta questo codice nella memoria", "acquire this documentation", "memorize this codebase". Docs mode (`/learn docs [path]`) ingests all the documentation of a repository (README, docs/, ADRs, guides, CONTRIBUTING, ARCHITECTURE) and nothing else, incrementally on re-runs; triggered by "ingest the docs of this repo", "learn this repository's documentation", "impara la documentazione del repo", "porta la documentazione in memoria". Differs from `/memoryze` (1-5 nodes from conversation) — `/learn` produces 10-200 nodes from external corpora and is plan-first by design.
+  Batch knowledge ingestion from external sources (a folder, a codebase, a docs tree). Plans well-shaped nodes with reconciled keywords, shows the plan for approval, then executes idempotently. Triggered by `/learn`, "ingest this folder into memory", "porta questo codice nella memoria", "memorize this codebase". Docs mode (`/learn docs [path]`): all of a repository's documentation and nothing else, incremental on re-runs; "ingest the docs of this repo", "impara la documentazione del repo". Bootstrap mode (`/learn bootstrap [path]`): unattended, progressive cold start of a whole project's memory (topic map, bounded runs by importance, task area first, resumed via `graft project status`); "bootstrap graft for this project", "this project was never bootstrapped", "inizializza la memoria del progetto". Differs from `/memoryze` (1-5 nodes from conversation): `/learn` produces 10-200 nodes from external corpora.
 ---
 
 # learn — Batch ingestion of external knowledge into graft
@@ -23,6 +23,7 @@ The user invokes you with a free-form prompt that may include:
 | **excludes**                      | "skip tests/", "ignore generated/", a `.gitignore`-style list          | Glob/regex skip rules layered on top of the defaults below.              |
 | **rerun mode**                    | "incremental" / "force" / "dry-run"                                    | See "Rerunning on the same source" below.                                |
 | **docs mode**                     | `docs`, `docs ../other-repo`, `docs from <file>`                       | A repository's documentation only, no plan gate. See "Docs mode" below.  |
+| **bootstrap mode**                | `bootstrap`, `bootstrap ../other-repo`, `bootstrap focus src/auth/`   | Unattended, progressive cold start of a whole project. See "Bootstrap mode" below. |
 
 Examples:
 
@@ -31,7 +32,7 @@ Examples:
 - `/learn questa cartella src/, lente: business rules e gotcha. ignora test/`
 - `/learn dry-run on docs/runbooks to see the plan first`
 
-If the first word is `docs`, or the user asks for "the docs / the documentation of this repo", jump to **Docs mode** below: it replaces the six phases.
+If the first word is `docs`, or the user asks for "the docs / the documentation of this repo", jump to **Docs mode** below: it replaces the six phases. If it is `bootstrap`, or you were told to bootstrap a project that `graft project status` reports as not bootstrapped, jump to **Bootstrap mode**.
 
 If hints are absent, ask **at most one** clarifying question (almost always: "what's the lens?"). Don't ask many small questions; pick reasonable defaults and surface them in the plan for the user to override.
 
@@ -172,7 +173,7 @@ What now? Reply with one of:
 
 **Rules at this gate**:
 
-- Do NOT insert a single node before the user replies. (Docs mode is the one exception: its scope is fixed, so the invocation is the approval.)
+- Do NOT insert a single node before the user replies. (Docs and bootstrap modes are the exceptions: their scope and budget are fixed, so the invocation is the approval.)
 - If the plan exceeds the user's stated cap (or the default 50), highlight that prominently and propose a reduced version.
 - If the plan exceeds the hard cap (200), refuse and ask the user to narrow scope or run `/learn` per subdirectory.
 
@@ -329,6 +330,144 @@ Continue with: /learn docs from docs/storage/README.md
 ```
 
 `from <path>` resumes the ordered list at that file. With provenance on, a plain re-run also works: everything ingested is `unchanged` and skipped (only zero-node files are re-skimmed, cheaply).
+
+## Bootstrap mode — `/learn bootstrap [path] [focus <area>]`
+
+The cold start of a project's memory, with nobody watching: no plan gate, no node cap to ask for, no prompt. It covers the whole project (docs, manifests, configuration, public contracts, the implementation), but **progressively**: each run is bounded, spends its budget on the most important uncovered topics, records what is left, and the next run (the next session, the next task in the repo) picks up from there. On the Claude Code plugin it is `/graft:learn bootstrap`.
+
+Only you can judge what is worth remembering, so the bootstrap is your work; graft only keeps the state between runs: `graft project` (the topic map and the runs) and provenance (which files back which nodes).
+
+The goal is **not** a mirror of the repository. It is the knowledge a future session would otherwise have to rediscover by reading many files or by being told: why things are the way they are, what must not be broken, where things live, how to build and run it, what bites. A vague note is worse than no note: it scores high on every question about the project and gets trusted when it does not answer it.
+
+```
+  B0  state       graft project status + sources diff -> first run or incremental
+  B1  discover    tracked files, skip rules, never secrets, source classes
+  B2  topic map   topics with importance and paths, recorded before any insert
+  B3  budget      allocate this run's budget by importance (task area first)
+  B4  distill     per topic: read, distill, reconcile, dedup, insert with --source
+  B5  close       mark covered / pending / skipped, mark the run, report
+```
+
+### B0 — State
+
+```bash
+ROOT=$(git -C "${path:-.}" rev-parse --show-toplevel)
+graft project status --root "$ROOT"    # never starts the daemon, cheap
+graft sources diff   --root "$ROOT"    # provenance: which files back which nodes
+```
+
+`project status` returns `{project, root, profile, state_file, bootstrapped, runs, last_run_at, provenance: {files, nodes} | null, provenance_error?, topics: {covered, pending, skipped}, pending: [{topic, priority, note, updated_at}], covered: [names], skipped: [names]}`; `pending` is sorted high → normal → low.
+
+- **First run** (`bootstrapped: false`, no topics): do B1-B5 in full.
+- **Incremental run** (`bootstrapped: true`): no rescan from scratch. Work, in this order: (1) the task area if any (see B3), (2) `changed` / `removed` sources from `sources diff`, handled exactly like docs-mode D2 (revalidate → `sources refresh`, or delete + re-insert with every old source; never delete on `removed`, report it), (3) `pending` topics by priority. Re-run B1 only to spot what is new: a tracked top-level directory, manifest or doc that no topic's note mentions becomes a new pending topic.
+- `project` unknown (usage error): the installed graft predates bootstrap state. Run anyway, keep the topic map in your report only, rely on pre-dedup on re-runs. `provenance: null` with a `provenance_error`, or `sources diff` failing: no provenance, so do as docs mode does (a `Source:` line in the body instead of `--source`).
+
+### B1 — Discover
+
+`git ls-files` from the root (tracked only, submodules are single entries), then apply the docs-mode skip rules (third-party and generated trees, legal boilerplate, agent instructions, templates and fixtures, generated reports, size) and add:
+
+| Skip | Rule |
+| ---- | ---- |
+| **secrets — never open** | `.env*` (except `*.example` / `*.sample` / `*.template`, and then only variable *names*), `*.pem`, `*.key`, `*.p12`, `*.pfx`, `*.jks`, `*.keystore`, `id_rsa*`, `id_ed25519*`, `*.tfvars`, `*.tfstate`, `.npmrc`, `.pypirc`, `.netrc`, `.git-credentials`, `kubeconfig*`, `credentials*`, `secrets*`, `*secret*.y*ml` |
+| lockfiles, binaries, media | `*.lock`, `package-lock.json`, `go.sum`, archives, images, fonts, models, anything non-text |
+| generated code | protobuf/OpenAPI/ORM output, `*.min.*`, `*.pb.*`, `*_generated.*`, migrations snapshots, files saying `generated` / `do not edit` in their first lines |
+| bulk data | fixtures, datasets, `*.csv` / `*.jsonl` corpora, snapshots, test data |
+| examples per language | `examples/` trees that repeat one usage in N languages: read one, skip the rest |
+
+**Secrets are never stored**, whatever the file: no credentials, tokens, API keys, passwords, private URLs with credentials, connection strings, cookies, or `.env` values in a title or body. If a file you read holds one, the knowledge you keep is at most "X is configured through the env var `NAME`, set in <where>"; the value never leaves the file.
+
+Sort the survivors into source classes, in this reading order:
+
+1. **overview** — root `README*`, `ARCHITECTURE*`, the docs index, `CONTRIBUTING*` (docs-mode rules).
+2. **manifests** — `package.json`, `pyproject.toml`, `Cargo.toml`, `go.mod`, `pom.xml`, `build.gradle*`, `CMakeLists.txt`, `Makefile`, `Dockerfile`, `docker-compose*`, CI workflows: what is built, how, with which toolchain, which checks gate a merge.
+3. **configuration** — config schemas and their defaults, example configs, deployment manifests.
+4. **contracts** — OpenAPI / protobuf / GraphQL / SQL schema, public headers, exported API modules, CLI argument parsers, wire formats, event payloads.
+5. **implementation** — per module (top-level source directories, packages, crates): its entry point and the 1-3 files that carry its core logic. Tests only to confirm an invariant you suspect.
+6. **history** (optional, local only) — `git log --no-merges --format='%h %s' -n 300` to spot decisions, reverts and recurring fixes ("why did we switch to X"); read a commit's message body only when its title says a decision. Never fetch issues, PRs or anything remote.
+
+A file larger than ~100 KB is never read whole: read its head and navigate by symbols (`grep -n` for types, entry points, the functions a doc names).
+
+### B2 — Topic map (before any insert)
+
+From the discovery and a skim (heads, directory names, the docs), build the topic map: one topic per module responsibility or cross-cutting concern, not per file.
+
+```
+topic (stable name)          importance  kind        paths
+overview                     high        overview    README.md, docs/architecture/README.md
+build-and-toolchain          high        procedure   CMakeLists.txt, scripts/build-*.sh, .github/workflows/ci.yml
+storage                      high        module      src/storage/, include/graft/storage.h, docs/storage/
+cli-json-contract            high        contract    src/cli/main.c, docs/cli/README.md
+http-viewer                  low         module      src/http/, viewer/
+vendored-deps                -           skipped     third_party/ (submodules, not ours)
+```
+
+Importance: **high** for the overview, how to build / run / test, the modules on the main data path, public contracts and anything a mistake in would break users; **normal** for secondary modules, integrations, tooling; **low** for peripheral or rarely touched areas (examples, benchmarks, bindings). Areas the user's current task touches are **high** whatever they would be otherwise.
+
+Record the map at once, so an interrupted run still leaves it behind (names are the keys, keep them stable across runs):
+
+```bash
+graft project mark --root "$ROOT" --topic storage --state pending --priority high \
+                   --note "src/storage/, include/graft/storage.h, docs/storage/"
+graft project mark --root "$ROOT" --topic vendored-deps --state skipped --note "third_party/: submodules"
+```
+
+`--state` is `covered`, `pending`, `skipped` or `drop` (removes a topic); `--priority` and `--note` are kept when omitted. `--topic` is repeatable, with the same state, priority and note for all of them. Put the paths a topic covers in its note: the next run reads them from `project status` instead of rediscovering them.
+
+### B3 — Budget
+
+Per run, at most **~300 KB read (~40 files) and 40 nodes** (never more than 50). Spend it top-down:
+
+1. **Task relevance first.** Invoked while the user works on something (or with `focus <area>`): the topics that area belongs to come first, even on an incremental run; a touched area no topic covers becomes a new high topic. When bootstrapping alongside a user's task, do not block it: run the bootstrap in a sub-agent / background task if you can, otherwise answer the user first and bootstrap after.
+2. Then `high` topics, then `normal`, then `low`, in map order.
+3. Rough allotment per topic: overview 2-4 nodes, a module 1-4, a contract 1-3, each procedure 1, each decision 1. A topic that would need more is two topics.
+
+Stop at a topic boundary when the budget is spent. Everything left stays `pending`; that is the point, not a failure.
+
+### B4 — Distill and insert, topic by topic
+
+Read the topic's files and ask, for every candidate: *would a future session search for this, and is it costly to rediscover from the code?* Keep only what passes.
+
+| Keep (knowledge nodes) | Never (they are noise in the graph) |
+| ---------------------- | ----------------------------------- |
+| architectural decisions and their why, with the rejected alternative | one summary per file, "module X contains files A, B, C" |
+| invariants and business rules the code relies on | facts obvious from a signature or a glance at the file |
+| a module's responsibility and its boundary (what it must not do) | generated code, boilerplate, config defaults copied verbatim |
+| non-obvious constraints: platform quirks, ordering, concurrency, limits | code dumps or long snippets (a snippet only when it *is* the point) |
+| setup / build / run / release procedures with their traps | secrets of any kind (see B1) |
+| recurring gotchas (from code comments, CONTRIBUTING, history) | near-duplicates of a node already in the graph |
+| public contracts: wire / JSON / API shapes and their guarantees | changelog trivia, version bumps |
+
+House rules: retrieval-shaped titles naming the project (`graft: ...`), bodies under ~1500 chars with the rule, the why and the trap, 2-4 keywords including the project name. Then, per topic:
+
+1. `graft classify --title "<a representative title>"` once, reconcile the topic's keywords with the existing vocabulary (as in Phase 3).
+2. Per node, `graft query "<title>"` (and `retrieve --top-k 5` on WEAK): already known → skip and count; contradicted by the current code, and about this project → delete + re-insert; different subject → insert. **A hit level is not a verdict: read the hit's title and body.** In a young graph, and between notes of the same project, `query` returns STRONG for unrelated facts (in a test, every draft after the first came back STRONG on the first node); skipping on the level alone would stop the bootstrap after one node. Skip only when the hit states the same fact.
+3. Insert with every file the node was distilled from: `graft insert --title ... --body ... --keyword <project> ... --source file:<path> [--source file:<path2>]`. Run it from the root, or pass absolute paths. `duplicate: true` is fine.
+4. `graft project mark --topic <t> --state covered` when done; `--state skipped --note "<why>"` when the topic held nothing reusable (say so, do not force nodes).
+
+### B5 — Close and report
+
+```bash
+graft project mark --root "$ROOT" --run    # bootstrapped: true, runs + 1, last_run_at
+```
+
+Mark the run even when topics remain: it means "a bootstrap has happened", not "everything is covered". Then end with the machine-readable report for the agent (or the orchestrator) that invoked you, followed by one line for the human:
+
+```json
+{"bootstrap": {
+  "project": "github.com/owner/repo", "mode": "first|incremental", "provenance": true,
+  "topics": {"covered": ["overview", "storage"], "pending": ["http-viewer"], "skipped": ["vendored-deps"]},
+  "files_read": 31, "kb_read": 240,
+  "nodes": {"created": 27, "replaced": 1, "refreshed": 3, "duplicate": 2, "skipped_known": 6, "failed": 0},
+  "sources": {"changed": 2, "removed": 1, "nodes_orphaned": ["019e0a44..."]},
+  "next": "/learn bootstrap"
+}}
+```
+
+```
+graft bootstrap: 27 notes on 9 topics of repo (3 pending, next run: http-viewer, bindings, bench).
+```
+
+A re-run with nothing changed and nothing pending reads no file and creates no node: `sources diff` says everything is `unchanged`, `project status` has no pending topic, and the report says so in one line.
 
 ## Rerunning on the same source
 

@@ -140,6 +140,7 @@ add_library(graft_cli STATIC
   src/cli/autostart.c
   src/cli/client.c
   src/cli/sources.c
+  src/cli/project.c
   src/cli/usage_log.c
   src/cli/profile.c
   src/cli/setup.c
@@ -220,4 +221,19 @@ if(GRAFT_BUILD_TESTS)
     PASS_REGULAR_EXPRESSION "unknown source 'bogus:x'")
   set_tests_properties(cli_rejects_unknown_sources_option PROPERTIES
     PASS_REGULAR_EXPRESSION "unknown option or missing value: '--bogus'")
+  # `project` never talks to the daemon: it runs end to end here, against a
+  # DB path of its own (the state file lands in <build>/projects/).
+  add_test(NAME cli_rejects_unknown_project_option
+           COMMAND graft project status --bogus)
+  add_test(NAME cli_rejects_project_topic_without_state
+           COMMAND graft project mark --topic x)
+  add_test(NAME cli_project_mark_run
+           COMMAND graft project mark --topic smoke --state pending --priority high --run)
+  set_tests_properties(cli_rejects_unknown_project_option PROPERTIES
+    PASS_REGULAR_EXPRESSION "unknown option or missing value: '--bogus'")
+  set_tests_properties(cli_rejects_project_topic_without_state PROPERTIES
+    PASS_REGULAR_EXPRESSION "--state is covered, pending, skipped or drop")
+  set_tests_properties(cli_project_mark_run PROPERTIES
+    ENVIRONMENT "GRAFT_DB_PATH=${CMAKE_BINARY_DIR}/cli_project_test.db"
+    PASS_REGULAR_EXPRESSION "\"bootstrapped\": true")
 endif()

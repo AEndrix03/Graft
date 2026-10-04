@@ -66,7 +66,7 @@ For Claude Code we ship six skills:
 | `graft-init`     | One-shot configurator: writes a `<!-- graft:start -->...<!-- graft:end -->` block into `CLAUDE.md`. |
 | `recall`         | Smart search: tries `query`, falls back to `retrieve`, then to `explore`, escalating only when results are weak. |
 | `memoryze`       | Distills the current conversation into 1–5 well-formed nodes and saves them. |
-| `learn`          | Batch-ingestion from external sources (codebase, docs tree): plan + confirm + ingest. `/learn docs` takes in all of a repository's documentation (README, docs/, ADRs, guides), incrementally on re-runs. |
+| `learn`          | Batch-ingestion from external sources (codebase, docs tree): plan + confirm + ingest. `/learn docs` takes in all of a repository's documentation (README, docs/, ADRs, guides), incrementally on re-runs. `/learn bootstrap` is the unattended, progressive cold start of a whole project: a topic map, bounded runs by importance (task area first), coverage tracked by `graft project`. |
 | `memory-audit`   | Read-only health check: hit rate, hoarding ratio, top reused nodes, never-reused nodes. |
 
 All six ship in the graft plugin (`plugins/graft/`), installed from the marketplace
