@@ -1,137 +1,123 @@
 ---
 name: memory-audit
 description: >-
-  Health check + maintenance audit of the graft graph. Reports hit rate, hoarding ratio, top reused nodes, never-reused nodes, stale entries, and similar-but-separate clusters that may be duplicates. Suggests concrete actions (re-save with a better title, promote to README, drop stale, narrow over-broad nodes) but does NOT modify the graph automatically — every action is proposed for the user to approve. Triggered by `/memory-audit`, "is the graph healthy", "audit memory", "check graft quality", or whenever the user wants a cleanup pass before a long-running session.
+  Maintenance pass + health check of the graft graph. Runs the `graft maintain` loop: checks what is due, applies the mechanical cleanup, then adjudicates every maintenance candidate (near duplicates, supersessions, contradictions, memories whose source file changed or disappeared, keyword variants, stale low-value notes) against the current code and docs and resolves it with one audited, reversible action, without asking the user in the normal path. Ends with a short report (what was resolved, hit rate, reuse). Triggered by `/memory-audit`, "is the graph healthy", "audit memory", "clean up the memory", "check graft quality", or when `graft maintain status` recommends work.
 ---
 
-# memory-audit — Read-only health check + actionable suggestions
+# memory-audit — Keep the graph true, without bothering the user
 
-The graph rots like any knowledge base: people save sloppy summaries, save the same fact with three different keywords, save things that never get reused. This skill produces a single readable report and a punch-list of concrete maintenance actions for the user to approve.
+The graph rots like any knowledge base: the code moves on and a note goes stale, the same fact gets saved twice, a newer decision replaces an older one. Graft finds these cases and hands them to you as **candidates** with their evidence; **you** decide each one against the repository as it is now, and apply the decision with one narrow command. The user installed Graft so they would not have to curate memories by hand: resolve on your own, and only surface what is irreversible or genuinely ambiguous.
 
-**Never modify the graph from this skill.** It's read-only by design — propose, don't act. The user runs follow-up `/memoryze` / re-tag / delete operations themselves.
+Every action below is recorded in `graft maintain log` and is reversible with `restore` until the retention window ends (`retire` purges after `maintenance.retention_days`, default 30). Never use `graft delete` in this skill: it is immediate and permanent.
 
-## What you collect
-
-Run these in order and aggregate:
+## 1. Is anything due?
 
 ```bash
-# 1. Distribution health
+graft maintain status
+```
+
+Cheap (no embedding). Read `recommended`:
+
+- `apply-safe` → step 2.
+- `scan` or `resolve` → step 3.
+- empty → nothing to maintain; skip to the report (step 5) if the user asked for an audit, otherwise stop here.
+
+When the user explicitly asked for an audit, run steps 2-3 anyway.
+
+## 2. Mechanical cleanup
+
+```bash
+graft maintain apply-safe
+```
+
+Safe by construction: expired nodes, orphan rows, `ANALYZE`, retired nodes past retention, and exact duplicates (same title and body) collapsed onto the oldest copy. Nothing to decide; note the counts for the report.
+
+## 3. Adjudicate candidates
+
+Run it from the repository the memories describe, so changed / removed file sources are detected (or pass `--root <repo>`):
+
+```bash
+graft maintain scan --limit 20
+```
+
+Candidates come most urgent first. For each one:
+
+1. Read the nodes: `graft get <id_hex>` (the candidate already shows titles, states and dates).
+2. Read the evidence it names: the file in `signals.sources[].locator`, the code or docs the note talks about, the other note of the pair.
+3. Decide, then apply exactly one action:
+
+```bash
+graft maintain resolve <candidate-id> --action <action> [--by <id>] [--node <id>] --note "<one line: why>"
+```
+
+Always pass `--note`: it is the audit trail's only record of your reasoning.
+
+| Kind | Check | Usual decision |
+|---|---|---|
+| `source_changed` | Does the note still hold for the file as it is now? | Still true → `refresh`. Outdated → `graft insert` the corrected note (with `--source file:<path>`), then `supersede --by <new-id>`. Not worth rewriting → `stale`. |
+| `source_removed` | Was the file moved or deleted, and is the knowledge still true elsewhere? | Moved → insert with the new source, `supersede --by <new-id>`. Knowledge gone → `retire`. |
+| `possible_supersession` | Does the newer note (`b`) replace the older one (`a`)? | Yes → `supersede_a`. They say different things → `keep_both`. |
+| `near_duplicate` | Same fact twice? | One says it all → `supersede_a` / `supersede_b` (supersede the weaker). Both add something → insert one merged note, then `merge --by <new-id>`. Different facts → `keep_both`. |
+| `contradiction` | Which side matches the code? | Wrong side → `supersede_a` / `supersede_b` so the right one replaces it, or `stale --node <wrong-id>`. |
+| `keyword_fragmentation` | Does the variant spelling hurt findability? | Usually `keep`. If it matters → re-insert the note with the established keyword, `supersede --by <new-id>`. |
+| `isolated_low_value` | Is the note still useful to anyone? | No → `retire`. Yes → `keep`. |
+
+`keep` / `keep_both` dismisses the candidate until its evidence changes (new content, new file version), so it will not come back on the next scan. For pairs, `a` is always the older node.
+
+Process the batch, then scan again: resolved and dismissed candidates do not reappear, so the loop converges. Stop after two or three batches in one turn; the rest can wait for the next session.
+
+### When to involve the user
+
+Only these go to the user, with the candidate and your evidence in two lines:
+
+- you cannot tell which side of a contradiction is right from the code, docs or conversation;
+- the decision depends on intent you cannot observe (a planned migration, a policy not written anywhere);
+- the user asked to review decisions before they are applied.
+
+Everything else you resolve yourself. If you are unsure between `stale` and `retire`, choose `stale`: the note stays searchable and the next pass can retire it.
+
+### Undo
+
+```bash
+graft maintain log --limit 20                        # what was done, by whom, why
+graft maintain resolve --node <id> --action restore  # back to ACTIVE
+```
+
+## 4. Usage signals (for the report)
+
+```bash
 graft stats
-
-# 2. Usage signal across the lifetime of the graph
-graft analytics
-
-# 3. Last-week trend (compare with lifetime to spot degradation)
 graft analytics --since 7d
-
-# 4. Profile context
-graft profile current
-graft profile list
+graft analytics
 ```
 
-If the user said "audit profile X" or "tutti i profili", iterate with `GRAFT_PROFILE=X` per profile.
+- **Hit rate** (`analytics.cache.hit_rate`): `>= 0.30` healthy on a mature graph; `< 0.10` with more than 50 events means unfindable titles or an agent that does not search first.
+- **Hoarding ratio** (`analytics.insert_to_query_ratio`): `> 1.5` means saving more than searching, which breeds the near duplicates you just resolved.
+- **Champions** (`analytics.top_reused_nodes`, `hits >= 5`): load-bearing knowledge; suggest promoting it to the repository's docs.
 
-## What you analyze
+If the user said "audit profile X" or "all profiles", repeat steps 1-4 with `GRAFT_PROFILE=X`.
 
-### A. Hit-rate health
+## 5. Report
 
-From `analytics.cache.hit_rate`:
-
-- **>= 0.30** — healthy mature graph.
-- **0.10 to 0.30** — adequate, but may improve with better summaries.
-- **< 0.10** — either the graph is too young (< 50 queries) OR something's wrong: bad summaries, or the agent isn't searching before answering.
-
-Use `events.total` to disambiguate: < 50 events ⇒ "too young to judge"; >= 50 ⇒ real problem.
-
-### B. Hoarding ratio
-
-From `analytics.insert_to_query_ratio`:
-
-- **< 0.5** — healthy (more searches than saves; the graph is being USED).
-- **0.5 - 1.5** — tolerable; the agent saves and searches in roughly equal measure.
-- **> 1.5** — the agent is hoarding without checking first. Tell the user: "we're saving more than searching — likely creating duplicates."
-
-### C. Champion vs. orphan nodes
-
-From `analytics.top_reused_nodes`:
-- The top 3-5 IDs by `hits` are **champions**. For each, show:
-  - `graft get <id_hex>` → the full content
-  - **Suggestion**: if `hits >= 5`, consider promoting the content to a README / docs page — it's load-bearing knowledge.
-
-For **orphans** (nodes that never got a STRONG hit), the data isn't directly available; infer indirectly:
-- If `events.total > 100` and `cache.strong / events.insert < 0.2`, most inserts are never reused. Tell the user: "many saved nodes never get retrieved — either they're unfindable (bad summaries) or unused (irrelevant). Run `/recall` against a few representative ones to check."
-
-### D. WEAK clusters (potential duplicates)
-
-If recent activity has **many WEAK hits** (`cache.weak / cache.strong > 1`), the graph likely contains semantically-near-but-textually-different nodes. Report this and suggest:
-- Pick 1-2 recent WEAK queries from memory of the conversation if any.
-- For each, run `graft retrieve "<query>" --top-k 5`.
-- If two of the top-5 have very similar summaries (you eyeball this — there's no built-in dedup score), flag them as a candidate merge.
-
-### E. Latency outliers
-
-From `analytics.latency_ms.avg_query`:
-
-- **< 200 ms** — fine.
-- **200 - 800 ms** — acceptable for a graph with cross-encoder enabled or large context.
-- **> 800 ms** — investigate. Could mean huge graph + cold cache, or a misconfigured `embedding.threads`.
-
-### F. Profile sanity
-
-From `profile list`:
-
-- A single profile with hundreds of nodes spanning unrelated topics → suggest splitting into per-domain profiles (`work`, `personal`, `system-foo`).
-- Many profiles with < 5 nodes each → consolidate or remove unused ones.
-- The `default` profile should never be removed (it's not removable anyway), but if `current != default` for the project, suggest the user persist that with `eval "$(graft profile set <name>)"` in their shell rc.
-
-## Output: the audit report
-
-Render a single readable report — **not** a JSON dump. Structure:
+A short, readable summary, not a JSON dump:
 
 ```
-graft audit — profile=<name>, <N> events lifetime, last 7d: <M>
+graft maintenance — profile=<name>
 
-Hit rate:           <pct>%        (lifetime) / <pct>% (last 7d)   [ok | warn | bad]
-Hoarding ratio:     <ratio>x      [ok | warn | bad]
-Avg query latency:  <ms> ms       [ok | warn | bad]
+Mechanical:   <n> retired purged, <n> exact duplicates collapsed, <n> expired removed
+Resolved:     <n> candidates (<n> superseded, <n> refreshed, <n> retired, <n> stale, <n> kept)
+Pending:      <n> (next pass)
+Needs you:    <only the irreversible / ambiguous cases, one line each, or "nothing">
 
-Champions (top reused):
-  ★ <id_hex_short> · hits=<n> · "<title>"
-  ★ ...
-
-Findings:
-  ! <one-line problem>
-    → <one-line action>
-  ! ...
-
-Suggested next steps (in order):
-  1. <do this first because it has highest impact>
-  2. <then this>
-  3. <optional polish>
+Hit rate:     <pct>% lifetime / <pct>% last 7d   [ok | warn | bad]
+Hoarding:     <ratio>x                           [ok | warn | bad]
+Champions:    <id_short> "<title>" (hits=<n>), ...
 ```
 
-Keep the whole report under 40 lines. The user can ask follow-up questions for any line.
-
-## Action menu
-
-After the report, present a numbered action menu the user can pick from:
-
-```
-What now? Reply with a number or skip:
-  [1] Run /recall against the champions to verify they're still findable
-  [2] Promote champion #<id> to README/docs (I'll draft the page)
-  [3] Re-save node <id> with a better title (I'll propose the rewrite)
-  [4] Investigate WEAK cluster: <query>
-  [5] Skip / done
-```
-
-Items 1, 2, 3 are concrete enough that you can act on them in the next turn without further input. Item 4 needs human judgment (which of the WEAK matches are duplicates).
+Keep it under 20 lines. Every resolution is in `graft maintain log` if the user wants the detail.
 
 ## What this skill does NOT do
 
-- It does **not** delete nodes by itself — even when a node is clearly wrong, the action menu proposes the deletion, the user approves, then `graft delete <id>` runs as a follow-up step.
-- It does **not** re-classify keywords without explicit user approval.
-- It does **not** modify the active profile.
-- It does **not** export/import — the user owns those.
-
-When you want to act on a finding, route through `/memoryze` (for re-saves with better summaries), `graft delete <id>` (when the user confirms a node should go), or instruct the user to use `graft profile export/import` for backups.
+- It does not `graft delete`: retirement is the reversible path, and `apply-safe` does the physical deletion after retention.
+- It does not rewrite node content in place; a corrected note is a new insert that supersedes the old one.
+- It does not change the active profile, export, or import.

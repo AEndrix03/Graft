@@ -67,7 +67,7 @@ For Claude Code we ship six skills:
 | `recall`         | Smart search: tries `query`, falls back to `retrieve`, then to `explore`, escalating only when results are weak. |
 | `memoryze`       | Distills the current conversation into 1–5 well-formed nodes and saves them. |
 | `learn`          | Batch-ingestion from external sources (codebase, docs tree): plan + confirm + ingest. `/learn docs` takes in all of a repository's documentation (README, docs/, ADRs, guides), incrementally on re-runs. |
-| `memory-audit`   | Read-only health check: hit rate, hoarding ratio, top reused nodes, never-reused nodes. |
+| `memory-audit`   | Maintenance pass + health check: runs `graft maintain` (apply-safe, scan, resolve each candidate against the current code) and reports hit rate, hoarding ratio, reuse. |
 
 All six ship in the graft plugin (`plugins/graft/`), installed from the marketplace
 (`/plugin install graft@graft`), where they are namespaced as `/graft:<name>`. Without

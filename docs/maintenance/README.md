@@ -1,6 +1,6 @@
 # Maintenance, observability, and the usage log
 
-Graft's design assumption is that **graphs grow over time and need light, periodic maintenance**, the same way a notebook needs an occasional re-read. This page covers the tools that ship for it: `stats`, `consolidate`, the usage log, and `analytics`.
+Graft's design assumption is that **graphs grow over time and need light, periodic maintenance**, the same way a notebook needs an occasional re-read. This page covers the tools that ship for it: the autonomous `maintain` protocol, `stats`, `consolidate`, the usage log, and `analytics`.
 
 ## At a glance
 
@@ -8,10 +8,80 @@ Graft's design assumption is that **graphs grow over time and need light, period
 | ------- | ---------------- | ------------------- | ----------- |
 | `graft stats`        | Read-only | Yes | Anytime you want a percentile report or a node-count check. |
 | `graft consolidate`  | Read + lightweight write (prune, dedup, `ANALYZE`) | Yes | Periodically — every ~100 inserts, or before a long-running session. |
+| `graft maintain status` | Read-only (indexed counts) | Yes | Anytime; cheap enough for every agent session. |
+| `graft maintain apply-safe` | Write (purge retired past retention, collapse exact duplicates, consolidate) | Yes | When `status` recommends it. |
+| `graft maintain scan` / `resolve` | Scan: candidate cache only. Resolve: one audited, reversible state change | Yes | When `status` recommends it; the agent resolves without asking. |
 | `graft analytics`    | No (just reads `usage.jsonl`) | No | Anytime you want a hit-rate / latency / time-saved report. |
 | Edit threshold knobs in `config.yaml` | No | Restart daemon | After you've looked at `stats` and decided to retune. |
 
-The skills `/memory-audit` (Claude Code, etc.) call `stats` + `consolidate` + `analytics` and present the combined view.
+The `/memory-audit` skill drives the `maintain` loop below and adds the `stats` + `analytics` view.
+
+## Autonomous maintenance (`graft maintain`)
+
+The graph should maintain itself as part of normal agent work, without the user curating memories by hand. The split:
+
+- **Graft** applies everything mechanical itself (`apply-safe`) and keeps the graph invariants.
+- **Graft** reports what needs judgment as structured **candidates** with their evidence (`scan`). It never settles semantic ambiguity with a threshold alone.
+- **The integrated agent** checks each candidate against the current code / docs, decides, and applies the decision with one narrow action (`resolve`), without interrupting the user.
+
+Every semantic action is recorded in an audit log, every state change is reversible, and hard deletion only happens after a retention window. Command reference and JSON shapes: [`cli/#maintain`](../cli/#maintain).
+
+### The loop
+
+```bash
+graft maintain status              # cheap: is anything due?
+graft maintain apply-safe          # when status recommends it
+graft maintain scan --limit 20     # bounded batch of candidates
+#   for each candidate: read the nodes (graft get), the file / code / docs they describe, decide
+graft maintain resolve <id> --action <action> [--by <id>] [--note "why"]
+graft maintain scan                # converges: resolved and dismissed candidates do not come back
+```
+
+`status` costs a few indexed counts (no embedding), so an agent can check it often: after a batch of inserts, at the end of a substantial session, when a `sources diff` shows changes. Its `recommended` array says what is due (`apply-safe`, `scan`, `resolve`); `maintenance.trigger_inserts` (default 50) sets how many inserts make a pass due.
+
+### Node lifecycle
+
+| State | Searchable (`query` / `retrieve` / `explore`) | Reached by | Back to `ACTIVE` |
+|---|---|---|---|
+| `ACTIVE` | yes | insert, `restore` | — |
+| `STALE` | yes (doubtful, kept for context) | `resolve --action stale` | `restore` |
+| `SUPERSEDED` | no (the replacing node is) | `insert --supersedes`, `resolve --action supersede*` / `merge`, exact-duplicate collapse | `restore` |
+| `RETIRED` | no | `resolve --action retire` | `restore`, or inserting the same content again |
+
+A retired node is a soft delete: `get` still returns it (with `"state": "retired"`) and it can be restored until `apply-safe` deletes it physically, `maintenance.retention_days` (default 30) after it was retired. Superseded and retired nodes are also left out of graph traversal, edge building, `sources diff` and the scan itself.
+
+### Candidates
+
+| Kind | Evidence that, when it changes, brings a dismissed candidate back |
+|---|---|
+| `contradiction`, `near_duplicate`, `possible_supersession` | the content hashes of the two nodes |
+| `source_changed`, `source_removed` | each source's state and current fingerprint |
+| `keyword_fragmentation` | the node's content hash and the two keywords |
+| `isolated_low_value` | the node's content hash |
+
+Candidates are cached by the last scan (what `status` counts and `resolve` looks ids up in). Resolving a candidate, or changing the state of a node it names, removes it from the cache; the next scan only reports what is still true. Running scan, resolving everything, and scanning again yields nothing new: **maintenance converges instead of producing churn**.
+
+Provenance candidates need the files: like `sources diff`, the CLI re-hashes the `file:` sources of the project at `--root` (default: the working directory) and sends the mismatching links as evidence; the daemon never reads files.
+
+### What the agent decides
+
+- **`source_changed`**: open the file, compare with the memory. Still true → `refresh` (records the current fingerprint). Outdated → insert a corrected node and `supersede --by <new>`, or `stale` when no replacement is worth writing.
+- **`source_removed`**: was the file moved, or is the knowledge gone? Moved → insert with the new source and `supersede --by <new>`; gone → `retire`.
+- **`possible_supersession`** (older `a`, newer `b`): the newer note replaces the older one → `supersede_a`; both hold → `keep_both`.
+- **`near_duplicate`**: same fact twice → `merge` (insert the combined note, then `merge --by <new>`) or `supersede_a` / `supersede_b` when one already says it all; different facts → `keep_both`.
+- **`contradiction`**: check the code: the wrong side is superseded by the right one (`supersede_a` / `supersede_b`) or marked `stale`.
+- **`keyword_fragmentation`**: usually `keep`; re-insert with the established keyword and `supersede` when the variant hurts findability.
+- **`isolated_low_value`**: `retire` what is no longer useful, `keep` what is.
+
+Only irreversible or genuinely ambiguous cases go to the user. Everything above is reversible with `restore` until the retention window ends.
+
+### `apply-safe`
+
+Runs without judgment, in this order: purge retired nodes past retention; collapse exact duplicates (byte-identical title and body, differing only in keywords: the oldest is kept, the others superseded by it with their provenance copied to it); the full [`consolidate`](#graft-consolidate) pass; drop stale cache entries; record the run. Idempotent: a second run right after the first changes nothing.
+
+### Audit log
+
+`graft maintain log [--node <id>]` lists every resolution (`keep`, `stale`, `retire`, `restore`, `supersede*`, `merge`, `refresh`), every `purge` and `collapse_duplicate`, and every `apply_safe` run: when, who (`actor`), what, on which nodes, with the agent's `--note`. Stored in the `maintenance_log` table, never pruned.
 
 ---
 
@@ -160,14 +230,12 @@ The `seconds-per-hit` knob is your guess at "how long would a fresh agent have s
 
 The shipped `memory-audit` skill is built around this rhythm:
 
-1. `graft stats` → eyeball the percentiles.
-2. `graft analytics --since 7d` → check hit-rate, top reused nodes, never-reused nodes.
-3. `graft consolidate` → run if `n_nodes` has grown more than ~100 since last audit.
-4. If the report flags `isolated_nodes` → review them; usually they need a keyword.
-5. If the report flags `physical_bidirectional_pairs` → no action needed; just informational.
-6. If the report flags `contradictions_found` → review and resolve via supersession.
+1. `graft maintain status` → anything due?
+2. `graft maintain apply-safe` → when recommended.
+3. `graft maintain scan` → for each candidate, read the nodes and the current code / docs, then `graft maintain resolve` with the fitting action and a `--note`.
+4. `graft stats` and `graft analytics --since 7d` → hit rate, percentiles, reuse, for the report.
 
-The skill is read-only by default; every proposed action is presented for user approval, not applied automatically.
+The agent resolves candidates on its own; only irreversible or genuinely ambiguous cases are surfaced to the user. Every action lands in `graft maintain log` and stays reversible for the retention window.
 
 ---
 
@@ -197,6 +265,6 @@ The next CLI call will auto-start a fresh daemon.
 - **Log rotation.** `usage.jsonl` grows without bound. A small rotation helper (`graft logs rotate`) and / or a daily cap with a sidecar file would be cleaner than "truncate manually".
 - **Structured daemon logs.** The daemon uses `fprintf(stderr, ...)`. Switching to one-JSON-line-per-event would let Loki / Vector ingest it without parsing.
 - **Health endpoint with more substance.** `GET /v1/healthz` returns just `{"status":"ok"}`. Adding `n_nodes`, `uptime_ms`, `last_consolidate_at` would help dashboards.
-- **`graft consolidate --dry-run`** that lists candidate prunes / dedupes without applying them.
-- **A real content-consolidation pass.** Today the pass is safe-only. A future `--merge-similar` mode (with confirmation) would close the loop on "two nodes about the same thing accumulated separately".
-- **Stale-mark heuristics.** `state = STALE` exists in the schema but nothing assigns it today. A pass that flags nodes whose `last_access` is older than N days and `access_count == 0` would surface unused memories worth deleting.
+- **Contradiction detection.** The scan reports `CONTRADICTS` edges, but nothing creates them automatically yet; an NLI pass at insert time would feed it.
+- **Fragmented clusters.** Many small nodes about one topic that would read better as one are not a candidate kind yet.
+- **Approximate near-duplicate search.** The scan compares the newest `maintenance.scan_max_nodes` active nodes pairwise; a vector index would cover larger graphs in one pass.

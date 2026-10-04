@@ -53,6 +53,15 @@ explore:
   decay_gamma:    0.85
   alpha:          0.5
 
+maintenance:
+  near_duplicate_min:    0.92
+  scan_max_nodes:        2000
+  scan_neighbors:        5
+  scan_cap:              200
+  isolated_min_age_days: 30
+  retention_days:        30
+  trigger_inserts:       50
+
 http:
   enabled:           false
   bind:              "127.0.0.1"
@@ -132,6 +141,20 @@ Read [`retrieval/`](../retrieval/) for the full gating formula.
 | `default_depth` | `3`    | Beam depth when the caller doesn't supply one. |
 | `decay_gamma`   | `0.85` | Per-step depth penalty. |
 | `alpha`         | `0.5`  | Weight of semantic-to-query relevance vs traversed edge weight in the beam score. |
+
+#### `maintenance`
+
+Knobs of `graft maintain` (see [maintenance](../maintenance/#autonomous-maintenance-graft-maintain)).
+
+| Key | Default | What it does |
+| --- | ------- | ------------ |
+| `near_duplicate_min`    | `0.92` | Cosine at which two active nodes become a `near_duplicate` / `possible_supersession` candidate. |
+| `scan_max_nodes`        | `2000` | The newest active nodes compared pairwise per scan; bounds the scan's cost (quadratic in this). |
+| `scan_neighbors`        | `5`    | Near-duplicate partners kept per node. |
+| `scan_cap`              | `200`  | Candidates kept per scan (the pending backlog `status` reports); `scan --limit` returns the first ones. |
+| `isolated_min_age_days` | `30`   | Age after which an isolated, never-read node is an `isolated_low_value` candidate. |
+| `retention_days`        | `30`   | How long a retired node stays restorable before `apply-safe` deletes it. `0` purges on the next run. |
+| `trigger_inserts`       | `50`   | Inserts since the last `apply-safe` / `scan` after which `status` recommends running it again. |
 
 #### `http`
 
