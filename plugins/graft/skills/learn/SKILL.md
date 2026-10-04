@@ -125,12 +125,15 @@ Use this to align all node `keyword_candidates` to the same vocabulary. The goal
 
 **Pre-dedup search** (cheap optimization):
 
-For each draft node, run a quick `graft query` and skip from the plan any candidate that returns STRONG hit (already covered):
+For each draft node, run a quick `graft query` and drop from the plan any candidate the graph already states:
 
 ```bash
 graft query "<draft title>"
-# if hit=STRONG: mark as 'already-covered', show id_hex in the plan, don't re-insert
+# if the hit's title and body state the same fact: mark as 'already-covered',
+# show id_hex in the plan, don't re-insert
 ```
+
+**The hit level is not the verdict.** Between notes of the same project, and in a young graph, `query` returns STRONG for related but different facts; skipping on STRONG alone silently drops new knowledge. Read the hit and skip only when it says the same thing.
 
 WEAK hits stay in the plan but flagged so the user sees they're refining an existing node.
 
