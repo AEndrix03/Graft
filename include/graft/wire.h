@@ -27,7 +27,9 @@ typedef enum {
   MG_OP_CONSOLIDATE,
   MG_OP_DELETE,
   MG_OP_VIEW,
-  MG_OP_REMOTE_SYNC
+  MG_OP_REMOTE_SYNC,
+  MG_OP_SOURCES_LIST,
+  MG_OP_SOURCES_REFRESH
 } mg_op_t;
 
 mg_err_t mg_wire_op_from_string(const char *s, mg_op_t *out);

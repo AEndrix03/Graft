@@ -116,3 +116,33 @@ const char *mg_storage_migration_v3_sql(void) {
     "CREATE INDEX IF NOT EXISTS idx_nodes_origin ON nodes(origin);"
     "COMMIT;";
 }
+
+/* v4: provenance (issue #4). Additive and idempotent, so it runs on every
+ * open right after the base schema: an older DB just gains two empty tables,
+ * no rebuild. One source row per (project, kind, locator); a node links to
+ * any number of sources and a source supports any number of nodes. The
+ * link's fingerprint/observed_at record the source version the node was
+ * derived from (or last revalidated against), while the source row keeps
+ * the latest version seen through any node. project is '' for kinds that
+ * have none (url, conversation, manual). */
+const char *mg_storage_schema_v4_sql(void) {
+  return
+    "CREATE TABLE IF NOT EXISTS sources ("
+    "  id INTEGER PRIMARY KEY AUTOINCREMENT,"
+    "  project TEXT NOT NULL DEFAULT '',"
+    "  kind TEXT NOT NULL,"
+    "  locator TEXT NOT NULL,"
+    "  fingerprint TEXT,"
+    "  observed_at INTEGER NOT NULL,"
+    "  UNIQUE(project, kind, locator)"
+    ");"
+    "CREATE TABLE IF NOT EXISTS node_sources ("
+    "  node_id BLOB NOT NULL REFERENCES nodes(id) ON DELETE CASCADE,"
+    "  source_id INTEGER NOT NULL REFERENCES sources(id) ON DELETE CASCADE,"
+    "  role TEXT NOT NULL DEFAULT 'primary',"
+    "  fingerprint TEXT,"
+    "  observed_at INTEGER NOT NULL,"
+    "  PRIMARY KEY (node_id, source_id)"
+    ");"
+    "CREATE INDEX IF NOT EXISTS idx_ns_source ON node_sources(source_id);";
+}

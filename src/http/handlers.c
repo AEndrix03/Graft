@@ -276,6 +276,10 @@ typedef struct {
    * JSON buffer (we tokenize destructively in the caller). */
   char      **keywords;
   size_t      n_keywords;
+  /* optional provenance locators ("url:...", "conversation", "manual",
+   * "file:<absolute path>"); resolved by the insert op */
+  char      **sources;
+  size_t      n_sources;
 } insert_args_t;
 
 static void build_insert_args(mpack_writer_t *w, void *user) {
@@ -283,7 +287,8 @@ static void build_insert_args(mpack_writer_t *w, void *user) {
   int n_fields = 3
                + (a->author     ? 1 : 0)
                + (a->expires_at > 0 ? 1 : 0)
-               + (a->supersedes ? 1 : 0);
+               + (a->supersedes ? 1 : 0)
+               + (a->n_sources > 0 ? 1 : 0);
   size_t i;
   mpack_start_map(w, (uint32_t)n_fields);
   mpack_write_cstr(w, "title"); mpack_write_cstr(w, a->title ? a->title : "");
@@ -304,6 +309,12 @@ static void build_insert_args(mpack_writer_t *w, void *user) {
     mpack_write_cstr(w, "supersedes");
     mpack_write_cstr(w, a->supersedes);
   }
+  if (a->n_sources > 0) {
+    mpack_write_cstr(w, "sources");
+    mpack_start_array(w, (uint32_t)a->n_sources);
+    for (i = 0; i < a->n_sources; ++i) mpack_write_cstr(w, a->sources[i]);
+    mpack_finish_array(w);
+  }
   mpack_finish_map(w);
 }
 
@@ -319,6 +330,7 @@ static const char *parse_insert_body(char *body, size_t body_len,
                                      char ***owned_kw_out, size_t *n_kw_out) {
   /* For brevity, we use a hand-rolled scanner. The accepted shape is:
    *   { "title": "...", "body": "...", "keywords": ["a","b"],
+   *     "sources": ["url:...", "file:/abs/path", "conversation"],
    *     "author": "...", "expires_at": 12345, "supersedes": "<hex>" }
    * with double-quoted strings and standard escapes. */
   (void)body_len;
@@ -333,6 +345,8 @@ static const char *parse_insert_body(char *body, size_t body_len,
   args->supersedes = NULL;
   args->keywords = NULL;
   args->n_keywords = 0;
+  args->sources = NULL;     /* owned: the caller frees it, error or not */
+  args->n_sources = 0;
   *owned_kw_out = NULL;
   *n_kw_out = 0;
 
@@ -423,6 +437,10 @@ static const char *parse_insert_body(char *body, size_t body_len,
         args->n_keywords = n;
         *owned_kw_out = kws;
         *n_kw_out = n;
+      } else if (strcmp(key_start, "sources") == 0) {
+        free(args->sources);
+        args->sources = kws;
+        args->n_sources = n;
       } else {
         free(kws);
       }
@@ -469,10 +487,12 @@ void mg_http_handler_insert(mg_ctx_t *ctx, mg_http_request_t *req,
   if (err) {
     mg_http_error(resp, 400, err);
     free(owned_kw);
+    free(a.sources);
     return;
   }
   run_dispatch(ctx, "insert", build_insert_args, &a, 201, resp);
   free(owned_kw);
+  free(a.sources);
 }
 
 /* ---------------- DELETE /v1/nodes/{id_hex} ---------------- */

@@ -18,7 +18,28 @@ typedef struct {
   int64_t isolated_nodes;
   int64_t physical_bidirectional_pairs;
   int64_t contradictions_found;
+  int64_t orphan_sources_deleted;
 } mg_storage_consolidate_report_t;
+
+/* Provenance record (issue #4). On input (attach) fingerprint/observed_at
+ * describe the source version the node derives from; on output (links)
+ * they are the link's values, i.e. what the node was last validated
+ * against. NULL project = "", NULL role = "primary", NULL fingerprint =
+ * none (url / conversation / manual). */
+typedef struct {
+  char   *project;
+  char   *kind;
+  char   *locator;
+  char   *fingerprint;
+  char   *role;
+  int64_t observed_at;
+} mg_source_t;
+
+typedef struct {
+  mg_source_t  source;
+  mg_node_id_t node_id;
+  char        *title;
+} mg_source_link_t;
 
 mg_err_t mg_storage_open(const char *db_path, mg_storage_t **out);
 void     mg_storage_close(mg_storage_t *s);
@@ -54,12 +75,50 @@ mg_err_t mg_storage_insert_node_with_edges(
   const mg_node_id_t *supersedes_id
 );
 
+/* Same as mg_storage_insert_node_with_edges, and links the node to
+ * `sources` in the same transaction. */
+mg_err_t mg_storage_insert_node_with_sources(
+  mg_storage_t *s,
+  const mg_node_t *node,
+  const mg_embedding_t embedding,
+  const mg_keyword_id_t *keyword_ids, size_t n_keywords,
+  const mg_edge_t *edges, size_t n_edges,
+  const mg_node_id_t *supersedes_id,
+  const mg_source_t *sources, size_t n_sources
+);
+
+/* === Provenance (issue #4) === */
+/* Links an existing node to sources, creating the source rows on first use.
+ * Re-attaching an already linked source updates the link's fingerprint and
+ * observed_at; the source row keeps whichever observation is newer.
+ * MG_ERR_NOT_FOUND if the node does not exist. */
+mg_err_t mg_storage_attach_sources(mg_storage_t *s, const mg_node_id_t node_id,
+                                   const mg_source_t *sources, size_t n_sources);
+
+/* Lists node<->source links, ordered by (project, kind, locator, node).
+ * Each filter is optional (NULL = any). Superseded nodes are skipped unless
+ * node_id names one. Free with mg_source_links_free. */
+mg_err_t mg_storage_source_links(mg_storage_t *s, const char *project,
+                                 const char *kind, const mg_node_id_t *node_id,
+                                 mg_source_link_t **out, size_t *out_count);
+void     mg_source_links_free(mg_source_link_t *links, size_t count);
+
+/* Records that `node_id` was revalidated against the source version
+ * `fingerprint` (observed at `observed_at`): updates the link and, when
+ * newer, the source row. Node content is not touched. *updated receives
+ * the number of links changed (0 if the node has no such source). */
+mg_err_t mg_storage_refresh_source(mg_storage_t *s, const mg_node_id_t node_id,
+                                   const char *project, const char *kind,
+                                   const char *locator, const char *fingerprint,
+                                   int64_t observed_at, int64_t *updated);
+
 /* Recupera nodo. Il chiamante deve fare mg_node_free su out->summary/detail. */
 mg_err_t mg_storage_get_node(mg_storage_t *s, const mg_node_id_t id, mg_node_t *out);
 
 /* Cancella un nodo e tutto il contenuto associato. Cascades:
  *   - node_keywords (FK ON DELETE CASCADE)
  *   - edges (FK ON DELETE CASCADE su src e dst)
+ *   - node_sources (FK ON DELETE CASCADE; orphan sources go at consolidate)
  *   - node_fts (trigger nodes_ad)
  *   - node_vec (manuale, virtual table senza FK)
  * Returns MG_ERR_NOT_FOUND se l'id non esiste. */
@@ -166,7 +225,10 @@ mg_err_t mg_storage_node_keywords(
  * keeps the target's. Source edges / keyword links / embeddings are
  * remapped onto the retained target ids. Keyword ids are remapped by text
  * (keywords.text is UNIQUE COLLATE NOCASE), so the source's auto-increment
- * ids don't leak into the target. */
+ * ids don't leak into the target. Provenance follows the same remap:
+ * sources are matched by (project, kind, locator) and node_sources links
+ * land on the retained target ids; the newer observation wins a conflict.
+ * pull/push below carry provenance the same way. */
 mg_err_t mg_storage_merge_from(mg_storage_t *s, const char *source_path,
                                int overwrite);
 

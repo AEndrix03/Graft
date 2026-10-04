@@ -9,7 +9,9 @@
  *     "keywords":     [ string, ... ],
  *     "created_at":   int (unix ms),
  *     "expires_at":   int (unix ms; 0 = no expiration),
- *     "access_count": int
+ *     "access_count": int,
+ *     "sources":      [ { kind, locator, project, fingerprint|nil,
+ *                         role, observed_at }, ... ]
  *   }
  */
 
@@ -86,6 +88,11 @@ mg_err_t mg_op_get(mg_ctx_t *ctx, mpack_node_t args, mpack_writer_t *result) {
 
     mpack_write_cstr(result, "access_count");
     mpack_write_int(result, node.access_count);
+
+    /* Best-effort like the keywords: a provenance read error leaves the
+     * array empty rather than failing the GET. */
+    mpack_write_cstr(result, "sources");
+    (void)mg_op_write_node_sources(ctx->storage, id, result);
 
     mpack_complete_map(result);
 

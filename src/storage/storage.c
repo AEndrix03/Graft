@@ -23,6 +23,7 @@ extern int sqlite3_vec_init(sqlite3 *db, char **pzErrMsg, const sqlite3_api_rout
 extern const char *mg_storage_schema_sql(void);
 extern const char *mg_storage_migration_v2_sql(void);
 extern const char *mg_storage_migration_v3_sql(void);
+extern const char *mg_storage_schema_v4_sql(void);
 
 /* The daemon runs one thread per connection and every worker shares this
  * handle. SQLITE_OPEN_FULLMUTEX only serializes single API calls: a
@@ -391,6 +392,10 @@ static mg_err_t storage_apply_schema_unlocked(mg_storage_t *s) {
   if (err != MG_OK) {
     return err;
   }
+  err = exec_sql(s->db, mg_storage_schema_v4_sql());
+  if (err != MG_OK) {
+    return err;
+  }
   err = create_vec_table(s->db);
   if (err != MG_OK) {
     return err;
@@ -458,19 +463,271 @@ rollback:
   return err;
 }
 
+/* Upserts the source rows and links them to node_id. Runs inside the
+ * caller's transaction. */
+static mg_err_t link_sources(mg_storage_t *s, const mg_node_id_t node_id,
+                             const mg_source_t *sources, size_t n_sources) {
+  sqlite3_stmt *stmt = NULL;
+  size_t i;
+  mg_err_t err = MG_OK;
+  for (i = 0; err == MG_OK && i < n_sources; ++i) {
+    const mg_source_t *src = &sources[i];
+    const char *project = src->project ? src->project : "";
+    sqlite3_int64 source_id = 0;
+    if (!src->kind || !src->kind[0] || !src->locator) {
+      return MG_ERR_INVALID_ARG;
+    }
+    /* the source row keeps the newest observation of any node */
+    err = prepare(s->db,
+      "INSERT INTO sources AS t(project, kind, locator, fingerprint, observed_at) "
+      "VALUES(?,?,?,?,?) "
+      "ON CONFLICT(project, kind, locator) DO UPDATE SET "
+      "  fingerprint = excluded.fingerprint, observed_at = excluded.observed_at "
+      "WHERE excluded.observed_at >= t.observed_at;", &stmt);
+    if (err == MG_OK) {
+      sqlite3_bind_text(stmt, 1, project, -1, SQLITE_STATIC);
+      sqlite3_bind_text(stmt, 2, src->kind, -1, SQLITE_STATIC);
+      sqlite3_bind_text(stmt, 3, src->locator, -1, SQLITE_STATIC);
+      if (src->fingerprint) {
+        sqlite3_bind_text(stmt, 4, src->fingerprint, -1, SQLITE_STATIC);
+      } else {
+        sqlite3_bind_null(stmt, 4);
+      }
+      sqlite3_bind_int64(stmt, 5, src->observed_at);
+      err = step_done(stmt);
+    }
+    sqlite3_finalize(stmt);
+    stmt = NULL;
+    if (err != MG_OK) break;
+
+    err = prepare(s->db, "SELECT id FROM sources WHERE project=? AND kind=? AND locator=?;", &stmt);
+    if (err == MG_OK) {
+      sqlite3_bind_text(stmt, 1, project, -1, SQLITE_STATIC);
+      sqlite3_bind_text(stmt, 2, src->kind, -1, SQLITE_STATIC);
+      sqlite3_bind_text(stmt, 3, src->locator, -1, SQLITE_STATIC);
+      if (sqlite3_step(stmt) == SQLITE_ROW) {
+        source_id = sqlite3_column_int64(stmt, 0);
+      } else {
+        err = MG_ERR_STORAGE;
+      }
+    }
+    sqlite3_finalize(stmt);
+    stmt = NULL;
+    if (err != MG_OK) break;
+
+    /* re-attaching records the version the node now derives from */
+    err = prepare(s->db,
+      "INSERT INTO node_sources(node_id, source_id, role, fingerprint, observed_at) "
+      "VALUES(?,?,?,?,?) "
+      "ON CONFLICT(node_id, source_id) DO UPDATE SET "
+      "  role = excluded.role, fingerprint = excluded.fingerprint, "
+      "  observed_at = excluded.observed_at;", &stmt);
+    if (err == MG_OK) {
+      sqlite3_bind_blob(stmt, 1, node_id, MG_NODE_ID_BYTES, SQLITE_STATIC);
+      sqlite3_bind_int64(stmt, 2, source_id);
+      sqlite3_bind_text(stmt, 3, src->role ? src->role : "primary", -1, SQLITE_STATIC);
+      if (src->fingerprint) {
+        sqlite3_bind_text(stmt, 4, src->fingerprint, -1, SQLITE_STATIC);
+      } else {
+        sqlite3_bind_null(stmt, 4);
+      }
+      sqlite3_bind_int64(stmt, 5, src->observed_at);
+      err = step_done(stmt);
+    }
+    sqlite3_finalize(stmt);
+    stmt = NULL;
+  }
+  return err;
+}
+
+static mg_err_t storage_attach_sources_unlocked(mg_storage_t *s, const mg_node_id_t node_id,
+                                                const mg_source_t *sources, size_t n_sources) {
+  sqlite3_stmt *stmt = NULL;
+  mg_err_t err;
+  int rc;
+  if (!s || !node_id || (!sources && n_sources > 0)) {
+    return MG_ERR_INVALID_ARG;
+  }
+  err = exec_sql(s->db, "BEGIN IMMEDIATE;");
+  if (err != MG_OK) {
+    return err;
+  }
+  err = prepare(s->db, "SELECT 1 FROM nodes WHERE id=?;", &stmt);
+  if (err == MG_OK) {
+    sqlite3_bind_blob(stmt, 1, node_id, MG_NODE_ID_BYTES, SQLITE_STATIC);
+    rc = sqlite3_step(stmt);
+    err = rc == SQLITE_ROW ? MG_OK : (rc == SQLITE_DONE ? MG_ERR_NOT_FOUND : MG_ERR_STORAGE);
+  }
+  sqlite3_finalize(stmt);
+  if (err == MG_OK) {
+    err = link_sources(s, node_id, sources, n_sources);
+  }
+  if (err == MG_OK) {
+    err = exec_sql(s->db, "COMMIT;");
+  } else {
+    (void)exec_sql(s->db, "ROLLBACK;");
+  }
+  return err;
+}
+
+static char *column_dup(sqlite3_stmt *stmt, int col) {
+  const unsigned char *t = sqlite3_column_text(stmt, col);
+  return t ? mg_strdup((const char *)t) : NULL;
+}
+
+void mg_source_links_free(mg_source_link_t *links, size_t count) {
+  size_t i;
+  if (!links) {
+    return;
+  }
+  for (i = 0; i < count; ++i) {
+    free(links[i].source.project);
+    free(links[i].source.kind);
+    free(links[i].source.locator);
+    free(links[i].source.fingerprint);
+    free(links[i].source.role);
+    free(links[i].title);
+  }
+  free(links);
+}
+
+static mg_err_t storage_source_links_unlocked(mg_storage_t *s, const char *project,
+                                              const char *kind, const mg_node_id_t *node_id,
+                                              mg_source_link_t **out, size_t *out_count) {
+  sqlite3_stmt *stmt = NULL;
+  mg_source_link_t *links = NULL;
+  size_t n = 0, cap = 0;
+  int rc;
+  if (!s || !out || !out_count) {
+    return MG_ERR_INVALID_ARG;
+  }
+  *out = NULL;
+  *out_count = 0;
+  if (prepare(s->db,
+      "SELECT s.project, s.kind, s.locator, ns.fingerprint, ns.role, ns.observed_at, "
+      "       n.id, n.title "
+      "FROM node_sources AS ns "
+      "JOIN sources AS s ON s.id = ns.source_id "
+      "JOIN nodes AS n ON n.id = ns.node_id "
+      "WHERE (?1 IS NULL OR s.project = ?1) "
+      "  AND (?2 IS NULL OR s.kind = ?2) "
+      "  AND (?3 IS NULL OR ns.node_id = ?3) "
+      "  AND (?3 IS NOT NULL OR n.state != 2) "
+      "ORDER BY s.project, s.kind, s.locator, n.id;", &stmt) != MG_OK) {
+    return MG_ERR_STORAGE;
+  }
+  if (project) sqlite3_bind_text(stmt, 1, project, -1, SQLITE_STATIC);
+  if (kind) sqlite3_bind_text(stmt, 2, kind, -1, SQLITE_STATIC);
+  if (node_id) sqlite3_bind_blob(stmt, 3, *node_id, MG_NODE_ID_BYTES, SQLITE_STATIC);
+  while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
+    mg_source_link_t *l;
+    if (n == cap) {
+      size_t nc = cap ? cap * 2 : 16;
+      mg_source_link_t *nb = (mg_source_link_t *)realloc(links, nc * sizeof(*links));
+      if (!nb) {
+        rc = SQLITE_NOMEM;
+        break;
+      }
+      links = nb;
+      cap = nc;
+    }
+    l = &links[n++];
+    memset(l, 0, sizeof(*l));
+    l->source.project = column_dup(stmt, 0);
+    l->source.kind = column_dup(stmt, 1);
+    l->source.locator = column_dup(stmt, 2);
+    l->source.fingerprint = column_dup(stmt, 3);
+    l->source.role = column_dup(stmt, 4);
+    l->source.observed_at = sqlite3_column_int64(stmt, 5);
+    if (sqlite3_column_bytes(stmt, 6) == MG_NODE_ID_BYTES) {
+      memcpy(l->node_id, sqlite3_column_blob(stmt, 6), MG_NODE_ID_BYTES);
+    }
+    l->title = column_dup(stmt, 7);
+    if (!l->source.project || !l->source.kind || !l->source.locator ||
+        !l->source.role || !l->title) {
+      rc = SQLITE_NOMEM;
+      break;
+    }
+  }
+  sqlite3_finalize(stmt);
+  if (rc != SQLITE_DONE) {
+    mg_source_links_free(links, n);
+    return rc == SQLITE_NOMEM ? MG_ERR_OOM : MG_ERR_STORAGE;
+  }
+  *out = links;
+  *out_count = n;
+  return MG_OK;
+}
+
+static mg_err_t storage_refresh_source_unlocked(mg_storage_t *s, const mg_node_id_t node_id,
+                                                const char *project, const char *kind,
+                                                const char *locator, const char *fingerprint,
+                                                int64_t observed_at, int64_t *updated) {
+  sqlite3_stmt *stmt = NULL;
+  mg_err_t err;
+  int64_t changed = 0;
+  if (!s || !node_id || !kind || !locator) {
+    return MG_ERR_INVALID_ARG;
+  }
+  if (!project) project = "";
+  if (updated) *updated = 0;
+  err = exec_sql(s->db, "BEGIN IMMEDIATE;");
+  if (err != MG_OK) {
+    return err;
+  }
+  err = prepare(s->db,
+    "UPDATE node_sources SET fingerprint = ?1, observed_at = ?2 "
+    "WHERE node_id = ?3 AND source_id = ("
+    "  SELECT id FROM sources WHERE project = ?4 AND kind = ?5 AND locator = ?6);", &stmt);
+  if (err == MG_OK) {
+    if (fingerprint) sqlite3_bind_text(stmt, 1, fingerprint, -1, SQLITE_STATIC);
+    sqlite3_bind_int64(stmt, 2, observed_at);
+    sqlite3_bind_blob(stmt, 3, node_id, MG_NODE_ID_BYTES, SQLITE_STATIC);
+    sqlite3_bind_text(stmt, 4, project, -1, SQLITE_STATIC);
+    sqlite3_bind_text(stmt, 5, kind, -1, SQLITE_STATIC);
+    sqlite3_bind_text(stmt, 6, locator, -1, SQLITE_STATIC);
+    err = step_done(stmt);
+    changed = (int64_t)sqlite3_changes(s->db);
+  }
+  sqlite3_finalize(stmt);
+  stmt = NULL;
+  if (err == MG_OK && changed > 0) {
+    err = prepare(s->db,
+      "UPDATE sources SET fingerprint = ?1, observed_at = ?2 "
+      "WHERE project = ?3 AND kind = ?4 AND locator = ?5 AND observed_at <= ?2;", &stmt);
+    if (err == MG_OK) {
+      if (fingerprint) sqlite3_bind_text(stmt, 1, fingerprint, -1, SQLITE_STATIC);
+      sqlite3_bind_int64(stmt, 2, observed_at);
+      sqlite3_bind_text(stmt, 3, project, -1, SQLITE_STATIC);
+      sqlite3_bind_text(stmt, 4, kind, -1, SQLITE_STATIC);
+      sqlite3_bind_text(stmt, 5, locator, -1, SQLITE_STATIC);
+      err = step_done(stmt);
+    }
+    sqlite3_finalize(stmt);
+  }
+  if (err == MG_OK) {
+    err = exec_sql(s->db, "COMMIT;");
+  } else {
+    (void)exec_sql(s->db, "ROLLBACK;");
+  }
+  if (err == MG_OK && updated) *updated = changed;
+  return err;
+}
+
 static mg_err_t storage_insert_node_with_edges_unlocked(
   mg_storage_t *s,
   const mg_node_t *node,
   const mg_embedding_t embedding,
   const mg_keyword_id_t *keyword_ids, size_t n_keywords,
   const mg_edge_t *edges, size_t n_edges,
-  const mg_node_id_t *supersedes_id
+  const mg_node_id_t *supersedes_id,
+  const mg_source_t *sources, size_t n_sources
 ) {
   sqlite3_stmt *stmt = NULL;
   size_t i;
   mg_err_t err;
   if (!s || !node || !embedding || (!keyword_ids && n_keywords > 0) || (!edges && n_edges > 0) ||
-      !node->title || !node->body) {
+      (!sources && n_sources > 0) || !node->title || !node->body) {
     return MG_ERR_INVALID_ARG;
   }
 
@@ -536,6 +793,10 @@ static mg_err_t storage_insert_node_with_edges_unlocked(
       err = step_done(stmt);
     }
     sqlite3_finalize(stmt);
+  }
+
+  if (err == MG_OK && n_sources > 0) {
+    err = link_sources(s, node->id, sources, n_sources);
   }
 
   /* Supersession (atomic with the insert): mark the old node SUPERSEDED and
@@ -1134,6 +1395,17 @@ static mg_err_t storage_consolidate_unlocked(mg_storage_t *s, mg_storage_consoli
     &out->invalid_edges_deleted);
   if (err != MG_OK) goto rollback;
 
+  /* Provenance rows no node links to any more (their nodes were deleted). */
+  err = exec_sql(s->db,
+    "DELETE FROM node_sources "
+    "WHERE NOT EXISTS (SELECT 1 FROM nodes WHERE id = node_sources.node_id);");
+  if (err != MG_OK) goto rollback;
+  err = exec_count_changes(s,
+    "DELETE FROM sources "
+    "WHERE NOT EXISTS (SELECT 1 FROM node_sources WHERE source_id = sources.id);",
+    &out->orphan_sources_deleted);
+  if (err != MG_OK) goto rollback;
+
   err = exec_sql(s->db, "COMMIT;");
   if (err != MG_OK) {
     return err;
@@ -1215,6 +1487,76 @@ static mg_err_t storage_delete_node_unlocked(mg_storage_t *s, const mg_node_id_t
 rollback:
   (void)exec_sql(s->db, "ROLLBACK;");
   return err;
+}
+
+/* 1 when the attached database `schema` has `table`, 0 when not, -1 on error.
+ * Profile files written before the provenance schema have no sources
+ * tables; syncing with one simply carries no provenance. */
+static int attached_has_table(sqlite3 *db, const char *schema, const char *table) {
+  sqlite3_stmt *stmt = NULL;
+  char sql[160];
+  int rc;
+  snprintf(sql, sizeof(sql),
+           "SELECT 1 FROM %s.sqlite_master WHERE type='table' AND name=?;", schema);
+  if (sqlite3_prepare_v2(db, sql, -1, &stmt, NULL) != SQLITE_OK) {
+    return -1;
+  }
+  sqlite3_bind_text(stmt, 1, table, -1, SQLITE_STATIC);
+  rc = sqlite3_step(stmt);
+  sqlite3_finalize(stmt);
+  return rc == SQLITE_ROW ? 1 : (rc == SQLITE_DONE ? 0 : -1);
+}
+
+/* Copies provenance from schema `from` into `to` for the links selected by
+ * `link_join` (a JOIN/WHERE fragment over `ns`, the from-side node_sources,
+ * that yields `node_id_expr` as the to-side node id). Source rows are
+ * matched by (project, kind, locator), never by id, so the auto-increment
+ * ids of one file never leak into the other. On a conflict the newer
+ * observation wins, for the source row and for each link: a node that was
+ * revalidated on one side keeps its refreshed fingerprint after any sync. */
+static mg_err_t sync_provenance(sqlite3 *db, const char *from, const char *to,
+                                const char *node_id_expr, const char *link_join) {
+  char sql[2048];
+  mg_err_t err;
+  int has;
+
+  has = attached_has_table(db, from, "node_sources");
+  if (has == 0) return MG_OK;
+  if (has < 0) return MG_ERR_STORAGE;
+  has = attached_has_table(db, to, "node_sources");
+  if (has == 0) return MG_OK;
+  if (has < 0) return MG_ERR_STORAGE;
+
+  if (snprintf(sql, sizeof(sql),
+      "INSERT INTO %s.sources AS t(project, kind, locator, fingerprint, observed_at) "
+      "SELECT ss.project, ss.kind, ss.locator, ss.fingerprint, ss.observed_at "
+      "FROM %s.sources AS ss "
+      "WHERE EXISTS (SELECT 1 FROM %s.node_sources AS ns %s AND ns.source_id = ss.id) "
+      "ON CONFLICT(project, kind, locator) DO UPDATE SET "
+      "  fingerprint = excluded.fingerprint, observed_at = excluded.observed_at "
+      "WHERE excluded.observed_at > t.observed_at;",
+      to, from, from, link_join) >= (int)sizeof(sql)) {
+    return MG_ERR_INTERNAL;
+  }
+  err = exec_sql(db, sql);
+  if (err != MG_OK) return err;
+
+  if (snprintf(sql, sizeof(sql),
+      "INSERT INTO %s.node_sources AS t(node_id, source_id, role, fingerprint, observed_at) "
+      "SELECT %s, ts.id, ns.role, ns.fingerprint, ns.observed_at "
+      "FROM %s.node_sources AS ns "
+      "JOIN %s.sources AS ss ON ss.id = ns.source_id "
+      "JOIN %s.sources AS ts ON ts.project = ss.project AND ts.kind = ss.kind "
+      "                     AND ts.locator = ss.locator "
+      "%s "
+      "ON CONFLICT(node_id, source_id) DO UPDATE SET "
+      "  role = excluded.role, fingerprint = excluded.fingerprint, "
+      "  observed_at = excluded.observed_at "
+      "WHERE excluded.observed_at > t.observed_at;",
+      to, node_id_expr, from, from, to, link_join) >= (int)sizeof(sql)) {
+    return MG_ERR_INTERNAL;
+  }
+  return exec_sql(db, sql);
 }
 
 static mg_err_t storage_merge_from_unlocked(mg_storage_t *s, const char *source_path,
@@ -1365,6 +1707,11 @@ static mg_err_t storage_merge_from_unlocked(mg_storage_t *s, const char *source_
   err = exec_sql(s->db, sql);
   if (err != MG_OK) goto rollback;
 
+  /* 7. provenance, node ids remapped like the edges above */
+  err = sync_provenance(s->db, "src", "main", "mm.dst_id",
+    "JOIN temp.merge_map AS mm ON mm.src_id = ns.node_id WHERE 1");
+  if (err != MG_OK) goto rollback;
+
   err = exec_sql(s->db, "DROP TABLE temp.merge_map;");
   if (err != MG_OK) goto rollback;
   err = exec_sql(s->db, "COMMIT;");
@@ -1447,6 +1794,12 @@ static mg_err_t storage_pull_remote_file_unlocked(mg_storage_t *s, const char *s
     "  AND EXISTS (SELECT 1 FROM main.nodes WHERE id = e.dst) "
     "  AND NOT EXISTS (SELECT 1 FROM main.nodes WHERE id = e.src AND origin = 0) "
     "  AND NOT EXISTS (SELECT 1 FROM main.nodes WHERE id = e.dst AND origin = 0);");
+  if (err != MG_OK) goto rollback;
+
+  /* Provenance of every node both sides hold (ids are shared); newer
+   * observations win, so a refresh done elsewhere comes back. */
+  err = sync_provenance(s->db, "src", "main", "ns.node_id",
+    "JOIN main.nodes AS ln ON ln.id = ns.node_id WHERE 1");
   if (err != MG_OK) goto rollback;
 
   err = exec_sql(s->db, "COMMIT;");
@@ -1552,6 +1905,12 @@ static mg_err_t storage_push_to_remote_file_unlocked(mg_storage_t *s, const char
     "  AND EXISTS (SELECT 1 FROM dest.nodes WHERE id = e.dst);");
   if (err != MG_OK) goto rollback;
 
+  /* 5b. provenance of every node the remote holds, pushed now or earlier:
+   * a later local refresh of an already pushed node propagates too. */
+  err = sync_provenance(s->db, "main", "dest", "ns.node_id",
+    "JOIN dest.nodes AS dn ON dn.id = ns.node_id WHERE 1");
+  if (err != MG_OK) goto rollback;
+
   /* 6. flip origin to PUSHED — atomic with the copy above */
   err = exec_sql(s->db, "UPDATE main.nodes SET origin = 2 WHERE origin = 0;");
   if (err != MG_OK) goto rollback;
@@ -1630,7 +1989,40 @@ mg_err_t mg_storage_insert_node_with_edges(
   const mg_node_id_t *supersedes_id
 ) {
   STORAGE_LOCKED(s, storage_insert_node_with_edges_unlocked(
-    s, node, embedding, keyword_ids, n_keywords, edges, n_edges, supersedes_id));
+    s, node, embedding, keyword_ids, n_keywords, edges, n_edges, supersedes_id, NULL, 0));
+}
+
+mg_err_t mg_storage_insert_node_with_sources(
+  mg_storage_t *s,
+  const mg_node_t *node,
+  const mg_embedding_t embedding,
+  const mg_keyword_id_t *keyword_ids, size_t n_keywords,
+  const mg_edge_t *edges, size_t n_edges,
+  const mg_node_id_t *supersedes_id,
+  const mg_source_t *sources, size_t n_sources
+) {
+  STORAGE_LOCKED(s, storage_insert_node_with_edges_unlocked(
+    s, node, embedding, keyword_ids, n_keywords, edges, n_edges, supersedes_id,
+    sources, n_sources));
+}
+
+mg_err_t mg_storage_attach_sources(mg_storage_t *s, const mg_node_id_t node_id,
+                                   const mg_source_t *sources, size_t n_sources) {
+  STORAGE_LOCKED(s, storage_attach_sources_unlocked(s, node_id, sources, n_sources));
+}
+
+mg_err_t mg_storage_source_links(mg_storage_t *s, const char *project,
+                                 const char *kind, const mg_node_id_t *node_id,
+                                 mg_source_link_t **out, size_t *out_count) {
+  STORAGE_LOCKED(s, storage_source_links_unlocked(s, project, kind, node_id, out, out_count));
+}
+
+mg_err_t mg_storage_refresh_source(mg_storage_t *s, const mg_node_id_t node_id,
+                                   const char *project, const char *kind,
+                                   const char *locator, const char *fingerprint,
+                                   int64_t observed_at, int64_t *updated) {
+  STORAGE_LOCKED(s, storage_refresh_source_unlocked(s, node_id, project, kind, locator,
+                                                    fingerprint, observed_at, updated));
 }
 
 mg_err_t mg_storage_get_node(mg_storage_t *s, const mg_node_id_t id, mg_node_t *out) {
