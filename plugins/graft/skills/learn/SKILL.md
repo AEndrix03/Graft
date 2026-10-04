@@ -1,7 +1,7 @@
 ---
 name: learn
 description: >-
-  Batch knowledge ingestion from external sources (a folder, a codebase, a docs tree, a set of files). Plans the ingestion as a list of well-shaped nodes with reconciled keywords, shows the user the plan for approval, then executes idempotently. Triggered by `/learn`, "ingest this folder into memory", "porta questo codice nella memoria", "acquire this documentation", "memorize this codebase". Differs from `/memoryze` (1-5 nodes from conversation) — `/learn` produces 10-200 nodes from external corpora and is plan-first by design.
+  Batch knowledge ingestion from external sources (a folder, a codebase, a docs tree, a set of files). Plans the ingestion as a list of well-shaped nodes with reconciled keywords, shows the user the plan for approval, then executes idempotently. Triggered by `/learn`, "ingest this folder into memory", "porta questo codice nella memoria", "acquire this documentation", "memorize this codebase". Docs mode (`/learn docs [path]`) ingests all the documentation of a repository (README, docs/, ADRs, guides, CONTRIBUTING, ARCHITECTURE) and nothing else, incrementally on re-runs; triggered by "ingest the docs of this repo", "learn this repository's documentation", "impara la documentazione del repo", "porta la documentazione in memoria". Differs from `/memoryze` (1-5 nodes from conversation) — `/learn` produces 10-200 nodes from external corpora and is plan-first by design.
 ---
 
 # learn — Batch ingestion of external knowledge into graft
@@ -22,6 +22,7 @@ The user invokes you with a free-form prompt that may include:
 | **target profile**                | "in profile=docs-springboot", "nel profilo work"                       | `GRAFT_PROFILE=X` for the inserts.                                    |
 | **excludes**                      | "skip tests/", "ignore generated/", a `.gitignore`-style list          | Glob/regex skip rules layered on top of the defaults below.              |
 | **rerun mode**                    | "incremental" / "force" / "dry-run"                                    | See "Rerunning on the same source" below.                                |
+| **docs mode**                     | `docs`, `docs ../other-repo`, `docs from <file>`                       | A repository's documentation only, no plan gate. See "Docs mode" below.  |
 
 Examples:
 
@@ -29,6 +30,8 @@ Examples:
 - `/learn ingest the docs/ folder as a reference manual, one node per page`
 - `/learn questa cartella src/, lente: business rules e gotcha. ignora test/`
 - `/learn dry-run on docs/runbooks to see the plan first`
+
+If the first word is `docs`, or the user asks for "the docs / the documentation of this repo", jump to **Docs mode** below: it replaces the six phases.
 
 If hints are absent, ask **at most one** clarifying question (almost always: "what's the lens?"). Don't ask many small questions; pick reasonable defaults and surface them in the plan for the user to override.
 
@@ -169,7 +172,7 @@ What now? Reply with one of:
 
 **Rules at this gate**:
 
-- Do NOT insert a single node before the user replies.
+- Do NOT insert a single node before the user replies. (Docs mode is the one exception: its scope is fixed, so the invocation is the approval.)
 - If the plan exceeds the user's stated cap (or the default 50), highlight that prominently and propose a reduced version.
 - If the plan exceeds the hard cap (200), refuse and ask the user to narrow scope or run `/learn` per subdirectory.
 
@@ -215,6 +218,115 @@ Try:
 ```
 
 If insertions failed, list them with the error verbatim — surface the real reason.
+
+## Docs mode — `/learn docs [path]`
+
+Ingest **all the documentation of one repository**, and nothing else. `path` defaults to the current repo; a subfolder limits discovery to it, while provenance paths stay relative to the repo root. On the Claude Code plugin it is `/graft:learn docs`.
+
+Scope is fixed: files committed to the repo that are written as documents. **Never** GitHub issues, PRs, review comments, wikis, linked web pages or other repos — not even when a doc links to them. Source code, configs and API specs (OpenAPI, protobuf) are plain `/learn` territory.
+
+The invocation is the approval: there is **no plan gate and no per-node prompt**. In exchange the run is bounded, deterministic and resumable. Every other rule of this page still holds (node shape, keyword reconciliation, pre-dedup, failure handling).
+
+```
+  D1  discover     deterministic file list + skip reasons
+  D2  diff         with provenance: keep only new / changed docs
+  D3  distill      per doc: 0-5 knowledge nodes, dedup against the graph
+  D4  insert       with --source file:<path> when available
+  D5  report       recap + the exact command that continues
+```
+
+### D1 — Discover
+
+Resolve the root (`git -C <path> rev-parse --show-toplevel`) and list **tracked files only** — that honors `.gitignore`, leaves out untracked scratch, and lists each submodule as a single gitlink entry, so no file inside a submodule ever matches:
+
+```bash
+cd "$ROOT"
+git ls-files | grep -Ei '\.(md|mdx|markdown|rst|adoc|asciidoc|txt)$|(^|/)(readme|contributing|architecture|security|changelog|design|hacking)[^/]*$' | sort
+```
+
+Outside a git repo, walk the tree yourself, honor any `.gitignore`, and apply the same rules. Then drop, recording one reason per file:
+
+| Skip | Rule |
+| ---- | ---- |
+| third-party / generated trees | any path segment `node_modules`, `vendor`, `third_party`, `third-party`, `extern`, `external`, `deps`, `dist`, `build`, `out`, `target`, `_build`, `site-packages`, `.venv`, `venv`, `.git`; anything under a submodule |
+| legal boilerplate | `LICENSE*`, `COPYING*`, `NOTICE*`, `CODE_OF_CONDUCT*`, `AUTHORS*` |
+| `.txt` that is not prose | any `.txt` outside a docs folder (`docs/`, `doc/`, `documentation/`, `adr/`, `decisions/`, `rfcs/`) except `README.txt`; always `CMakeLists.txt`, `requirements*.txt`, `robots.txt` |
+| agent instructions | `CLAUDE.md`, `AGENTS.md`, `GEMINI.md`, `SKILL.md`, `.claude/**`, `.codex/**`, `.cursor/**`, `.github/copilot-instructions.md` — already in the agent's context every session |
+| templates and fixtures | `.github/ISSUE_TEMPLATE/**`, `PULL_REQUEST_TEMPLATE*`, paths under `testdata/`, `fixtures/`, `__snapshots__/` |
+| size / generated | larger than 1 MB, or `generated` / `do not edit` in the first 3 lines |
+| user excludes | anything the user named in the prompt |
+
+Lockfiles, binaries and images never match the include pattern. Order the survivors: root `README*` first, then `ARCHITECTURE*`, `docs/**` (index/README of each folder before its pages), ADR folders, the other docs, and `CHANGELOG*` last. The order is what makes batches resumable.
+
+**CHANGELOG rule.** A changelog is history, not documentation. Read it last and take only entries that carry a decision or its rationale, a breaking change, a migration step or a behavior a user must know ("X now does Y because Z"). Skip version bumps, bare fix lists and anything the current docs already state. Never one node per release; at most ~10 nodes from a changelog.
+
+Show the discovery summary before reading anything:
+
+```
+/learn docs — root=<repo>, profile=<name>, provenance=<on|off>
+Found 41 doc files (186 KB). Skipped 13: 7 agent instructions, 4 submodule trees, 1 license, 1 CMakeLists.txt.
+This run: files 1-25 (~150 KB). Remaining after it: 16.
+```
+
+### D2 — Diff (provenance)
+
+Provenance makes re-runs incremental. Check it once per run:
+
+```bash
+graft sources diff --root "$ROOT"      # JSON with status 0 → provenance on
+```
+
+If the command prints usage or a non-zero status, the installed graft predates provenance: **fall back** — insert without `--source`, end each body with a `Source: <repo-relative path>` line instead, and on a re-run rely on the pre-dedup query alone (slower, every doc is re-read). Say which mode is in use in the summary.
+
+With provenance on, `diff` reports each recorded file source as `unchanged`, `changed` or `removed`, with the node ids it supports:
+
+- **unchanged** — skip the file.
+- **new** (discovered, not recorded) — process normally.
+- **changed** — re-read the doc and `graft get` each node it supports. A node that still holds → `graft sources refresh <id>`. A node whose facts changed → `graft delete <id>` then insert the corrected node, re-attaching **every** source the old node had, not only this file. Knowledge the doc gained → new nodes.
+- **removed** — do not delete on your own; the knowledge may still be true or the file may have moved (a moved doc re-inserts as `duplicate: true` and gains its new source). List the affected node ids in the report and offer delete or re-save with an `unsure` keyword.
+
+### D3 — Distill
+
+Read each document in full and ask: *what here would a future session search for?* Typical yield:
+
+| Document | Nodes |
+| -------- | ----- |
+| README | 1-4: what the project is and its central design choice, setup gotchas, conventions |
+| guide / reference page | 1 per non-obvious rule, default, limit, trap or procedure |
+| ADR / design note | 1 per decision: the choice, the alternatives rejected, why |
+| CONTRIBUTING | 1-3: the workflow rules a contributor would otherwise break |
+| index, TOC, landing page, badges, generated report, link list | 0 — record "no reusable knowledge" |
+
+Not one summary per file and not a copy of the text: a node holds a fact, a rule or a decision and its why. Keep the house rules — retrieval-shaped title (~80-120 chars, the question future-you types), body under ~1500 chars with the rule, the reason and the trap, a short snippet only when it is the point. Name the project in the title when the fact is specific to it (`graft: ...`), so it does not answer questions about other projects with confidence. A command, flag or default is worth a node only when it is non-obvious or easy to get wrong; reference tables the agent can re-read in the repo are not.
+
+Keywords: 2-4 per node, reconciled with one `graft classify` per document; include the project name as one of them so `explore --keyword <project>` walks the whole repo's knowledge.
+
+Before inserting, run `graft query "<title>"` (and `retrieve --top-k 5` on WEAK). Same knowledge already present → skip, count it. Present but contradicted by the doc, and about this repo → delete + re-insert (the doc is the repo's current truth). A near note on a different subject → insert anyway.
+
+### D4 — Insert and batch
+
+```bash
+graft insert --title "..." --body "..." --keyword <project> --keyword k2 \
+             --source file:docs/insert/README.md [--source file:README.md]
+```
+
+Pass every document the node was distilled from; graft fingerprints the files and stores the paths relative to the repo root. An identical node from a second doc comes back `duplicate: true` with the new source attached — that is correct, not an error. Serial inserts, `GRAFT_PROFILE=<name>` prefix when a profile was named.
+
+Bounded batches: per run at most **25 documents or ~300 KB read, and 50 nodes** (hard cap 200, as above). Stop at a document boundary.
+
+### D5 — Report
+
+One paragraph, then the continuation:
+
+```
+/learn docs — 25 of 41 files ingested (provenance on): 38 nodes created, 4 updated, 3 refreshed,
+9 skipped as already in the graph, 6 files had no reusable knowledge, 0 failures. 2 nodes lose
+their source (docs/old-setup.md removed): 019e0a44..., 019e0a51... — delete or keep?
+Remaining: 16 files, from docs/storage/README.md.
+Continue with: /learn docs from docs/storage/README.md
+```
+
+`from <path>` resumes the ordered list at that file. With provenance on, a plain re-run also works: everything ingested is `unchanged` and skipped (only zero-node files are re-skimmed, cheaply).
 
 ## Rerunning on the same source
 

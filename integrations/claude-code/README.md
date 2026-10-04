@@ -15,7 +15,7 @@ Sei skill collaborano:
 | `graft-init`    | `/graft-init`, "configura graft"            | Wiring one-shot: una domanda (globale o progetto), poi scrive la regola in CLAUDE.md e `.claude/rules/graft.md`. |
 | `recall`           | `/recall …`, "do we have X?", "ricordi se..."     | Cerca con strategia smart: query → retrieve → explore in cascata.        |
 | `memoryze`         | `/memoryze …`, "save this", "ricorda questo"      | Distilla la conversazione in 1-5 nodi ben formati e li inserisce.        |
-| `learn`            | `/learn …`, "ingest this folder", "porting"       | Batch-ingestion da fonti esterne (codebase, docs): plan + conferma + ingest. |
+| `learn`            | `/learn …`, `/learn docs`, "ingest this folder"   | Batch-ingestion da fonti esterne (codebase, docs): plan + conferma + ingest. `/learn docs` ingerisce tutta la documentazione del repo, incrementale ai re-run. |
 | `memory-audit`     | `/memory-audit`, "is the graph healthy"           | Health check read-only: hit rate, hoarding, champions, duplicati.        |
 
 ## Installazione
