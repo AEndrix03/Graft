@@ -100,6 +100,14 @@ static void test_defaults(void) {
   expect_float(cfg.explore_decay_gamma, 0.85f, 0.001f, "default explore_decay_gamma");
   expect_float(cfg.explore_alpha,       0.5f,  0.001f, "default explore_alpha");
 
+  expect_float(cfg.maint_near_duplicate_min, 0.92f, 0.001f, "default maint_near_duplicate_min");
+  expect_int(cfg.maint_scan_max_nodes        == 2000, "default maint_scan_max_nodes");
+  expect_int(cfg.maint_scan_neighbors        ==    5, "default maint_scan_neighbors");
+  expect_int(cfg.maint_scan_cap              ==  200, "default maint_scan_cap");
+  expect_int(cfg.maint_isolated_min_age_days ==   30, "default maint_isolated_min_age_days");
+  expect_int(cfg.maint_retention_days        ==   30, "default maint_retention_days");
+  expect_int(cfg.maint_trigger_inserts       ==   50, "default maint_trigger_inserts");
+
   expect_int(!cfg.http_enabled, "default http_enabled=false");
   expect_int(cfg.http_bind && strcmp(cfg.http_bind, "127.0.0.1") == 0, "default http_bind");
   expect_int(cfg.http_port == 9977,               "default http_port");
@@ -174,6 +182,14 @@ static void test_overrides(void) {
     "  default_depth: 7\n"
     "  decay_gamma: 0.90\n"
     "  alpha: 0.60\n"
+    "maintenance:\n"
+    "  near_duplicate_min: 0.95\n"
+    "  scan_max_nodes: 500\n"
+    "  scan_neighbors: 3\n"
+    "  scan_cap: 40\n"
+    "  isolated_min_age_days: 60\n"
+    "  retention_days: 7\n"
+    "  trigger_inserts: 25\n"
     "http:\n"
     "  enabled: true\n"
     "  bind: \"0.0.0.0\"\n"
@@ -240,6 +256,13 @@ static void test_overrides(void) {
   expect_int(cfg.explore_default_depth == 7, "explore_default_depth override");
   expect_float(cfg.explore_decay_gamma, 0.90f, 0.001f, "explore_decay_gamma override");
   expect_float(cfg.explore_alpha,       0.60f, 0.001f, "explore_alpha override");
+  expect_float(cfg.maint_near_duplicate_min, 0.95f, 0.001f, "maint_near_duplicate_min override");
+  expect_int(cfg.maint_scan_max_nodes        == 500, "maint_scan_max_nodes override");
+  expect_int(cfg.maint_scan_neighbors        ==   3, "maint_scan_neighbors override");
+  expect_int(cfg.maint_scan_cap              ==  40, "maint_scan_cap override");
+  expect_int(cfg.maint_isolated_min_age_days ==  60, "maint_isolated_min_age_days override");
+  expect_int(cfg.maint_retention_days        ==   7, "maint_retention_days override");
+  expect_int(cfg.maint_trigger_inserts       ==  25, "maint_trigger_inserts override");
   expect_int(cfg.http_enabled, "http_enabled override");
   expect_int(strcmp(cfg.http_bind, "0.0.0.0") == 0, "http_bind override");
   expect_int(cfg.http_port == 8080,              "http_port override");

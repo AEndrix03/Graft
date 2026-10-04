@@ -190,23 +190,6 @@ static int rmdir_recursive(const char *path) {
 #endif
 }
 
-static int copy_file(const char *src, const char *dst) {
-    FILE *fi = fopen(src, "rb");
-    if (!fi) return -1;
-    FILE *fo = fopen(dst, "wb");
-    if (!fo) { fclose(fi); return -1; }
-    char buf[64 * 1024];
-    size_t n;
-    int rc = 0;
-    while ((n = fread(buf, 1, sizeof(buf), fi)) > 0) {
-        if (fwrite(buf, 1, n, fo) != n) { rc = -1; break; }
-    }
-    if (ferror(fi)) rc = -1;
-    fclose(fi);
-    if (fclose(fo) != 0) rc = -1;
-    return rc;
-}
-
 /* SQLite header magic — first 16 bytes of any SQLite DB file. */
 static int looks_like_sqlite(const char *path) {
     static const char magic[] = "SQLite format 3";
@@ -547,8 +530,8 @@ static int cmd_export(const char *name, const char *path) {
         fprintf(stderr, "profile '%s' has no DB yet (nothing to export)\n", name);
         return 1;
     }
-    if (copy_file(db, path) != 0) {
-        fprintf(stderr, "copy failed: %s -> %s\n", db, path);
+    if (mg_storage_backup_file(db, path) != MG_OK) {
+        fprintf(stderr, "export failed: %s -> %s\n", db, path);
         return 1;
     }
     fputs("{\n  \"exported\": ", stdout); print_json_str(name);
@@ -591,8 +574,8 @@ static int cmd_import(const char *name, const char *path, int force) {
     }
     char db[1024];
     if (mg_profile_db_path(name, db, sizeof(db), 1) != 0) return 1;
-    if (copy_file(path, db) != 0) {
-        fprintf(stderr, "copy failed: %s -> %s\n", path, db);
+    if (mg_storage_backup_file(path, db) != MG_OK) {
+        fprintf(stderr, "import failed: %s -> %s\n", path, db);
         return 1;
     }
     fputs("{\n  \"imported\": ", stdout); print_json_str(name);

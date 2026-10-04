@@ -24,6 +24,7 @@ typedef SOCKET mg_sock_t;
 #  include <sys/socket.h>
 #  include <sys/stat.h>
 #  include <sys/un.h>
+#  include <sys/select.h>
 #  include <unistd.h>
 #  include <errno.h>
 #  define MG_INVALID_SOCK (-1)
@@ -31,20 +32,28 @@ typedef SOCKET mg_sock_t;
 typedef int mg_sock_t;
 #endif
 
+#ifdef _WIN32
+/* Reset by shutdown so a process that talks to the daemon more than once
+ * (`graft sources refresh`) starts Winsock again for its next connect. */
+static int g_wsa_inited = 0;
+#endif
+
 void mg_daemon_socket_init(void) {
 #ifdef _WIN32
-    static int inited = 0;
-    if (!inited) {
+    if (!g_wsa_inited) {
         WSADATA wd;
         (void)WSAStartup(MAKEWORD(2, 2), &wd);
-        inited = 1;
+        g_wsa_inited = 1;
     }
 #endif
 }
 
 void mg_daemon_socket_shutdown(void) {
 #ifdef _WIN32
-    WSACleanup();
+    if (g_wsa_inited) {
+        WSACleanup();
+        g_wsa_inited = 0;
+    }
 #endif
 }
 
@@ -107,6 +116,20 @@ int mg_daemon_socket_listen(const char *path) {
         MG_CLOSE_SOCK(s); return -1;
     }
     return (int)s;
+}
+
+int mg_daemon_socket_poll(int listen_fd, int timeout_ms) {
+    fd_set rfds;
+    struct timeval tv;
+    FD_ZERO(&rfds);
+    FD_SET((mg_sock_t)listen_fd, &rfds);
+    tv.tv_sec  = timeout_ms / 1000;
+    tv.tv_usec = (timeout_ms % 1000) * 1000;
+    int n = select(listen_fd + 1, &rfds, NULL, NULL, &tv);
+#ifndef _WIN32
+    if (n < 0 && errno == EINTR) return 0;
+#endif
+    return n < 0 ? -1 : (n > 0 ? 1 : 0);
 }
 
 int mg_daemon_socket_accept(int listen_fd) {

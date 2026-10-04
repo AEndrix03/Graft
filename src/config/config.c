@@ -79,6 +79,13 @@ void mg_config_defaults(mg_config_t *cfg) {
   cfg->explore_default_depth = 3;
   cfg->explore_decay_gamma = 0.85f;
   cfg->explore_alpha = 0.5f;
+  cfg->maint_near_duplicate_min = 0.92f;
+  cfg->maint_scan_max_nodes = 2000;
+  cfg->maint_scan_neighbors = 5;
+  cfg->maint_scan_cap = 200;
+  cfg->maint_isolated_min_age_days = 30;
+  cfg->maint_retention_days = 30;
+  cfg->maint_trigger_inserts = 50;
   cfg->http_enabled = false;
   cfg->http_bind = mg_config_strdup("127.0.0.1");
   cfg->http_port = 9977;
@@ -251,6 +258,14 @@ static mg_err_t mg_config_apply(mg_config_t *cfg,
     if (strcmp(key, "default_depth") == 0 && mg_parse_int(value, &cfg->explore_default_depth)) return MG_OK;
     if (strcmp(key, "decay_gamma") == 0 && mg_parse_float(value, &cfg->explore_decay_gamma)) return MG_OK;
     if (strcmp(key, "alpha") == 0 && mg_parse_float(value, &cfg->explore_alpha)) return MG_OK;
+  } else if (strcmp(section, "maintenance") == 0) {
+    if (strcmp(key, "near_duplicate_min") == 0 && mg_parse_float(value, &cfg->maint_near_duplicate_min)) return MG_OK;
+    if (strcmp(key, "scan_max_nodes") == 0 && mg_parse_int(value, &cfg->maint_scan_max_nodes)) return MG_OK;
+    if (strcmp(key, "scan_neighbors") == 0 && mg_parse_int(value, &cfg->maint_scan_neighbors)) return MG_OK;
+    if (strcmp(key, "scan_cap") == 0 && mg_parse_int(value, &cfg->maint_scan_cap)) return MG_OK;
+    if (strcmp(key, "isolated_min_age_days") == 0 && mg_parse_int(value, &cfg->maint_isolated_min_age_days)) return MG_OK;
+    if (strcmp(key, "retention_days") == 0 && mg_parse_int(value, &cfg->maint_retention_days)) return MG_OK;
+    if (strcmp(key, "trigger_inserts") == 0 && mg_parse_int(value, &cfg->maint_trigger_inserts)) return MG_OK;
   } else if (strcmp(section, "http") == 0) {
     if (strcmp(key, "enabled") == 0 && mg_parse_bool(value, &b)) {
       cfg->http_enabled = b;

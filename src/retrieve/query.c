@@ -26,6 +26,9 @@
  *   { "hit": "MISS",
  *     "fallback_retrieve": { results, distinct_keywords },
  *     "signals": { ... } }
+ *
+ *  explain=true adds "candidates": [{ id_hex, title, vec_rank, hit, signals }]
+ *  to either shape: every candidate the verifier scored, in vector order.
  */
 
 #include "internal.h"
@@ -63,10 +66,67 @@ static void write_signals_map(mpack_writer_t *w,
     mpack_complete_map(w);
 }
 
+/* One verified candidate, kept only when the caller asked for `explain`. */
+typedef struct {
+    mg_node_id_t id;
+    char *title;
+    int vec_rank;
+    mg_verify_signals_t sig;
+} query_candidate_t;
+
+typedef struct {
+    query_candidate_t items[16];
+    int n;
+    bool enabled;
+} query_explain_t;
+
+static void explain_free(query_explain_t *x) {
+    for (int i = 0; i < x->n; ++i) free(x->items[i].title);
+    x->n = 0;
+}
+
+static void explain_add(query_explain_t *x, const mg_node_id_t id, const char *title,
+                        int vec_rank, const mg_verify_signals_t *sig) {
+    if (!x->enabled || x->n >= (int)(sizeof(x->items) / sizeof(x->items[0]))) return;
+    query_candidate_t *c = &x->items[x->n++];
+    memcpy(c->id, id, MG_NODE_ID_BYTES);
+    size_t len = title ? strlen(title) : 0;
+    c->title = (char *)malloc(len + 1);
+    if (c->title) {
+        if (len) memcpy(c->title, title, len);
+        c->title[len] = '\0';
+    }
+    c->vec_rank = vec_rank;
+    c->sig = *sig;
+}
+
+/* "candidates": every candidate the verifier scored, in vector order, so a
+ * caller can see why the answer was STRONG, WEAK or MISS. */
+static void write_candidates(mpack_writer_t *w, const query_explain_t *x) {
+    if (!x->enabled) return;
+    mpack_write_cstr(w, "candidates");
+    mpack_build_array(w);
+    for (int i = 0; i < x->n; ++i) {
+        const query_candidate_t *c = &x->items[i];
+        char id_hex[2 * MG_NODE_ID_BYTES + 1];
+        mg_retrieve_hex_encode(c->id, MG_NODE_ID_BYTES, id_hex);
+        mpack_build_map(w);
+        mpack_write_cstr(w, "id_hex");   mpack_write_cstr(w, id_hex);
+        mpack_write_cstr(w, "title");    mpack_write_cstr(w, c->title ? c->title : "");
+        mpack_write_cstr(w, "vec_rank"); mpack_write_int(w, c->vec_rank);
+        mpack_write_cstr(w, "hit");      mpack_write_cstr(w, hit_label(c->sig.hit_level));
+        mpack_write_cstr(w, "signals");
+        write_signals_map(w, &c->sig);
+        mpack_complete_map(w);
+    }
+    mpack_complete_array(w);
+}
+
 static void write_miss(mg_ctx_t *ctx,
                        const char *text,
                        const mg_embedding_t q,
                        const mg_verify_signals_t *sig,
+                       const query_explain_t *explain,
                        mpack_writer_t *result) {
     mpack_build_map(result);
 
@@ -90,6 +150,7 @@ static void write_miss(mg_ctx_t *ctx,
 
     mpack_write_cstr(result, "signals");
     write_signals_map(result, sig);
+    write_candidates(result, explain);
 
     mpack_complete_map(result);
 }
@@ -130,6 +191,16 @@ mg_err_t mg_op_query(mg_ctx_t *ctx, mpack_node_t args, mpack_writer_t *result) {
         signals_only = mpack_node_bool(so_node);
     }
 
+    query_explain_t explain = {0};
+    mpack_node_t ex_node = mpack_node_map_cstr_optional(args, "explain");
+    if (!mpack_node_is_missing(ex_node) && !mpack_node_is_nil(ex_node)) {
+        if (mpack_node_type(ex_node) != mpack_type_bool) {
+            free(text);
+            return MG_ERR_INVALID_ARG;
+        }
+        explain.enabled = mpack_node_bool(ex_node);
+    }
+
     mg_embedding_t q;
     mg_err_t e = mg_embed_text(ctx->embed, text, q);
     if (e != MG_OK) { free(text); return e; }
@@ -145,7 +216,7 @@ mg_err_t mg_op_query(mg_ctx_t *ctx, mpack_node_t args, mpack_writer_t *result) {
         mg_verify_signals_t empty = {0};
         empty.s_ce = NAN;
         empty.hit_level = MG_HIT_NONE;
-        write_miss(ctx, text, q, &empty, result);
+        write_miss(ctx, text, q, &empty, &explain, result);
         free(text);
         return MG_OK;
     }
@@ -163,7 +234,7 @@ mg_err_t mg_op_query(mg_ctx_t *ctx, mpack_node_t args, mpack_writer_t *result) {
         sig.s_vec = candidates[0].score;
         sig.s_ce = NAN;
         sig.hit_level = MG_HIT_NONE;
-        write_miss(ctx, text, q, &sig, result);
+        write_miss(ctx, text, q, &sig, &explain, result);
         free(text);
         return MG_OK;
     }
@@ -190,6 +261,7 @@ mg_err_t mg_op_query(mg_ctx_t *ctx, mpack_node_t args, mpack_writer_t *result) {
         e = mg_storage_get_node(ctx->storage, candidates[i].id, &cand);
         if (e != MG_OK) {
             mg_node_free(&best_node);
+            explain_free(&explain);
             free(text);
             return e;
         }
@@ -208,9 +280,11 @@ mg_err_t mg_op_query(mg_ctx_t *ctx, mpack_node_t args, mpack_writer_t *result) {
         if (e != MG_OK) {
             mg_node_free(&cand);
             mg_node_free(&best_node);
+            explain_free(&explain);
             free(text);
             return e;
         }
+        explain_add(&explain, candidates[i].id, cand.title, i + 1, &sig);
 
         float rank = query_verification_rank(&sig);
         if (sig.hit_level == MG_HIT_STRONG || sig.hit_level == MG_HIT_WEAK) {
@@ -259,17 +333,20 @@ mg_err_t mg_op_query(mg_ctx_t *ctx, mpack_node_t args, mpack_writer_t *result) {
 
         mpack_write_cstr(result, "signals");
         write_signals_map(result, &best_sig);
+        write_candidates(result, &explain);
 
         mpack_complete_map(result);
 
         mg_node_free(&best_node);
+        explain_free(&explain);
         free(text);
         return MG_OK;
     }
 
     /* MG_HIT_NONE: MISS with fallback, carrying the strongest verified miss. */
     mg_node_free(&best_node);
-    write_miss(ctx, text, q, &best_miss_sig, result);
+    write_miss(ctx, text, q, &best_miss_sig, &explain, result);
+    explain_free(&explain);
     free(text);
     return MG_OK;
 }

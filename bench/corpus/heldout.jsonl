@@ -1,0 +1,120 @@
+{"query":"cannot pull with rebase: You have unstaged changes. I just want to update my branch without committing my WIP","expect":"git-rebase-autostash","kind":"paraphrase"}
+{"query":"my entrypoint.sh works on my machine but the linux container says /bin/bash^M: bad interpreter","expect":"git-crlf-windows","kind":"paraphrase"}
+{"query":"I committed inside a nested repo folder, ran an update, and now my commits are gone??","expect":"git-submodule-detached","kind":"paraphrase"}
+{"query":"why does docker build reinstall all npm packages every time I change one line of code","expect":"docker-layer-cache-copy","kind":"paraphrase"}
+{"query":"app in container gets connection refused on localhost:5432 but postgres is running on my laptop","expect":"docker-localhost-host","kind":"paraphrase"}
+{"query":"docker stop always hangs ~10s then kills my node app","expect":"docker-pid1-signals","kind":"paraphrase"}
+{"query":"ALTER TABLE has been hanging for 20 minutes, nothing else seems to be running against the db","expect":"pg-idle-in-transaction","kind":"paraphrase"}
+{"query":"case-insensitive email lookup is doing a seq scan on 5M rows even though email has an index","expect":"pg-index-not-used-lower","kind":"paraphrase"}
+{"query":"after importing a CSV dump every new insert fails with duplicate key value violates unique constraint orders_pkey","expect":"pg-serial-sequence-reset","kind":"paraphrase"}
+{"query":"sqlite3.OperationalError: database is locked when a background job writes while the web app reads","expect":"sqlite-wal-readers","kind":"paraphrase"}
+{"query":"our cache cleanup script freezes redis for a few seconds and all requests time out meanwhile","expect":"redis-keys-blocking","kind":"paraphrase"}
+{"query":"python function keeps returning items from previous calls, list grows every time I call it","expect":"python-mutable-default","kind":"paraphrase"}
+{"query":"installed a package with venv activated but import still fails with ModuleNotFoundError","expect":"python-venv-pip-wrong","kind":"paraphrase"}
+{"query":"my FastAPI async endpoint stalls all other requests while one of them is fetching a URL","expect":"python-asyncio-blocking","kind":"paraphrase"}
+{"query":"TypeError: can't compare offset-naive and offset-aware datetimes","expect":"python-datetime-naive","kind":"paraphrase"}
+{"query":"Error [ERR_REQUIRE_ESM]: require() of ES Module not supported after npm update","expect":"node-esm-require","kind":"paraphrase"}
+{"query":"node server just dies with no stack trace when some async db call throws","expect":"node-unhandled-rejection","kind":"paraphrase"}
+{"query":"CI npm step: `npm ci` can only install packages when your package.json and lock are in sync","expect":"npm-ci-lockfile","kind":"paraphrase"}
+{"query":"turned on strict in tsconfig and got 400 errors saying Object is possibly 'undefined', how do I tackle this","expect":"ts-strict-null","kind":"paraphrase"}
+{"query":"component re-renders forever and network tab shows the same fetch hundreds of times","expect":"react-useeffect-loop","kind":"paraphrase"}
+{"query":"why is my fetch in useEffect called twice on page load in dev","expect":"react-strict-double","kind":"paraphrase"}
+{"query":"long filename in a sidebar row pushes the layout wider instead of showing ... ellipsis","expect":"css-flex-min-width","kind":"paraphrase"}
+{"query":"browser console: The value of the 'Access-Control-Allow-Origin' header must not be the wildcard when the request's credentials mode is 'include'","expect":"cors-preflight-credentials","kind":"paraphrase"}
+{"query":"random 502 Bad Gateway from the ALB maybe 1 in 1000 requests, app logs show nothing","expect":"http-keepalive-502","kind":"paraphrase"}
+{"query":"site loads fine in chrome but curl says SSL certificate problem: unable to get local issuer certificate","expect":"tls-missing-intermediate","kind":"paraphrase"}
+{"query":"pod keeps restarting, CrashLoopBackOff, app takes about 90s to boot","expect":"k8s-crashloop-probe","kind":"paraphrase"}
+{"query":"java service killed with exit code 137 but heap usage in metrics is only 60% of the limit","expect":"k8s-oomkilled-limits","kind":"paraphrase"}
+{"query":"I edited the configmap and applied it but the pods still read the old value from env","expect":"k8s-configmap-reload","kind":"paraphrase"}
+{"query":"my deploy script has set -e but it continued after a command piped into tee failed","expect":"bash-set-e-pipe","kind":"paraphrase"}
+{"query":"shell loop over files breaks when a filename has a space, rm says no such file","expect":"bash-word-splitting","kind":"paraphrase"}
+{"query":"npm build on windows fails with ENOENT on a super deep node_modules path that definitely exists","expect":"windows-path-length","kind":"paraphrase"}
+{"query":".\\setup.ps1 cannot be loaded because running scripts is disabled on this system","expect":"powershell-execution-policy","kind":"paraphrase"}
+{"query":"changed CC to clang and re-ran cmake but it still builds with gcc","expect":"cmake-stale-cache","kind":"paraphrase"}
+{"query":"printing a copied char buffer shows garbage after the text when the input is long","expect":"c-strncpy-nul","kind":"paraphrase"}
+{"query":"go routines in a for range all print the same last item","expect":"go-loop-var-capture","kind":"paraphrase"}
+{"query":"golang: function returns no error but err != nil check is still true, the value prints <nil>","expect":"go-nil-interface","kind":"paraphrase"}
+{"query":"error[E0502]: cannot borrow `v` as mutable because it is also borrowed as immutable, inside a for loop","expect":"rust-borrow-mutable-loop","kind":"paraphrase"}
+{"query":"map.get(key) returns null in Java even though I put an equal object as key earlier","expect":"java-hashcode-equals","kind":"paraphrase"}
+{"query":"spring: exception thrown but database changes are not rolled back, the method is annotated though","expect":"spring-transactional-self","kind":"paraphrase"}
+{"query":"could not initialize proxy - no Session when returning entity from controller","expect":"spring-lazy-init-exception","kind":"paraphrase"}
+{"query":"flutter error: setState() called after dispose() when user navigates back during loading","expect":"flutter-setstate-disposed","kind":"paraphrase"}
+{"query":"actions/cache always misses on my new branch even though the other branch saved it","expect":"gha-cache-branch-scope","kind":"paraphrase"}
+{"query":"external contributor PR: workflow fails because secrets.NPM_TOKEN is empty","expect":"gha-secrets-forks","kind":"paraphrase"}
+{"query":"on the build VM git clone git@github.com gives Permission denied (publickey), works on my laptop","expect":"ssh-agent-forwarding","kind":"paraphrase"}
+{"query":"auth sometimes rejects freshly issued tokens with 'token used before issued' on one server only","expect":"ntp-clock-skew-jwt","kind":"paraphrase"}
+{"query":"JSON.parse: Unexpected token  in JSON at position 0 for a config file a colleague edited on windows","expect":"utf8-bom-json","kind":"paraphrase"}
+{"query":"invoice total shows 19.999999999 instead of 20.00 and reports are a cent off","expect":"float-money","kind":"paraphrase"}
+{"query":"our input validation endpoint pegs a CPU at 100% for minutes on certain long strings","expect":"regex-catastrophic","kind":"paraphrase"}
+{"query":"nightly report job started running at 3am instead of 2am since last weekend","expect":"cron-utc","kind":"paraphrase"}
+{"query":"df says 100% used, I deleted the big app.log but space was not freed","expect":"log-rotation-disk-full","kind":"paraphrase"}
+{"query":"git pull --rebase mi dice che ho modifiche non staged e si rifiuta, come aggiorno il branch senza committare?","expect":"git-rebase-autostash","kind":"crosslang"}
+{"query":"ho fatto dei commit dentro un sottomodulo e dopo l'update sono spariti, dove sono finiti?","expect":"git-submodule-detached","kind":"crosslang"}
+{"query":"dal container non riesco a collegarmi al database che gira sul mio pc tramite localhost, connection refused","expect":"docker-localhost-host","kind":"crosslang"}
+{"query":"una ALTER TABLE resta bloccata all'infinito su postgres anche se nessuno sembra usare la tabella","expect":"pg-idle-in-transaction","kind":"crosslang"}
+{"query":"dopo aver importato i dati da csv ogni insert fallisce con duplicate key sulla primary key","expect":"pg-serial-sequence-reset","kind":"crosslang"}
+{"query":"lo script che pulisce la cache blocca redis per alcuni secondi e tutte le richieste vanno in timeout","expect":"redis-keys-blocking","kind":"crosslang"}
+{"query":"ho attivato il virtualenv e installato il pacchetto ma python continua a dire ModuleNotFoundError","expect":"python-venv-pip-wrong","kind":"crosslang"}
+{"query":"errore can't compare offset-naive and offset-aware datetimes quando confronto due date in python","expect":"python-datetime-naive","kind":"crosslang"}
+{"query":"il processo node termina all'improvviso quando una chiamata async lancia un'eccezione","expect":"node-unhandled-rejection","kind":"crosslang"}
+{"query":"ho abilitato strict nel tsconfig e ora ho centinaia di errori 'possibly undefined', da dove comincio?","expect":"ts-strict-null","kind":"crosslang"}
+{"query":"in sviluppo la mia chiamata API dentro useEffect parte due volte, perché?","expect":"react-strict-double","kind":"crosslang"}
+{"query":"il browser blocca la richiesta con credenziali perché il server risponde Access-Control-Allow-Origin asterisco","expect":"cors-preflight-credentials","kind":"crosslang"}
+{"query":"curl e java danno unable to get local issuer certificate ma nel browser il sito funziona","expect":"tls-missing-intermediate","kind":"crosslang"}
+{"query":"il pod java viene ucciso con OOMKilled anche se l'heap è sotto il limite del container","expect":"k8s-oomkilled-limits","kind":"crosslang"}
+{"query":"lo script bash con set -e continua anche se un comando in una pipe fallisce","expect":"bash-set-e-pipe","kind":"crosslang"}
+{"query":"la build su windows fallisce con file non trovato su un percorso molto lungo dentro node_modules","expect":"windows-path-length","kind":"crosslang"}
+{"query":"ho cambiato compilatore ma cmake continua a usare quello vecchio","expect":"cmake-stale-cache","kind":"crosslang"}
+{"query":"in go le goroutine lanciate nel ciclo leggono tutte l'ultimo valore della variabile","expect":"go-loop-var-capture","kind":"crosslang"}
+{"query":"rust non compila: cannot borrow as mutable mentre modifico il vettore dentro il for","expect":"rust-borrow-mutable-loop","kind":"crosslang"}
+{"query":"in spring l'annotazione @Transactional non fa rollback quando chiamo il metodo da un altro metodo della stessa classe","expect":"spring-transactional-self","kind":"crosslang"}
+{"query":"flutter mi dà setState called after dispose quando l'utente torna indietro prima che finisca il caricamento","expect":"flutter-setstate-disposed","kind":"crosslang"}
+{"query":"nelle pull request dei contributor esterni i secrets di github actions risultano vuoti","expect":"gha-secrets-forks","kind":"crosslang"}
+{"query":"il token jwt viene rifiutato come non ancora valido solo su uno dei server","expect":"ntp-clock-skew-jwt","kind":"crosslang"}
+{"query":"i totali delle fatture sono sbagliati di un centesimo, gli importi sono salvati come float","expect":"float-money","kind":"crosslang"}
+{"query":"il job cron gira un'ora in ritardo da quando è cambiata l'ora legale","expect":"cron-utc","kind":"crosslang"}
+{"query":"how do I run db migrations on orbit? alembic upgrade head put tables in the wrong schema","expect":"orbit-migrations-make-target","kind":"project"}
+{"query":"why can't api just call the billing service over http on orbit, lint is yelling at me","expect":"orbit-billing-async-only","kind":"project"}
+{"query":"the test tenant I set up on staging yesterday is gone this morning, did someone delete it?","expect":"orbit-staging-nightly-restore","kind":"project"}
+{"query":"I flipped a feature flag in the orbit admin panel but nothing changed","expect":"orbit-feature-flags-yaml","kind":"project"}
+{"query":"CI contracts-drift job fails saying generated contracts are out of date, what do I run?","expect":"orbit-contracts-codegen","kind":"project"}
+{"query":"my orbit PR shows the e2e check as skipped and I can't merge","expect":"orbit-e2e-label","kind":"project"}
+{"query":"my PR's preview environment url stopped working after the weekend","expect":"orbit-preview-env-ttl","kind":"project"}
+{"query":"I updated a secret with kubectl edit secret in orbit and a few minutes later it reverted","expect":"orbit-secrets-vault","kind":"project"}
+{"query":"lockfile-guard step failed on my PR complaining about package-lock.json","expect":"orbit-pnpm-only","kind":"project"}
+{"query":"my query returns rows from other tenants locally but returns nothing in prod, orbit core","expect":"orbit-tenant-scoped-session","kind":"project"}
+{"query":"deploy-prod workflow fails with 'deploy freeze active', it's friday afternoon and I need to ship a fix","expect":"orbit-deploy-freeze-friday","kind":"project"}
+{"query":"can I upgrade orbit services to python 3.12? uv sync breaks with no matching distribution","expect":"orbit-python-311-pin","kind":"project"}
+{"query":"after make dev, psql says database orbit does not exist","expect":"orbit-local-postgres-5433","kind":"project"}
+{"query":"where do I add a new field to the public api, the v1 serializer change got rejected by CI","expect":"orbit-api-v1-frozen","kind":"project"}
+{"query":"our export celery task keeps dying with SoftTimeLimitExceeded and retrying","expect":"orbit-celery-reports-queue","kind":"project"}
+{"query":"container can't resolve other service names, nslookup api fails inside docker compose network","expect":null,"kind":"negative"}
+{"query":"git blame is useless after a big reformat commit, how do I make it skip that commit","expect":null,"kind":"negative"}
+{"query":"pg_dump of our 400GB postgres database takes 9 hours, how can I speed it up","expect":null,"kind":"negative"}
+{"query":"postgres table keeps growing on disk even after deleting most rows, vacuum doesn't shrink it","expect":null,"kind":"negative"}
+{"query":"redis keys are disappearing before their TTL expires under load","expect":null,"kind":"negative"}
+{"query":"ImportError: cannot import name 'User' from partially initialized module 'models' (most likely due to a circular import)","expect":null,"kind":"negative"}
+{"query":"with asyncio.gather, how do I cancel the remaining tasks as soon as one of them raises","expect":null,"kind":"negative"}
+{"query":"FATAL ERROR: Reached heap limit Allocation failed - JavaScript heap out of memory during webpack build","expect":null,"kind":"negative"}
+{"query":"npm install fails with ERESOLVE unable to resolve dependency tree, conflicting peer dependency react@17","expect":null,"kind":"negative"}
+{"query":"typescript path alias @/utils compiles fine but node says Cannot find module at runtime","expect":null,"kind":"negative"}
+{"query":"Warning: Each child in a list should have a unique key prop","expect":null,"kind":"negative"}
+{"query":"position: sticky header doesn't stick when the parent has overflow hidden","expect":null,"kind":"negative"}
+{"query":"Mixed Content: the page was loaded over HTTPS but requested an insecure resource","expect":null,"kind":"negative"}
+{"query":"kubernetes pod stuck in Pending with 0/3 nodes are available: insufficient cpu","expect":null,"kind":"negative"}
+{"query":"pod in ImagePullBackOff pulling from our private registry, how do I add credentials","expect":null,"kind":"negative"}
+{"query":"bash read loop strips leading spaces and backslashes from each line of the file","expect":null,"kind":"negative"}
+{"query":"go build fails with verifying module: checksum mismatch in go.sum","expect":null,"kind":"negative"}
+{"query":"spring boot ignores application-dev.yml, the dev profile values never load","expect":null,"kind":"negative"}
+{"query":"github actions workflow does not trigger when I push a tag","expect":null,"kind":"negative"}
+{"query":"how do we rotate JWT signing keys with a JWKS endpoint without logging everybody out","expect":null,"kind":"negative"}
+{"query":"how do I get access to orbit's grafana dashboards as a new hire","expect":null,"kind":"negative"}
+{"query":"what's the branch naming convention for orbit feature branches","expect":null,"kind":"negative"}
+{"query":"which i18n library does the orbit web app use and where are translation files","expect":null,"kind":"negative"}
+{"query":"how is the orbit elasticsearch search index rebuilt after a mapping change","expect":null,"kind":"negative"}
+{"query":"who is on call for orbit this week and where is the pager schedule","expect":null,"kind":"negative"}
+{"query":"how do I reverse a singly linked list in place","expect":null,"kind":"negative"}
+{"query":"what is the difference between a process and a thread","expect":null,"kind":"negative"}
+{"query":"what is the worst-case time complexity of quicksort and why","expect":null,"kind":"negative"}
+{"query":"explain dependency injection with a simple example","expect":null,"kind":"negative"}
+{"query":"how should I structure a REST API for pagination, offset or cursor?","expect":null,"kind":"negative"}

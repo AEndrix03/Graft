@@ -1,4 +1,5 @@
 #include "graft/ops.h"
+#include "graft/maintain.h"
 
 #include <stdint.h>
 #include <stdlib.h>
@@ -51,6 +52,14 @@ static int cmp_cstr_ptr(const void *a, const void *b) {
   return strcmp(*sa, *sb);
 }
 
+/* A keyword may not be empty or contain ',' or NUL. The content hash joins
+ * the sorted keywords with ',', so ["a,b", "c"] and ["a", "b,c"] would hash
+ * alike and the second insert would come back as a false duplicate.
+ * Rejecting the separator keeps the hash of every existing node unchanged. */
+int mg_insert_keyword_valid(const char *kw, size_t len) {
+  return len > 0u && !memchr(kw, ',', len) && !memchr(kw, '\0', len);
+}
+
 static mg_err_t parse_keywords(mpack_node_t args, char ***out_keywords, size_t *out_count) {
   if (!out_keywords || !out_count) {
     return MG_ERR_INVALID_ARG;
@@ -81,7 +90,7 @@ static mg_err_t parse_keywords(mpack_node_t args, char ***out_keywords, size_t *
     }
 
     size_t len = mpack_node_strlen(item);
-    if (len == 0u) {
+    if (!mg_insert_keyword_valid(mpack_node_str(item), len)) {
       for (size_t j = 0u; j < i; ++j) {
         free(keywords[j]);
       }
@@ -184,12 +193,13 @@ static void write_insert_result(
   const mg_node_id_t id,
   size_t n_kw_edges,
   size_t n_sem_edges,
-  bool duplicate
+  bool duplicate,
+  size_t n_sources
 ) {
   char id_hex[33];
   write_id_hex(id, id_hex);
 
-  mpack_start_map(result, 5);
+  mpack_start_map(result, n_sources > 0 ? 6 : 5);
   mpack_write_cstr(result, "id");
   mpack_write_bin(result, (const char *)id, MG_NODE_ID_BYTES);
   mpack_write_cstr(result, "id_hex");
@@ -200,7 +210,39 @@ static void write_insert_result(
   mpack_write_u64(result, (uint64_t)n_sem_edges);
   mpack_write_cstr(result, "duplicate");
   mpack_write_bool(result, duplicate);
+  if (n_sources > 0) {
+    /* also on a duplicate: the sources were attached to the existing node */
+    mpack_write_cstr(result, "sources_attached");
+    mpack_write_u64(result, (uint64_t)n_sources);
+  }
   mpack_finish_map(result);
+}
+
+/* Saving the exact content of a retired node again means it is wanted
+ * after all: bring it back (audited like a `maintain resolve ... restore`)
+ * instead of answering with an id no search can reach. */
+static mg_err_t restore_if_retired(mg_storage_t *s, const mg_node_id_t id, int64_t now) {
+  mg_node_t node;
+  mg_maint_change_t change;
+  mg_maint_log_t log;
+  char hex[33];
+  int retired;
+  mg_err_t err = mg_storage_get_node(s, id, &node);
+  if (err != MG_OK) return err;
+  retired = node.state == MG_NODE_RETIRED;
+  mg_node_free(&node);
+  if (!retired) return MG_OK;
+  memset(&change, 0, sizeof(change));
+  change.to = MG_MAINT_TO_ACTIVE;
+  memcpy(change.node, id, MG_NODE_ID_BYTES);
+  write_id_hex(id, hex);
+  memset(&log, 0, sizeof(log));
+  log.ts = now;
+  log.actor = "insert";
+  log.action = "restore";
+  log.nodes = hex;
+  log.detail = "same content inserted again";
+  return mg_storage_maint_apply(s, &change, 1, NULL, NULL, NULL, NULL, &log);
 }
 
 mg_err_t mg_op_insert(mg_ctx_t *ctx, mpack_node_t args, mpack_writer_t *result) {
@@ -276,41 +318,12 @@ mg_err_t mg_op_insert(mg_ctx_t *ctx, mpack_node_t args, mpack_writer_t *result) 
     return err;
   }
 
-  mg_hash_t content_hash;
-  err = build_content_hash(title, body, keywords, n_keywords, content_hash);
-  if (err != MG_OK) {
-    free_keywords(keywords, n_keywords);
-    free(title);
-    free(body);
-    free(author);
-    return err;
-  }
-
-  mg_node_id_t existing_id;
-  err = mg_storage_node_id_by_hash(ctx->storage, content_hash, existing_id);
-  if (err == MG_OK) {
-    write_insert_result(result, existing_id, 0u, 0u, true);
-    free_keywords(keywords, n_keywords);
-    free(title);
-    free(body);
-    free(author);
-    return MG_OK;
-  }
-  if (err != MG_ERR_NOT_FOUND) {
-    free_keywords(keywords, n_keywords);
-    free(title);
-    free(body);
-    free(author);
-    return err;
-  }
-
-  mg_node_t node;
-  memset(&node, 0, sizeof(node));
-  mg_uuidv7(node.id);
-  memcpy(node.content_hash, content_hash, MG_HASH_BYTES);
-
-  mg_embedding_t q;
-  err = mg_embed_text(ctx->embed, title, q);
+  /* Optional provenance. Parsed before anything is written so a bad source
+   * rejects the whole insert. */
+  int64_t now = now_unix_ms();
+  mg_source_t *sources = NULL;
+  size_t n_sources = 0u;
+  err = mg_op_parse_sources(args, now, &sources, &n_sources);
   if (err != MG_OK) {
     free_keywords(keywords, n_keywords);
     free(title);
@@ -320,33 +333,63 @@ mg_err_t mg_op_insert(mg_ctx_t *ctx, mpack_node_t args, mpack_writer_t *result) 
   }
 
   mg_keyword_id_t *kw_ids = NULL;
+  mg_edge_t *edges = NULL;
+  size_t n_edges = 0u;
+  size_t n_kw_edges = 0u;
+  size_t n_sem_edges = 0u;
+  mg_node_id_t existing_id;
+  mg_node_t node;
+  memset(&node, 0, sizeof(node));
+
+  mg_hash_t content_hash;
+  err = build_content_hash(title, body, keywords, n_keywords, content_hash);
+  if (err != MG_OK) {
+    goto done;
+  }
+
+  err = mg_storage_node_id_by_hash(ctx->storage, content_hash, existing_id);
+  if (err == MG_OK) {
+    /* Same content again: attach the new sources to the existing node, so
+     * repeated ingestion runs accumulate provenance instead of failing. */
+    if (n_sources > 0u) {
+      err = mg_storage_attach_sources(ctx->storage, existing_id, sources, n_sources);
+    }
+    if (err == MG_OK) {
+      err = restore_if_retired(ctx->storage, existing_id, now);
+    }
+    if (err == MG_OK) {
+      write_insert_result(result, existing_id, 0u, 0u, true, n_sources);
+    }
+    goto done;
+  }
+  if (err != MG_ERR_NOT_FOUND) {
+    goto done;
+  }
+
+  mg_uuidv7(node.id);
+  memcpy(node.content_hash, content_hash, MG_HASH_BYTES);
+
+  mg_embedding_t q;
+  err = mg_embed_text(ctx->embed, title, q);
+  if (err != MG_OK) {
+    goto done;
+  }
+
   if (n_keywords > 0u) {
     kw_ids = (mg_keyword_id_t *)calloc(n_keywords, sizeof(*kw_ids));
     if (!kw_ids) {
-      free_keywords(keywords, n_keywords);
-      free(title);
-      free(body);
-      free(author);
-      return MG_ERR_OOM;
+      err = MG_ERR_OOM;
+      goto done;
     }
   }
 
   for (size_t i = 0u; i < n_keywords; ++i) {
     err = mg_storage_upsert_keyword(ctx->storage, keywords[i], NULL, &kw_ids[i]);
     if (err != MG_OK) {
-      free(kw_ids);
-      free_keywords(keywords, n_keywords);
-      free(title);
-      free(body);
-      free(author);
-      return err;
+      goto done;
     }
   }
 
-  mg_edge_t *edges = NULL;
-  size_t n_edges = 0u;
-  size_t n_kw_edges = 0u;
-  size_t n_sem_edges = 0u;
   err = mg_insert_build_edges_from_embedding(
     ctx->storage,
     ctx->config,
@@ -360,16 +403,9 @@ mg_err_t mg_op_insert(mg_ctx_t *ctx, mpack_node_t args, mpack_writer_t *result) 
     &n_sem_edges
   );
   if (err != MG_OK) {
-    free(edges);
-    free(kw_ids);
-    free_keywords(keywords, n_keywords);
-    free(title);
-    free(body);
-    free(author);
-    return err;
+    goto done;
   }
 
-  int64_t now = now_unix_ms();
   node.title = title;
   node.body = body;
   node.author = author;
@@ -379,17 +415,32 @@ mg_err_t mg_op_insert(mg_ctx_t *ctx, mpack_node_t args, mpack_writer_t *result) 
   node.access_count = 0;
   node.state = MG_NODE_ACTIVE;
 
-  err = mg_storage_insert_node_with_edges(ctx->storage, &node, q, kw_ids, n_keywords, edges, n_edges,
-                                           has_supersedes ? (const mg_node_id_t *)&supersedes_id : NULL);
+  err = mg_storage_insert_node_with_sources(ctx->storage, &node, q, kw_ids, n_keywords, edges, n_edges,
+                                            has_supersedes ? (const mg_node_id_t *)&supersedes_id : NULL,
+                                            sources, n_sources);
   if (err == MG_OK) {
-    write_insert_result(result, node.id, n_kw_edges, n_sem_edges, false);
+    write_insert_result(result, node.id, n_kw_edges, n_sem_edges, false, n_sources);
+  } else if (err == MG_ERR_DUPLICATE &&
+             mg_storage_node_id_by_hash(ctx->storage, content_hash, existing_id) == MG_OK) {
+    /* A concurrent insert of the same content committed between our hash
+     * lookup and our transaction: the UNIQUE content_hash rejected ours.
+     * Resolve to the winner so the idempotency contract holds. */
+    err = n_sources > 0u
+        ? mg_storage_attach_sources(ctx->storage, existing_id, sources, n_sources)
+        : MG_OK;
+    if (err == MG_OK) {
+      write_insert_result(result, existing_id, 0u, 0u, true, n_sources);
+    }
   }
 
+done:
   free(edges);
   free(kw_ids);
+  mg_op_sources_free(sources, n_sources);
   free_keywords(keywords, n_keywords);
   free(title);
   free(body);
   free(author);
   return err;
 }
+

@@ -24,8 +24,10 @@ ctest --test-dir build           # run the suite
 
 - `src/` — daemon, CLI, retrieval, embed, storage, config, http (one subdir per concern)
 - `include/graft/` — public C headers
-- `tests/` — `test_*.c` files; CMake auto-registers each one
-- `integrations/` — per-agent adapters (skills, AGENTS.md files, MCP server, hooks)
+- `tests/` — `test_*.c` files; CMake auto-registers each one and links it against `graft_cli` (every CLI subcommand except `main()`, on top of `graft_core`), so CLI code is testable too
+- `plugins/graft/` — the agent plugin: the skills, plus the Claude Code and Codex manifests
+  (the marketplaces are `.claude-plugin/` and `.agents/plugins/` at the repo root)
+- `integrations/` — per-agent adapters (AGENTS.md files, MCP server, optional hooks)
 - `viewer/` — Vue 3 + Vite + three.js SPA served by the daemon's HTTP layer
 - `docs/` — extended docs (HTTP API reference, etc.)
 - `scripts/` — installers and git hooks
@@ -48,7 +50,7 @@ The daemon serves `viewer/dist/` at `/` when `http.enabled: true`. See [`viewer/
 
 The installer activates `scripts/git-hooks/commit-msg` via `core.hooksPath`. Every commit is checked against:
 
-- **Conventional Commits**: `<type>(<scope>)?!?: <description>`
+- **Conventional Commits**: `<type>!?: <description>`. Write it without a scope: the hook still tolerates `(<scope>)`, but the project does not use it, because the type and the description already say what changed
 - **Subject only**, no body, no `Co-Authored-By:` trailer
 - **Total length ≤ 70 characters**
 - **ASCII only** (proxy for "write in English")
@@ -56,8 +58,8 @@ The installer activates `scripts/git-hooks/commit-msg` via `core.hooksPath`. Eve
 Allowed types: `feat`, `fix`, `chore`, `docs`, `style`, `refactor`, `test`, `perf`, `build`, `ci`, `revert`.
 
 ```
-feat(query): cap MISS fallback at 5 nodes
-fix(embed): respect hardware_accel=false on CPU-only builds
+feat: cap the MISS fallback at 5 nodes
+fix: respect hardware_accel=false on CPU-only builds
 docs: link integrations README
 ```
 

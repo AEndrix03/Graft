@@ -123,6 +123,13 @@ mg_err_t mg_dispatch(mg_ctx_t *ctx, const void *req_payload, size_t req_len,
         case MG_OP_DELETE:      herr = mg_op_delete     (ctx, args, &body); break;
         case MG_OP_VIEW:        herr = mg_op_view       (ctx, args, &body); break;
         case MG_OP_REMOTE_SYNC: herr = mg_op_remote_sync(ctx, args, &body); break;
+        case MG_OP_SOURCES_LIST:    herr = mg_op_sources_list   (ctx, args, &body); break;
+        case MG_OP_SOURCES_REFRESH: herr = mg_op_sources_refresh(ctx, args, &body); break;
+        case MG_OP_MAINTAIN_SCAN:       herr = mg_op_maintain_scan      (ctx, args, &body); break;
+        case MG_OP_MAINTAIN_APPLY_SAFE: herr = mg_op_maintain_apply_safe(ctx, args, &body); break;
+        case MG_OP_MAINTAIN_RESOLVE:    herr = mg_op_maintain_resolve   (ctx, args, &body); break;
+        case MG_OP_MAINTAIN_LOG:        herr = mg_op_maintain_log       (ctx, args, &body); break;
+        case MG_OP_MAINTAIN_STATUS:     herr = mg_op_maintain_status    (ctx, args, &body); break;
         default:                herr = MG_ERR_INVALID_ARG;                  break;
     }
 

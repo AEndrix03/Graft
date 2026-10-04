@@ -10,10 +10,13 @@ graft insert \
   --body   "Longer prose: the why, the trap, the workaround, a code snippet, references" \
   --keyword spring-boot --keyword validation --keyword gotcha \
   [--author "name@host"] \
-  [--expires-at <unix-ms>]
+  [--expires-at <unix-ms>] \
+  [--source file:src/auth/JwtService.java]...
 ```
 
 > Aliases: `--tag` is accepted as a synonym for `--keyword`.
+
+`--source` (repeatable) records **provenance**: `file:<path>`, `url:<url>`, `conversation` or `manual` (the last two take an optional `:tag`). For a `file:` source the CLI resolves the path from the working directory, finds the project root (nearest `.git` ancestor), stores the path relative to it, and fingerprints the file's bytes with BLAKE3; a missing file fails the insert with exit code `2`. Pass it whenever a memory is derived from a file, so [`graft sources diff`](../cli/README.md#sources) can later say which memories are stale because their file changed. Project identity, locator forms and the freshness commands are described in the [CLI reference](../cli/README.md#insert). Over HTTP, `POST /v1/insert` accepts the same locators as a `"sources": [...]` string array, with `file:` paths absolute (they are resolved by the daemon); the MCP `graft_insert` tool takes `sources: list[str]`.
 
 Response:
 
@@ -29,7 +32,7 @@ Response:
 }
 ```
 
-`duplicate: true` means the content hash already exists. The existing id is returned; no new node, no new edges. This is how `insert` is idempotent.
+`duplicate: true` means the content hash already exists. The existing id is returned; no new node, no new edges. This is how `insert` is idempotent. Sources passed with a duplicate are still **attached to the existing node** (the response then carries `sources_attached`), so re-running an ingestion over a changed corpus accumulates provenance and refreshes the fingerprints of content that is still identical, instead of failing.
 
 ## What a "good" node looks like
 
@@ -50,6 +53,12 @@ Rules of thumb:
 - 2–4 keywords is usually right. More than 6 dilutes the keyword-edge signal.
 
 If the user is going through `/memoryze` or `/learn` in their agent, the skill enforces this shape. If they're using the CLI directly, no one will stop a sloppy title.
+
+### Bootstrapping a project
+
+`/learn bootstrap` fills an empty graph for a repository without asking anything, so the shape rules matter even more: nobody reviews the nodes. It does not mirror the repository. It inserts what a future session would otherwise have to rediscover (decisions and their why, invariants, module boundaries, build and release procedures, gotchas, public contracts), one fact per node, each with `--source file:` on the files it came from, and leaves out file summaries, generated code, boilerplate and secrets. A broad "what this project is" note is the one to be wary of: it is close to every question about the project, so it gets a confident hit on questions it does not answer.
+
+The work is split into bounded runs by topic. [`graft project status`](../cli/README.md#project) tells the agent whether the project was bootstrapped, which topics are still pending and how many files already back a node; [`graft sources diff`](../cli/README.md#sources) tells it which nodes to revalidate. A re-run with nothing changed and nothing pending inserts nothing.
 
 ---
 
@@ -138,6 +147,8 @@ What's in the hash:
 - `title`
 - `body`
 - `keywords`, **sorted lexicographically** (so the same node with `[a, b]` and `[b, a]` hashes identically)
+
+A keyword may not contain `,` (nor be empty): since `,` is the separator, `["a,b", "c"]` and `["a", "b,c"]` would hash alike and the second insert would come back as a false duplicate. Such an insert is rejected with `INVALID_ARG`, and the CLI says to pass each keyword as its own `--keyword`.
 
 What's deliberately **not** in the hash:
 

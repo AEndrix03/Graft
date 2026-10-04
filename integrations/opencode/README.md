@@ -2,7 +2,8 @@
 
 [OpenCode](https://opencode.ai) reads `AGENTS.md` for repo-level instructions
 and supports native skills in `~/.config/opencode/skills/<name>/SKILL.md`.
-The shared source for instructions and skills is `integrations/standard`.
+The shared source for the skills is the plugin in `plugins/graft/skills`.
+OpenCode has no plugin marketplace, so `graft setup` is how the skills get here.
 
 ## Install
 

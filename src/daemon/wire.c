@@ -41,6 +41,13 @@ mg_err_t mg_wire_op_from_string(const char *s, mg_op_t *out) {
     if (!strcmp(s, "delete"))      { *out = MG_OP_DELETE;      return MG_OK; }
     if (!strcmp(s, "view"))        { *out = MG_OP_VIEW;        return MG_OK; }
     if (!strcmp(s, "remote_sync")) { *out = MG_OP_REMOTE_SYNC; return MG_OK; }
+    if (!strcmp(s, "sources_list"))    { *out = MG_OP_SOURCES_LIST;    return MG_OK; }
+    if (!strcmp(s, "sources_refresh")) { *out = MG_OP_SOURCES_REFRESH; return MG_OK; }
+    if (!strcmp(s, "maintain_scan"))       { *out = MG_OP_MAINTAIN_SCAN;       return MG_OK; }
+    if (!strcmp(s, "maintain_apply_safe")) { *out = MG_OP_MAINTAIN_APPLY_SAFE; return MG_OK; }
+    if (!strcmp(s, "maintain_resolve"))    { *out = MG_OP_MAINTAIN_RESOLVE;    return MG_OK; }
+    if (!strcmp(s, "maintain_log"))        { *out = MG_OP_MAINTAIN_LOG;        return MG_OK; }
+    if (!strcmp(s, "maintain_status"))     { *out = MG_OP_MAINTAIN_STATUS;     return MG_OK; }
     return MG_ERR_INVALID_ARG;
 }
 
@@ -57,6 +64,13 @@ const char *mg_wire_op_to_string(mg_op_t op) {
         case MG_OP_DELETE:      return "delete";
         case MG_OP_VIEW:        return "view";
         case MG_OP_REMOTE_SYNC: return "remote_sync";
+        case MG_OP_SOURCES_LIST:    return "sources_list";
+        case MG_OP_SOURCES_REFRESH: return "sources_refresh";
+        case MG_OP_MAINTAIN_SCAN:       return "maintain_scan";
+        case MG_OP_MAINTAIN_APPLY_SAFE: return "maintain_apply_safe";
+        case MG_OP_MAINTAIN_RESOLVE:    return "maintain_resolve";
+        case MG_OP_MAINTAIN_LOG:        return "maintain_log";
+        case MG_OP_MAINTAIN_STATUS:     return "maintain_status";
     }
     return NULL;
 }

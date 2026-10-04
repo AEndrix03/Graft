@@ -20,7 +20,8 @@ static int test_op_roundtrip(void) {
     static const mg_op_t ops[] = {
         MG_OP_CLASSIFY,  MG_OP_INSERT,      MG_OP_QUERY,  MG_OP_RETRIEVE,
         MG_OP_EXPLORE,   MG_OP_GET,         MG_OP_STATS,  MG_OP_CONSOLIDATE,
-        MG_OP_DELETE,    MG_OP_VIEW,        MG_OP_REMOTE_SYNC
+        MG_OP_DELETE,    MG_OP_VIEW,        MG_OP_REMOTE_SYNC,
+        MG_OP_SOURCES_LIST, MG_OP_SOURCES_REFRESH
     };
     for (size_t i = 0; i < sizeof(ops) / sizeof(ops[0]); i++) {
         const char *s = mg_wire_op_to_string(ops[i]);
@@ -47,6 +48,8 @@ static int test_op_known_strings(void) {
     assert(strcmp(mg_wire_op_to_string(MG_OP_DELETE),      "delete")      == 0);
     assert(strcmp(mg_wire_op_to_string(MG_OP_VIEW),        "view")        == 0);
     assert(strcmp(mg_wire_op_to_string(MG_OP_REMOTE_SYNC), "remote_sync") == 0);
+    assert(strcmp(mg_wire_op_to_string(MG_OP_SOURCES_LIST),    "sources_list")    == 0);
+    assert(strcmp(mg_wire_op_to_string(MG_OP_SOURCES_REFRESH), "sources_refresh") == 0);
     printf("ok op known strings\n");
     return 0;
 }

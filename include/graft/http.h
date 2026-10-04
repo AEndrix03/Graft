@@ -4,6 +4,8 @@
 #include "graft/error.h"
 #include "graft/ops.h"
 
+#include <stdbool.h>
+
 /* HTTP layer (REST + viewer). Off by default. When enabled, the daemon
  * spawns a background TCP listener on cfg->http_bind:cfg->http_port and
  * serves a small set of endpoints under /v1/*.
@@ -24,7 +26,11 @@ typedef struct mg_http_server mg_http_server_t;
  * No-op (returns MG_OK with *out=NULL) when cfg->http_enabled is false. */
 mg_err_t mg_http_start(mg_ctx_t *ctx, mg_http_server_t **out);
 
-/* Stop the HTTP server and join its thread. Safe on NULL. */
-void mg_http_stop(mg_http_server_t *srv);
+/* Stop the HTTP server: stop accepting, join the accept thread, then wait
+ * (bounded) for every client thread to finish before freeing the handle.
+ * Returns false when some client thread was still running at the deadline:
+ * the handle is then left allocated, and the caller must not free the
+ * mg_ctx_t resources those threads may still be using. Safe on NULL. */
+bool mg_http_stop(mg_http_server_t *srv);
 
 #endif

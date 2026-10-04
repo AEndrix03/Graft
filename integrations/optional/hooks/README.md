@@ -6,6 +6,12 @@
 > guarantee the lookup instead of trusting the agent to remember it. Wiring them
 > means editing your own `settings.json` by hand, and it is on you to keep that
 > edit reversible.
+>
+> **Using the Claude Code plugin?** It already ships a prompt lookup and a
+> session hint (`plugins/graft/hooks/hooks.json`, see
+> [`docs/integrations/`](../../../docs/integrations/README.md#plugin-hooks-claude-code-only)).
+> With both wired, every prompt is looked up twice: set `GRAFT_HOOK_PROMPT=0` to
+> keep only these, or skip `query_inject.js` to keep only the plugin's.
 
 Three event hooks that move graft from "the agent should remember to use it" to "the harness guarantees it":
 

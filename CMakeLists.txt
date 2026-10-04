@@ -104,6 +104,7 @@ file(GLOB GRAFT_SRC CONFIGURE_DEPENDS
   src/verify/*.c
   src/rerank/*.c
   src/stats/*.c
+  src/maintain/*.c
   src/config/*.c
   src/http/*.c
   src/daemon/wire.c
@@ -135,20 +136,29 @@ target_link_libraries(graft_core
 add_executable(graftd src/daemon/main.c)
 target_link_libraries(graftd graft_core)
 
-add_executable(graft
-  src/cli/main.c
+# Everything the CLI does except main(), so tests can link the subcommands.
+add_library(graft_cli STATIC
   src/cli/autostart.c
+  src/cli/client.c
+  src/cli/sources.c
+  src/cli/project.c
+  src/cli/maintain.c
+  src/cli/status.c
+  src/cli/hook.c
   src/cli/usage_log.c
   src/cli/profile.c
   src/cli/setup.c
   src/cli/upgrade.c
   src/cli/view.c
 )
-target_compile_definitions(graft PRIVATE
+target_compile_definitions(graft_cli PUBLIC
   GRAFT_VERSION="${GRAFT_VERSION_FULL}"
   GRAFT_REPOSITORY="AEndrix03/Graft"
 )
-target_link_libraries(graft graft_core)
+target_link_libraries(graft_cli PUBLIC graft_core)
+
+add_executable(graft src/cli/main.c)
+target_link_libraries(graft graft_cli)
 
 # === Tests ===
 option(GRAFT_BUILD_TESTS "Build the test executables" ON)
@@ -178,10 +188,92 @@ if(GRAFT_BUILD_TESTS)
   foreach(TFILE ${TEST_SRC})
     get_filename_component(TNAME ${TFILE} NAME_WE)
     add_executable(${TNAME} ${TFILE})
-    target_link_libraries(${TNAME} graft_core)
+    target_link_libraries(${TNAME} graft_cli)
     add_test(NAME ${TNAME} COMMAND ${TNAME})
+    # A hung test must fail, not hold a CI runner for its 6 h job limit.
+    set_tests_properties(${TNAME} PROPERTIES TIMEOUT 300)
     if(MG_TEST_PATHS)
       set_tests_properties(${TNAME} PROPERTIES ENVIRONMENT_MODIFICATION "${MG_TEST_PATHS}")
     endif()
   endforeach()
+
+  # The CLI must refuse an option it does not know, or a known one without its
+  # value, before it ever talks to the daemon (no daemon runs during ctest).
+  add_test(NAME cli_rejects_unknown_option
+           COMMAND graft insert --summary hello --body world)
+  add_test(NAME cli_rejects_missing_value
+           COMMAND graft insert --body world --title)
+  add_test(NAME cli_rejects_unknown_query_option
+           COMMAND graft query --top-k 3 hello)
+  set_tests_properties(cli_rejects_unknown_option PROPERTIES
+    PASS_REGULAR_EXPRESSION "unknown option or missing value: '--summary'")
+  set_tests_properties(cli_rejects_missing_value PROPERTIES
+    PASS_REGULAR_EXPRESSION "unknown option or missing value: '--title'")
+  set_tests_properties(cli_rejects_unknown_query_option PROPERTIES
+    PASS_REGULAR_EXPRESSION "unknown option or missing value: '--top-k'")
+  # --source file: is resolved and fingerprinted client-side, so a missing
+  # file fails before any daemon is contacted.
+  add_test(NAME cli_rejects_missing_source_file
+           COMMAND graft insert --title t --body b --source file:no-such-file.md)
+  add_test(NAME cli_rejects_unknown_source_kind
+           COMMAND graft insert --title t --body b --source bogus:x)
+  add_test(NAME cli_rejects_unknown_sources_option
+           COMMAND graft sources diff --bogus)
+  set_tests_properties(cli_rejects_missing_source_file PROPERTIES
+    PASS_REGULAR_EXPRESSION "source file not found: no-such-file.md")
+  set_tests_properties(cli_rejects_unknown_source_kind PROPERTIES
+    PASS_REGULAR_EXPRESSION "unknown source 'bogus:x'")
+  set_tests_properties(cli_rejects_unknown_sources_option PROPERTIES
+    PASS_REGULAR_EXPRESSION "unknown option or missing value: '--bogus'")
+  # `project` never talks to the daemon: it runs end to end here, against a
+  # DB path of its own (the state file lands in <build>/projects/).
+  add_test(NAME cli_rejects_unknown_project_option
+           COMMAND graft project status --bogus)
+  add_test(NAME cli_rejects_project_topic_without_state
+           COMMAND graft project mark --topic x)
+  add_test(NAME cli_project_mark_run
+           COMMAND graft project mark --topic smoke --state pending --priority high --run)
+  set_tests_properties(cli_rejects_unknown_project_option PROPERTIES
+    PASS_REGULAR_EXPRESSION "unknown option or missing value: '--bogus'")
+  set_tests_properties(cli_rejects_project_topic_without_state PROPERTIES
+    PASS_REGULAR_EXPRESSION "--state is covered, pending, skipped or drop")
+  set_tests_properties(cli_project_mark_run PROPERTIES
+    ENVIRONMENT "GRAFT_DB_PATH=${CMAKE_BINARY_DIR}/cli_project_test.db"
+    PASS_REGULAR_EXPRESSION "\"bootstrapped\": true")
+  # `graft maintain` validates its arguments before contacting the daemon.
+  add_test(NAME cli_rejects_unknown_maintain_option
+           COMMAND graft maintain scan --bogus)
+  add_test(NAME cli_rejects_maintain_missing_value
+           COMMAND graft maintain resolve abc --action)
+  add_test(NAME cli_rejects_maintain_resolve_without_action
+           COMMAND graft maintain resolve abc --note n)
+  add_test(NAME cli_rejects_maintain_bad_limit
+           COMMAND graft maintain log --limit 0)
+  add_test(NAME cli_rejects_maintain_extra_argument
+           COMMAND graft maintain status now)
+  set_tests_properties(cli_rejects_unknown_maintain_option PROPERTIES
+    PASS_REGULAR_EXPRESSION "unknown option or missing value: '--bogus'")
+  set_tests_properties(cli_rejects_maintain_missing_value PROPERTIES
+    PASS_REGULAR_EXPRESSION "unknown option or missing value: '--action'")
+  set_tests_properties(cli_rejects_maintain_resolve_without_action PROPERTIES
+    PASS_REGULAR_EXPRESSION "--action is required")
+  set_tests_properties(cli_rejects_maintain_bad_limit PROPERTIES
+    PASS_REGULAR_EXPRESSION "--limit expects a positive integer")
+  set_tests_properties(cli_rejects_maintain_extra_argument PROPERTIES
+    PASS_REGULAR_EXPRESSION "unknown option or missing value: 'now'")
+  # `graft status` never starts the daemon: with none listening it still
+  # answers, from the project state alone, with maintenance null.
+  add_test(NAME cli_rejects_unknown_status_option
+           COMMAND graft status --bogus)
+  add_test(NAME cli_rejects_unknown_hook_event
+           COMMAND graft hook bogus)
+  add_test(NAME cli_status_without_daemon
+           COMMAND graft status)
+  set_tests_properties(cli_rejects_unknown_status_option PROPERTIES
+    PASS_REGULAR_EXPRESSION "unknown option or missing value: '--bogus'")
+  set_tests_properties(cli_rejects_unknown_hook_event PROPERTIES
+    PASS_REGULAR_EXPRESSION "usage: graft hook <session-start\\|prompt>")
+  set_tests_properties(cli_status_without_daemon PROPERTIES
+    ENVIRONMENT "GRAFT_HOME=${CMAKE_BINARY_DIR}/cli_status_home;GRAFT_DB_PATH=${CMAKE_BINARY_DIR}/cli_status_test.db;GRAFT_SOCKET=${CMAKE_BINARY_DIR}/cli_status_no_daemon.sock"
+    PASS_REGULAR_EXPRESSION "\"maintenance\": null")
 endif()

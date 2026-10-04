@@ -1,0 +1,2759 @@
+{
+  "started_at": "2026-10-02T22:56:17+00:00",
+  "set": "heldout",
+  "graft_version": "0.1.1",
+  "platform": "Windows AMD64",
+  "cpu": "AMD64 Family 23 Model 8 Stepping 2, AuthenticAMD",
+  "cpu_count": 16,
+  "settings": "built-in defaults (installer-style config with paths only)",
+  "corpus": {
+    "nodes": 65,
+    "queries": 120
+  },
+  "top_k": 5,
+  "summary": {
+    "paraphrase": {
+      "n": 50,
+      "query": {
+        "correct_strong": 45,
+        "correct_weak": 0,
+        "wrong_strong": 1,
+        "wrong_weak": 0,
+        "miss": 4,
+        "strong_hit_rate": 0.9
+      },
+      "retrieve": {
+        "recall@1": 0.82,
+        "recall@5": 0.98,
+        "mrr": 0.8833333333333333
+      }
+    },
+    "crosslang": {
+      "n": 25,
+      "query": {
+        "correct_strong": 23,
+        "correct_weak": 0,
+        "wrong_strong": 2,
+        "wrong_weak": 0,
+        "miss": 0,
+        "strong_hit_rate": 0.92
+      },
+      "retrieve": {
+        "recall@1": 0.96,
+        "recall@5": 1.0,
+        "mrr": 0.98
+      }
+    },
+    "project": {
+      "n": 15,
+      "query": {
+        "correct_strong": 11,
+        "correct_weak": 0,
+        "wrong_strong": 2,
+        "wrong_weak": 0,
+        "miss": 2,
+        "strong_hit_rate": 0.7333333333333333
+      },
+      "retrieve": {
+        "recall@1": 0.7333333333333333,
+        "recall@5": 0.9333333333333333,
+        "mrr": 0.8222222222222223
+      }
+    },
+    "negative": {
+      "n": 30,
+      "query": {
+        "correct_strong": 0,
+        "correct_weak": 0,
+        "wrong_strong": 12,
+        "wrong_weak": 0,
+        "miss": 18,
+        "false_strong_rate": 0.4,
+        "correct_miss_rate": 0.6
+      }
+    },
+    "all_positive": {
+      "n": 90,
+      "query": {
+        "correct_strong": 79,
+        "correct_weak": 0,
+        "wrong_strong": 5,
+        "wrong_weak": 0,
+        "miss": 6,
+        "strong_hit_rate": 0.8777777777777778
+      },
+      "retrieve": {
+        "recall@1": 0.8444444444444444,
+        "recall@5": 0.9777777777777777,
+        "mrr": 0.9
+      }
+    },
+    "strong_precision": 0.8229166666666666,
+    "weak_count": 0
+  },
+  "latency_ms": {
+    "insert": {
+      "n": 65,
+      "p50": 266.0,
+      "p95": 434.79999999999995,
+      "max": 500,
+      "wall_p50": 290.3089000028558
+    },
+    "query": {
+      "n": 120,
+      "p50": 250.0,
+      "p95": 344.79999999999995,
+      "max": 454,
+      "wall_p50": 272.3818000231404
+    },
+    "retrieve": {
+      "n": 120,
+      "p50": 250.0,
+      "p95": 344.79999999999995,
+      "max": 438,
+      "wall_p50": 275.79355001216754
+    }
+  },
+  "rows": [
+    {
+      "query": "cannot pull with rebase: You have unstaged changes. I just want to update my branch without committing my WIP",
+      "expect": "git-rebase-autostash",
+      "kind": "paraphrase",
+      "hit": "STRONG",
+      "got": "git-rebase-autostash",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.850498,
+        "s_lex": 0.197452,
+        "s_jaccard": 0.197452,
+        "s_ce": null
+      },
+      "retrieved": [
+        "git-rebase-autostash",
+        "rust-borrow-mutable-loop",
+        "k8s-configmap-reload",
+        "docker-layer-cache-copy",
+        "pg-serial-sequence-reset"
+      ]
+    },
+    {
+      "query": "my entrypoint.sh works on my machine but the linux container says /bin/bash^M: bad interpreter",
+      "expect": "git-crlf-windows",
+      "kind": "paraphrase",
+      "hit": "STRONG",
+      "got": "git-crlf-windows",
+      "outcome": "correct_strong",
+      "rank": 3,
+      "signals": {
+        "s_vec": 0.751545,
+        "s_lex": 0.116129,
+        "s_jaccard": 0.116129,
+        "s_ce": null
+      },
+      "retrieved": [
+        "bash-word-splitting",
+        "bash-set-e-pipe",
+        "git-crlf-windows",
+        "docker-localhost-host",
+        "git-submodule-detached"
+      ]
+    },
+    {
+      "query": "I committed inside a nested repo folder, ran an update, and now my commits are gone??",
+      "expect": "git-submodule-detached",
+      "kind": "paraphrase",
+      "hit": "STRONG",
+      "got": "git-submodule-detached",
+      "outcome": "correct_strong",
+      "rank": 2,
+      "signals": {
+        "s_vec": 0.773098,
+        "s_lex": 0.122449,
+        "s_jaccard": 0.122449,
+        "s_ce": null
+      },
+      "retrieved": [
+        "pg-serial-sequence-reset",
+        "git-submodule-detached",
+        "cmake-stale-cache",
+        "k8s-configmap-reload",
+        "git-rebase-autostash"
+      ]
+    },
+    {
+      "query": "why does docker build reinstall all npm packages every time I change one line of code",
+      "expect": "docker-layer-cache-copy",
+      "kind": "paraphrase",
+      "hit": "STRONG",
+      "got": "docker-layer-cache-copy",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.832248,
+        "s_lex": 0.19708,
+        "s_jaccard": 0.19708,
+        "s_ce": null
+      },
+      "retrieved": [
+        "docker-layer-cache-copy",
+        "orbit-pnpm-only",
+        "cmake-stale-cache",
+        "k8s-configmap-reload",
+        "npm-ci-lockfile"
+      ]
+    },
+    {
+      "query": "app in container gets connection refused on localhost:5432 but postgres is running on my laptop",
+      "expect": "docker-localhost-host",
+      "kind": "paraphrase",
+      "hit": "STRONG",
+      "got": "docker-localhost-host",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.844262,
+        "s_lex": 0.160305,
+        "s_jaccard": 0.160305,
+        "s_ce": null
+      },
+      "retrieved": [
+        "docker-localhost-host",
+        "orbit-local-postgres-5433",
+        "powershell-execution-policy",
+        "tls-missing-intermediate",
+        "cors-preflight-credentials"
+      ]
+    },
+    {
+      "query": "docker stop always hangs ~10s then kills my node app",
+      "expect": "docker-pid1-signals",
+      "kind": "paraphrase",
+      "hit": "STRONG",
+      "got": "docker-pid1-signals",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.796409,
+        "s_lex": 0.0863309,
+        "s_jaccard": 0.0863309,
+        "s_ce": null
+      },
+      "retrieved": [
+        "docker-pid1-signals",
+        "http-keepalive-502",
+        "docker-layer-cache-copy",
+        "k8s-crashloop-probe",
+        "node-unhandled-rejection"
+      ]
+    },
+    {
+      "query": "ALTER TABLE has been hanging for 20 minutes, nothing else seems to be running against the db",
+      "expect": "pg-idle-in-transaction",
+      "kind": "paraphrase",
+      "hit": "MISS",
+      "got": null,
+      "outcome": "miss",
+      "rank": 0,
+      "signals": {
+        "s_vec": 0.701058,
+        "s_lex": 0.0993377,
+        "s_jaccard": 0.0993377,
+        "s_ce": null
+      },
+      "retrieved": [
+        "log-rotation-disk-full",
+        "http-keepalive-502",
+        "orbit-migrations-make-target",
+        "git-rebase-autostash",
+        "float-money"
+      ]
+    },
+    {
+      "query": "case-insensitive email lookup is doing a seq scan on 5M rows even though email has an index",
+      "expect": "pg-index-not-used-lower",
+      "kind": "paraphrase",
+      "hit": "STRONG",
+      "got": "pg-index-not-used-lower",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.800734,
+        "s_lex": 0.101449,
+        "s_jaccard": 0.101449,
+        "s_ce": null
+      },
+      "retrieved": [
+        "pg-index-not-used-lower",
+        "pg-serial-sequence-reset",
+        "orbit-celery-reports-queue",
+        "log-rotation-disk-full",
+        "java-hashcode-equals"
+      ]
+    },
+    {
+      "query": "after importing a CSV dump every new insert fails with duplicate key value violates unique constraint orders_pkey",
+      "expect": "pg-serial-sequence-reset",
+      "kind": "paraphrase",
+      "hit": "STRONG",
+      "got": "pg-serial-sequence-reset",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.84253,
+        "s_lex": 0.19209,
+        "s_jaccard": 0.19209,
+        "s_ce": null
+      },
+      "retrieved": [
+        "pg-serial-sequence-reset",
+        "docker-layer-cache-copy",
+        "orbit-pnpm-only",
+        "java-hashcode-equals",
+        "python-venv-pip-wrong"
+      ]
+    },
+    {
+      "query": "sqlite3.OperationalError: database is locked when a background job writes while the web app reads",
+      "expect": "sqlite-wal-readers",
+      "kind": "paraphrase",
+      "hit": "STRONG",
+      "got": "sqlite-wal-readers",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.825539,
+        "s_lex": 0.205479,
+        "s_jaccard": 0.205479,
+        "s_ce": null
+      },
+      "retrieved": [
+        "sqlite-wal-readers",
+        "pg-idle-in-transaction",
+        "python-asyncio-blocking",
+        "log-rotation-disk-full",
+        "powershell-execution-policy"
+      ]
+    },
+    {
+      "query": "our cache cleanup script freezes redis for a few seconds and all requests time out meanwhile",
+      "expect": "redis-keys-blocking",
+      "kind": "paraphrase",
+      "hit": "STRONG",
+      "got": "redis-keys-blocking",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.789617,
+        "s_lex": 0.125926,
+        "s_jaccard": 0.125926,
+        "s_ce": null
+      },
+      "retrieved": [
+        "redis-keys-blocking",
+        "python-asyncio-blocking",
+        "git-rebase-autostash",
+        "docker-pid1-signals",
+        "log-rotation-disk-full"
+      ]
+    },
+    {
+      "query": "python function keeps returning items from previous calls, list grows every time I call it",
+      "expect": "python-mutable-default",
+      "kind": "paraphrase",
+      "hit": "STRONG",
+      "got": "python-mutable-default",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.855834,
+        "s_lex": 0.165468,
+        "s_jaccard": 0.165468,
+        "s_ce": null
+      },
+      "retrieved": [
+        "python-mutable-default",
+        "react-useeffect-loop",
+        "pg-serial-sequence-reset",
+        "regex-catastrophic",
+        "flutter-setstate-disposed"
+      ]
+    },
+    {
+      "query": "installed a package with venv activated but import still fails with ModuleNotFoundError",
+      "expect": "python-venv-pip-wrong",
+      "kind": "paraphrase",
+      "hit": "STRONG",
+      "got": "python-venv-pip-wrong",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.765786,
+        "s_lex": 0.121622,
+        "s_jaccard": 0.121622,
+        "s_ce": null
+      },
+      "retrieved": [
+        "python-venv-pip-wrong",
+        "pg-serial-sequence-reset",
+        "node-esm-require",
+        "utf8-bom-json",
+        "npm-ci-lockfile"
+      ]
+    },
+    {
+      "query": "my FastAPI async endpoint stalls all other requests while one of them is fetching a URL",
+      "expect": "python-asyncio-blocking",
+      "kind": "paraphrase",
+      "hit": "STRONG",
+      "got": "python-asyncio-blocking",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.770508,
+        "s_lex": 0.107143,
+        "s_jaccard": 0.107143,
+        "s_ce": null
+      },
+      "retrieved": [
+        "python-asyncio-blocking",
+        "react-strict-double",
+        "flutter-setstate-disposed",
+        "c-strncpy-nul",
+        "react-useeffect-loop"
+      ]
+    },
+    {
+      "query": "TypeError: can't compare offset-naive and offset-aware datetimes",
+      "expect": "python-datetime-naive",
+      "kind": "paraphrase",
+      "hit": "STRONG",
+      "got": "python-datetime-naive",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.891225,
+        "s_lex": 0.391304,
+        "s_jaccard": 0.391304,
+        "s_ce": null
+      },
+      "retrieved": [
+        "python-datetime-naive",
+        "ntp-clock-skew-jwt",
+        "java-hashcode-equals",
+        "pg-serial-sequence-reset",
+        "ts-strict-null"
+      ]
+    },
+    {
+      "query": "Error [ERR_REQUIRE_ESM]: require() of ES Module not supported after npm update",
+      "expect": "node-esm-require",
+      "kind": "paraphrase",
+      "hit": "STRONG",
+      "got": "node-esm-require",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.926686,
+        "s_lex": 0.327434,
+        "s_jaccard": 0.327434,
+        "s_ce": null
+      },
+      "retrieved": [
+        "node-esm-require",
+        "orbit-pnpm-only",
+        "java-hashcode-equals",
+        "npm-ci-lockfile",
+        "powershell-execution-policy"
+      ]
+    },
+    {
+      "query": "node server just dies with no stack trace when some async db call throws",
+      "expect": "node-unhandled-rejection",
+      "kind": "paraphrase",
+      "hit": "STRONG",
+      "got": "flutter-setstate-disposed",
+      "outcome": "wrong_strong",
+      "rank": 3,
+      "signals": {
+        "s_vec": 0.758717,
+        "s_lex": 0.159091,
+        "s_jaccard": 0.159091,
+        "s_ce": null
+      },
+      "retrieved": [
+        "flutter-setstate-disposed",
+        "python-asyncio-blocking",
+        "node-unhandled-rejection",
+        "pg-idle-in-transaction",
+        "log-rotation-disk-full"
+      ]
+    },
+    {
+      "query": "CI npm step: `npm ci` can only install packages when your package.json and lock are in sync",
+      "expect": "npm-ci-lockfile",
+      "kind": "paraphrase",
+      "hit": "STRONG",
+      "got": "npm-ci-lockfile",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.887007,
+        "s_lex": 0.196721,
+        "s_jaccard": 0.196721,
+        "s_ce": null
+      },
+      "retrieved": [
+        "npm-ci-lockfile",
+        "orbit-pnpm-only",
+        "docker-layer-cache-copy",
+        "python-venv-pip-wrong",
+        "cmake-stale-cache"
+      ]
+    },
+    {
+      "query": "turned on strict in tsconfig and got 400 errors saying Object is possibly 'undefined', how do I tackle this",
+      "expect": "ts-strict-null",
+      "kind": "paraphrase",
+      "hit": "STRONG",
+      "got": "ts-strict-null",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.845198,
+        "s_lex": 0.207547,
+        "s_jaccard": 0.207547,
+        "s_ce": null
+      },
+      "retrieved": [
+        "ts-strict-null",
+        "http-keepalive-502",
+        "java-hashcode-equals",
+        "cors-preflight-credentials",
+        "c-strncpy-nul"
+      ]
+    },
+    {
+      "query": "component re-renders forever and network tab shows the same fetch hundreds of times",
+      "expect": "react-useeffect-loop",
+      "kind": "paraphrase",
+      "hit": "MISS",
+      "got": null,
+      "outcome": "miss",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.714758,
+        "s_lex": 0.105263,
+        "s_jaccard": 0.105263,
+        "s_ce": null
+      },
+      "retrieved": [
+        "react-useeffect-loop",
+        "pg-serial-sequence-reset",
+        "flutter-setstate-disposed",
+        "regex-catastrophic",
+        "docker-layer-cache-copy"
+      ]
+    },
+    {
+      "query": "why is my fetch in useEffect called twice on page load in dev",
+      "expect": "react-strict-double",
+      "kind": "paraphrase",
+      "hit": "STRONG",
+      "got": "react-strict-double",
+      "outcome": "correct_strong",
+      "rank": 2,
+      "signals": {
+        "s_vec": 0.77666,
+        "s_lex": 0.14876,
+        "s_jaccard": 0.14876,
+        "s_ce": null
+      },
+      "retrieved": [
+        "react-useeffect-loop",
+        "react-strict-double",
+        "flutter-setstate-disposed",
+        "docker-layer-cache-copy",
+        "log-rotation-disk-full"
+      ]
+    },
+    {
+      "query": "long filename in a sidebar row pushes the layout wider instead of showing ... ellipsis",
+      "expect": "css-flex-min-width",
+      "kind": "paraphrase",
+      "hit": "MISS",
+      "got": null,
+      "outcome": "miss",
+      "rank": 3,
+      "signals": {
+        "s_vec": 0.736077,
+        "s_lex": 0.147059,
+        "s_jaccard": 0.147059,
+        "s_ce": null
+      },
+      "retrieved": [
+        "log-rotation-disk-full",
+        "bash-word-splitting",
+        "css-flex-min-width",
+        "windows-path-length",
+        "docker-layer-cache-copy"
+      ]
+    },
+    {
+      "query": "browser console: The value of the 'Access-Control-Allow-Origin' header must not be the wildcard when the request's credentials mode is 'include'",
+      "expect": "cors-preflight-credentials",
+      "kind": "paraphrase",
+      "hit": "STRONG",
+      "got": "cors-preflight-credentials",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.869476,
+        "s_lex": 0.291209,
+        "s_jaccard": 0.291209,
+        "s_ce": null
+      },
+      "retrieved": [
+        "cors-preflight-credentials",
+        "tls-missing-intermediate",
+        "pg-serial-sequence-reset",
+        "git-submodule-detached",
+        "ts-strict-null"
+      ]
+    },
+    {
+      "query": "random 502 Bad Gateway from the ALB maybe 1 in 1000 requests, app logs show nothing",
+      "expect": "http-keepalive-502",
+      "kind": "paraphrase",
+      "hit": "STRONG",
+      "got": "http-keepalive-502",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.801003,
+        "s_lex": 0.149351,
+        "s_jaccard": 0.149351,
+        "s_ce": null
+      },
+      "retrieved": [
+        "http-keepalive-502",
+        "log-rotation-disk-full",
+        "cors-preflight-credentials",
+        "docker-pid1-signals",
+        "pg-serial-sequence-reset"
+      ]
+    },
+    {
+      "query": "site loads fine in chrome but curl says SSL certificate problem: unable to get local issuer certificate",
+      "expect": "tls-missing-intermediate",
+      "kind": "paraphrase",
+      "hit": "STRONG",
+      "got": "tls-missing-intermediate",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.899752,
+        "s_lex": 0.37594,
+        "s_jaccard": 0.37594,
+        "s_ce": null
+      },
+      "retrieved": [
+        "tls-missing-intermediate",
+        "cors-preflight-credentials",
+        "docker-localhost-host",
+        "ssh-agent-forwarding",
+        "powershell-execution-policy"
+      ]
+    },
+    {
+      "query": "pod keeps restarting, CrashLoopBackOff, app takes about 90s to boot",
+      "expect": "k8s-crashloop-probe",
+      "kind": "paraphrase",
+      "hit": "STRONG",
+      "got": "k8s-crashloop-probe",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.797684,
+        "s_lex": 0.167883,
+        "s_jaccard": 0.167883,
+        "s_ce": null
+      },
+      "retrieved": [
+        "k8s-crashloop-probe",
+        "http-keepalive-502",
+        "k8s-oomkilled-limits",
+        "log-rotation-disk-full",
+        "docker-pid1-signals"
+      ]
+    },
+    {
+      "query": "java service killed with exit code 137 but heap usage in metrics is only 60% of the limit",
+      "expect": "k8s-oomkilled-limits",
+      "kind": "paraphrase",
+      "hit": "STRONG",
+      "got": "k8s-oomkilled-limits",
+      "outcome": "correct_strong",
+      "rank": 2,
+      "signals": {
+        "s_vec": 0.720671,
+        "s_lex": 0.176056,
+        "s_jaccard": 0.176056,
+        "s_ce": null
+      },
+      "retrieved": [
+        "regex-catastrophic",
+        "k8s-oomkilled-limits",
+        "java-hashcode-equals",
+        "k8s-crashloop-probe",
+        "http-keepalive-502"
+      ]
+    },
+    {
+      "query": "I edited the configmap and applied it but the pods still read the old value from env",
+      "expect": "k8s-configmap-reload",
+      "kind": "paraphrase",
+      "hit": "STRONG",
+      "got": "k8s-configmap-reload",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.83631,
+        "s_lex": 0.110345,
+        "s_jaccard": 0.110345,
+        "s_ce": null
+      },
+      "retrieved": [
+        "k8s-configmap-reload",
+        "pg-serial-sequence-reset",
+        "k8s-oomkilled-limits",
+        "java-hashcode-equals",
+        "python-venv-pip-wrong"
+      ]
+    },
+    {
+      "query": "my deploy script has set -e but it continued after a command piped into tee failed",
+      "expect": "bash-set-e-pipe",
+      "kind": "paraphrase",
+      "hit": "STRONG",
+      "got": "bash-set-e-pipe",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.88743,
+        "s_lex": 0.308943,
+        "s_jaccard": 0.308943,
+        "s_ce": null
+      },
+      "retrieved": [
+        "bash-set-e-pipe",
+        "orbit-e2e-label",
+        "cmake-stale-cache",
+        "pg-serial-sequence-reset",
+        "powershell-execution-policy"
+      ]
+    },
+    {
+      "query": "shell loop over files breaks when a filename has a space, rm says no such file",
+      "expect": "bash-word-splitting",
+      "kind": "paraphrase",
+      "hit": "STRONG",
+      "got": "bash-word-splitting",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.852977,
+        "s_lex": 0.159292,
+        "s_jaccard": 0.159292,
+        "s_ce": null
+      },
+      "retrieved": [
+        "bash-word-splitting",
+        "log-rotation-disk-full",
+        "windows-path-length",
+        "git-crlf-windows",
+        "utf8-bom-json"
+      ]
+    },
+    {
+      "query": "npm build on windows fails with ENOENT on a super deep node_modules path that definitely exists",
+      "expect": "windows-path-length",
+      "kind": "paraphrase",
+      "hit": "STRONG",
+      "got": "windows-path-length",
+      "outcome": "correct_strong",
+      "rank": 3,
+      "signals": {
+        "s_vec": 0.747731,
+        "s_lex": 0.204225,
+        "s_jaccard": 0.204225,
+        "s_ce": null
+      },
+      "retrieved": [
+        "orbit-pnpm-only",
+        "python-venv-pip-wrong",
+        "windows-path-length",
+        "docker-layer-cache-copy",
+        "node-unhandled-rejection"
+      ]
+    },
+    {
+      "query": ".\\setup.ps1 cannot be loaded because running scripts is disabled on this system",
+      "expect": "powershell-execution-policy",
+      "kind": "paraphrase",
+      "hit": "STRONG",
+      "got": "powershell-execution-policy",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.85091,
+        "s_lex": 0.472727,
+        "s_jaccard": 0.472727,
+        "s_ce": null
+      },
+      "retrieved": [
+        "powershell-execution-policy",
+        "docker-pid1-signals",
+        "orbit-pnpm-only",
+        "git-rebase-autostash",
+        "k8s-configmap-reload"
+      ]
+    },
+    {
+      "query": "changed CC to clang and re-ran cmake but it still builds with gcc",
+      "expect": "cmake-stale-cache",
+      "kind": "paraphrase",
+      "hit": "STRONG",
+      "got": "cmake-stale-cache",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.802469,
+        "s_lex": 0.145038,
+        "s_jaccard": 0.145038,
+        "s_ce": null
+      },
+      "retrieved": [
+        "cmake-stale-cache",
+        "git-crlf-windows",
+        "docker-layer-cache-copy",
+        "npm-ci-lockfile",
+        "git-rebase-autostash"
+      ]
+    },
+    {
+      "query": "printing a copied char buffer shows garbage after the text when the input is long",
+      "expect": "c-strncpy-nul",
+      "kind": "paraphrase",
+      "hit": "MISS",
+      "got": null,
+      "outcome": "miss",
+      "rank": 3,
+      "signals": {
+        "s_vec": 0.735782,
+        "s_lex": 0.146154,
+        "s_jaccard": 0.146154,
+        "s_ce": null
+      },
+      "retrieved": [
+        "bash-word-splitting",
+        "pg-serial-sequence-reset",
+        "c-strncpy-nul",
+        "css-flex-min-width",
+        "regex-catastrophic"
+      ]
+    },
+    {
+      "query": "go routines in a for range all print the same last item",
+      "expect": "go-loop-var-capture",
+      "kind": "paraphrase",
+      "hit": "STRONG",
+      "got": "go-loop-var-capture",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.783583,
+        "s_lex": 0.236364,
+        "s_jaccard": 0.236364,
+        "s_ce": null
+      },
+      "retrieved": [
+        "go-loop-var-capture",
+        "python-mutable-default",
+        "regex-catastrophic",
+        "pg-serial-sequence-reset",
+        "react-useeffect-loop"
+      ]
+    },
+    {
+      "query": "golang: function returns no error but err != nil check is still true, the value prints <nil>",
+      "expect": "go-nil-interface",
+      "kind": "paraphrase",
+      "hit": "STRONG",
+      "got": "go-nil-interface",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.82093,
+        "s_lex": 0.130769,
+        "s_jaccard": 0.130769,
+        "s_ce": null
+      },
+      "retrieved": [
+        "go-nil-interface",
+        "ts-strict-null",
+        "c-strncpy-nul",
+        "regex-catastrophic",
+        "go-loop-var-capture"
+      ]
+    },
+    {
+      "query": "error[E0502]: cannot borrow `v` as mutable because it is also borrowed as immutable, inside a for loop",
+      "expect": "rust-borrow-mutable-loop",
+      "kind": "paraphrase",
+      "hit": "STRONG",
+      "got": "rust-borrow-mutable-loop",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.80824,
+        "s_lex": 0.188811,
+        "s_jaccard": 0.188811,
+        "s_ce": null
+      },
+      "retrieved": [
+        "rust-borrow-mutable-loop",
+        "http-keepalive-502",
+        "java-hashcode-equals",
+        "pg-serial-sequence-reset",
+        "react-useeffect-loop"
+      ]
+    },
+    {
+      "query": "map.get(key) returns null in Java even though I put an equal object as key earlier",
+      "expect": "java-hashcode-equals",
+      "kind": "paraphrase",
+      "hit": "STRONG",
+      "got": "java-hashcode-equals",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.837453,
+        "s_lex": 0.12,
+        "s_jaccard": 0.12,
+        "s_ce": null
+      },
+      "retrieved": [
+        "java-hashcode-equals",
+        "pg-serial-sequence-reset",
+        "utf8-bom-json",
+        "go-nil-interface",
+        "ntp-clock-skew-jwt"
+      ]
+    },
+    {
+      "query": "spring: exception thrown but database changes are not rolled back, the method is annotated though",
+      "expect": "spring-transactional-self",
+      "kind": "paraphrase",
+      "hit": "STRONG",
+      "got": "spring-transactional-self",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.803939,
+        "s_lex": 0.184397,
+        "s_jaccard": 0.184397,
+        "s_ce": null
+      },
+      "retrieved": [
+        "spring-transactional-self",
+        "pg-serial-sequence-reset",
+        "git-rebase-autostash",
+        "sqlite-wal-readers",
+        "pg-idle-in-transaction"
+      ]
+    },
+    {
+      "query": "could not initialize proxy - no Session when returning entity from controller",
+      "expect": "spring-lazy-init-exception",
+      "kind": "paraphrase",
+      "hit": "STRONG",
+      "got": "spring-lazy-init-exception",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.790144,
+        "s_lex": 0.17037,
+        "s_jaccard": 0.17037,
+        "s_ce": null
+      },
+      "retrieved": [
+        "spring-lazy-init-exception",
+        "cors-preflight-credentials",
+        "pg-serial-sequence-reset",
+        "spring-transactional-self",
+        "go-nil-interface"
+      ]
+    },
+    {
+      "query": "flutter error: setState() called after dispose() when user navigates back during loading",
+      "expect": "flutter-setstate-disposed",
+      "kind": "paraphrase",
+      "hit": "STRONG",
+      "got": "flutter-setstate-disposed",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.858327,
+        "s_lex": 0.327869,
+        "s_jaccard": 0.327869,
+        "s_ce": null
+      },
+      "retrieved": [
+        "flutter-setstate-disposed",
+        "log-rotation-disk-full",
+        "pg-serial-sequence-reset",
+        "react-useeffect-loop",
+        "git-rebase-autostash"
+      ]
+    },
+    {
+      "query": "actions/cache always misses on my new branch even though the other branch saved it",
+      "expect": "gha-cache-branch-scope",
+      "kind": "paraphrase",
+      "hit": "STRONG",
+      "got": "gha-cache-branch-scope",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.82211,
+        "s_lex": 0.186992,
+        "s_jaccard": 0.186992,
+        "s_ce": null
+      },
+      "retrieved": [
+        "gha-cache-branch-scope",
+        "cmake-stale-cache",
+        "pg-serial-sequence-reset",
+        "git-rebase-autostash",
+        "spring-transactional-self"
+      ]
+    },
+    {
+      "query": "external contributor PR: workflow fails because secrets.NPM_TOKEN is empty",
+      "expect": "gha-secrets-forks",
+      "kind": "paraphrase",
+      "hit": "STRONG",
+      "got": "gha-secrets-forks",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.774691,
+        "s_lex": 0.0909091,
+        "s_jaccard": 0.0909091,
+        "s_ce": null
+      },
+      "retrieved": [
+        "gha-secrets-forks",
+        "orbit-pnpm-only",
+        "utf8-bom-json",
+        "npm-ci-lockfile",
+        "pg-serial-sequence-reset"
+      ]
+    },
+    {
+      "query": "on the build VM git clone git@github.com gives Permission denied (publickey), works on my laptop",
+      "expect": "ssh-agent-forwarding",
+      "kind": "paraphrase",
+      "hit": "STRONG",
+      "got": "ssh-agent-forwarding",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.850479,
+        "s_lex": 0.25,
+        "s_jaccard": 0.25,
+        "s_ce": null
+      },
+      "retrieved": [
+        "ssh-agent-forwarding",
+        "git-submodule-detached",
+        "git-crlf-windows",
+        "orbit-secrets-vault",
+        "gha-secrets-forks"
+      ]
+    },
+    {
+      "query": "auth sometimes rejects freshly issued tokens with 'token used before issued' on one server only",
+      "expect": "ntp-clock-skew-jwt",
+      "kind": "paraphrase",
+      "hit": "STRONG",
+      "got": "ntp-clock-skew-jwt",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.786192,
+        "s_lex": 0.166667,
+        "s_jaccard": 0.166667,
+        "s_ce": null
+      },
+      "retrieved": [
+        "ntp-clock-skew-jwt",
+        "cors-preflight-credentials",
+        "pg-serial-sequence-reset",
+        "tls-missing-intermediate",
+        "spring-transactional-self"
+      ]
+    },
+    {
+      "query": "JSON.parse: Unexpected token  in JSON at position 0 for a config file a colleague edited on windows",
+      "expect": "utf8-bom-json",
+      "kind": "paraphrase",
+      "hit": "STRONG",
+      "got": "utf8-bom-json",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.899881,
+        "s_lex": 0.421488,
+        "s_jaccard": 0.421488,
+        "s_ce": null
+      },
+      "retrieved": [
+        "utf8-bom-json",
+        "spring-lazy-init-exception",
+        "ntp-clock-skew-jwt",
+        "ts-strict-null",
+        "bash-word-splitting"
+      ]
+    },
+    {
+      "query": "invoice total shows 19.999999999 instead of 20.00 and reports are a cent off",
+      "expect": "float-money",
+      "kind": "paraphrase",
+      "hit": "STRONG",
+      "got": "float-money",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.800545,
+        "s_lex": 0.154472,
+        "s_jaccard": 0.154472,
+        "s_ce": null
+      },
+      "retrieved": [
+        "float-money",
+        "cron-utc",
+        "python-datetime-naive",
+        "orbit-staging-nightly-restore",
+        "ntp-clock-skew-jwt"
+      ]
+    },
+    {
+      "query": "our input validation endpoint pegs a CPU at 100% for minutes on certain long strings",
+      "expect": "regex-catastrophic",
+      "kind": "paraphrase",
+      "hit": "STRONG",
+      "got": "regex-catastrophic",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.76354,
+        "s_lex": 0.0728477,
+        "s_jaccard": 0.0728477,
+        "s_ce": null
+      },
+      "retrieved": [
+        "regex-catastrophic",
+        "ts-strict-null",
+        "c-strncpy-nul",
+        "pg-serial-sequence-reset",
+        "k8s-crashloop-probe"
+      ]
+    },
+    {
+      "query": "nightly report job started running at 3am instead of 2am since last weekend",
+      "expect": "cron-utc",
+      "kind": "paraphrase",
+      "hit": "STRONG",
+      "got": "cron-utc",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.797033,
+        "s_lex": 0.0814815,
+        "s_jaccard": 0.0814815,
+        "s_ce": null
+      },
+      "retrieved": [
+        "cron-utc",
+        "orbit-staging-nightly-restore",
+        "orbit-celery-reports-queue",
+        "orbit-python-311-pin",
+        "orbit-deploy-freeze-friday"
+      ]
+    },
+    {
+      "query": "df says 100% used, I deleted the big app.log but space was not freed",
+      "expect": "log-rotation-disk-full",
+      "kind": "paraphrase",
+      "hit": "STRONG",
+      "got": "log-rotation-disk-full",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.769062,
+        "s_lex": 0.0708661,
+        "s_jaccard": 0.0708661,
+        "s_ce": null
+      },
+      "retrieved": [
+        "log-rotation-disk-full",
+        "flutter-setstate-disposed",
+        "float-money",
+        "python-mutable-default",
+        "docker-layer-cache-copy"
+      ]
+    },
+    {
+      "query": "git pull --rebase mi dice che ho modifiche non staged e si rifiuta, come aggiorno il branch senza committare?",
+      "expect": "git-rebase-autostash",
+      "kind": "crosslang",
+      "hit": "STRONG",
+      "got": "git-rebase-autostash",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.880833,
+        "s_lex": 0.166667,
+        "s_jaccard": 0.166667,
+        "s_ce": null
+      },
+      "retrieved": [
+        "git-rebase-autostash",
+        "rust-borrow-mutable-loop",
+        "git-submodule-detached",
+        "pg-serial-sequence-reset",
+        "gha-cache-branch-scope"
+      ]
+    },
+    {
+      "query": "ho fatto dei commit dentro un sottomodulo e dopo l'update sono spariti, dove sono finiti?",
+      "expect": "git-submodule-detached",
+      "kind": "crosslang",
+      "hit": "STRONG",
+      "got": "git-submodule-detached",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.807327,
+        "s_lex": 0.0844156,
+        "s_jaccard": 0.0844156,
+        "s_ce": null
+      },
+      "retrieved": [
+        "git-submodule-detached",
+        "docker-layer-cache-copy",
+        "pg-serial-sequence-reset",
+        "k8s-configmap-reload",
+        "git-rebase-autostash"
+      ]
+    },
+    {
+      "query": "dal container non riesco a collegarmi al database che gira sul mio pc tramite localhost, connection refused",
+      "expect": "docker-localhost-host",
+      "kind": "crosslang",
+      "hit": "STRONG",
+      "got": "docker-localhost-host",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.854542,
+        "s_lex": 0.164286,
+        "s_jaccard": 0.164286,
+        "s_ce": null
+      },
+      "retrieved": [
+        "docker-localhost-host",
+        "powershell-execution-policy",
+        "cors-preflight-credentials",
+        "pg-idle-in-transaction",
+        "orbit-migrations-make-target"
+      ]
+    },
+    {
+      "query": "una ALTER TABLE resta bloccata all'infinito su postgres anche se nessuno sembra usare la tabella",
+      "expect": "pg-idle-in-transaction",
+      "kind": "crosslang",
+      "hit": "STRONG",
+      "got": "pg-serial-sequence-reset",
+      "outcome": "wrong_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.754918,
+        "s_lex": 0.117647,
+        "s_jaccard": 0.117647,
+        "s_ce": null
+      },
+      "retrieved": [
+        "pg-idle-in-transaction",
+        "pg-serial-sequence-reset",
+        "git-rebase-autostash",
+        "log-rotation-disk-full",
+        "pg-index-not-used-lower"
+      ]
+    },
+    {
+      "query": "dopo aver importato i dati da csv ogni insert fallisce con duplicate key sulla primary key",
+      "expect": "pg-serial-sequence-reset",
+      "kind": "crosslang",
+      "hit": "STRONG",
+      "got": "pg-serial-sequence-reset",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.854514,
+        "s_lex": 0.139394,
+        "s_jaccard": 0.139394,
+        "s_ce": null
+      },
+      "retrieved": [
+        "pg-serial-sequence-reset",
+        "docker-layer-cache-copy",
+        "java-hashcode-equals",
+        "cors-preflight-credentials",
+        "cmake-stale-cache"
+      ]
+    },
+    {
+      "query": "lo script che pulisce la cache blocca redis per alcuni secondi e tutte le richieste vanno in timeout",
+      "expect": "redis-keys-blocking",
+      "kind": "crosslang",
+      "hit": "STRONG",
+      "got": "redis-keys-blocking",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.776697,
+        "s_lex": 0.119718,
+        "s_jaccard": 0.119718,
+        "s_ce": null
+      },
+      "retrieved": [
+        "redis-keys-blocking",
+        "powershell-execution-policy",
+        "git-rebase-autostash",
+        "python-asyncio-blocking",
+        "docker-pid1-signals"
+      ]
+    },
+    {
+      "query": "ho attivato il virtualenv e installato il pacchetto ma python continua a dire ModuleNotFoundError",
+      "expect": "python-venv-pip-wrong",
+      "kind": "crosslang",
+      "hit": "STRONG",
+      "got": "python-venv-pip-wrong",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.806035,
+        "s_lex": 0.144737,
+        "s_jaccard": 0.144737,
+        "s_ce": null
+      },
+      "retrieved": [
+        "python-venv-pip-wrong",
+        "orbit-pnpm-only",
+        "node-esm-require",
+        "k8s-configmap-reload",
+        "java-hashcode-equals"
+      ]
+    },
+    {
+      "query": "errore can't compare offset-naive and offset-aware datetimes quando confronto due date in python",
+      "expect": "python-datetime-naive",
+      "kind": "crosslang",
+      "hit": "STRONG",
+      "got": "python-datetime-naive",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.864535,
+        "s_lex": 0.366071,
+        "s_jaccard": 0.366071,
+        "s_ce": null
+      },
+      "retrieved": [
+        "python-datetime-naive",
+        "pg-serial-sequence-reset",
+        "orbit-staging-nightly-restore",
+        "orbit-migrations-make-target",
+        "python-mutable-default"
+      ]
+    },
+    {
+      "query": "il processo node termina all'improvviso quando una chiamata async lancia un'eccezione",
+      "expect": "node-unhandled-rejection",
+      "kind": "crosslang",
+      "hit": "STRONG",
+      "got": "node-unhandled-rejection",
+      "outcome": "correct_strong",
+      "rank": 2,
+      "signals": {
+        "s_vec": 0.779682,
+        "s_lex": 0.1,
+        "s_jaccard": 0.1,
+        "s_ce": null
+      },
+      "retrieved": [
+        "flutter-setstate-disposed",
+        "node-unhandled-rejection",
+        "python-asyncio-blocking",
+        "c-strncpy-nul",
+        "spring-transactional-self"
+      ]
+    },
+    {
+      "query": "ho abilitato strict nel tsconfig e ora ho centinaia di errori 'possibly undefined', da dove comincio?",
+      "expect": "ts-strict-null",
+      "kind": "crosslang",
+      "hit": "STRONG",
+      "got": "ts-strict-null",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.859034,
+        "s_lex": 0.154321,
+        "s_jaccard": 0.154321,
+        "s_ce": null
+      },
+      "retrieved": [
+        "ts-strict-null",
+        "pg-serial-sequence-reset",
+        "tls-missing-intermediate",
+        "http-keepalive-502",
+        "bash-set-e-pipe"
+      ]
+    },
+    {
+      "query": "in sviluppo la mia chiamata API dentro useEffect parte due volte, perché?",
+      "expect": "react-strict-double",
+      "kind": "crosslang",
+      "hit": "STRONG",
+      "got": "react-useeffect-loop",
+      "outcome": "wrong_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.833105,
+        "s_lex": 0.0958904,
+        "s_jaccard": 0.0958904,
+        "s_ce": null
+      },
+      "retrieved": [
+        "react-strict-double",
+        "react-useeffect-loop",
+        "pg-serial-sequence-reset",
+        "flutter-setstate-disposed",
+        "spring-transactional-self"
+      ]
+    },
+    {
+      "query": "il browser blocca la richiesta con credenziali perché il server risponde Access-Control-Allow-Origin asterisco",
+      "expect": "cors-preflight-credentials",
+      "kind": "crosslang",
+      "hit": "STRONG",
+      "got": "cors-preflight-credentials",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.873342,
+        "s_lex": 0.28125,
+        "s_jaccard": 0.28125,
+        "s_ce": null
+      },
+      "retrieved": [
+        "cors-preflight-credentials",
+        "tls-missing-intermediate",
+        "python-asyncio-blocking",
+        "ntp-clock-skew-jwt",
+        "pg-idle-in-transaction"
+      ]
+    },
+    {
+      "query": "curl e java danno unable to get local issuer certificate ma nel browser il sito funziona",
+      "expect": "tls-missing-intermediate",
+      "kind": "crosslang",
+      "hit": "STRONG",
+      "got": "tls-missing-intermediate",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.933529,
+        "s_lex": 0.417323,
+        "s_jaccard": 0.417323,
+        "s_ce": null
+      },
+      "retrieved": [
+        "tls-missing-intermediate",
+        "cors-preflight-credentials",
+        "docker-localhost-host",
+        "ntp-clock-skew-jwt",
+        "powershell-execution-policy"
+      ]
+    },
+    {
+      "query": "il pod java viene ucciso con OOMKilled anche se l'heap è sotto il limite del container",
+      "expect": "k8s-oomkilled-limits",
+      "kind": "crosslang",
+      "hit": "STRONG",
+      "got": "k8s-oomkilled-limits",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.900277,
+        "s_lex": 0.229008,
+        "s_jaccard": 0.229008,
+        "s_ce": null
+      },
+      "retrieved": [
+        "k8s-oomkilled-limits",
+        "k8s-crashloop-probe",
+        "java-hashcode-equals",
+        "k8s-configmap-reload",
+        "orbit-pnpm-only"
+      ]
+    },
+    {
+      "query": "lo script bash con set -e continua anche se un comando in una pipe fallisce",
+      "expect": "bash-set-e-pipe",
+      "kind": "crosslang",
+      "hit": "STRONG",
+      "got": "bash-set-e-pipe",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.901,
+        "s_lex": 0.225806,
+        "s_jaccard": 0.225806,
+        "s_ce": null
+      },
+      "retrieved": [
+        "bash-set-e-pipe",
+        "flutter-setstate-disposed",
+        "powershell-execution-policy",
+        "git-rebase-autostash",
+        "git-crlf-windows"
+      ]
+    },
+    {
+      "query": "la build su windows fallisce con file non trovato su un percorso molto lungo dentro node_modules",
+      "expect": "windows-path-length",
+      "kind": "crosslang",
+      "hit": "STRONG",
+      "got": "windows-path-length",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.840124,
+        "s_lex": 0.13245,
+        "s_jaccard": 0.13245,
+        "s_ce": null
+      },
+      "retrieved": [
+        "windows-path-length",
+        "utf8-bom-json",
+        "docker-layer-cache-copy",
+        "node-unhandled-rejection",
+        "bash-set-e-pipe"
+      ]
+    },
+    {
+      "query": "ho cambiato compilatore ma cmake continua a usare quello vecchio",
+      "expect": "cmake-stale-cache",
+      "kind": "crosslang",
+      "hit": "STRONG",
+      "got": "cmake-stale-cache",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.868514,
+        "s_lex": 0.0882353,
+        "s_jaccard": 0.0882353,
+        "s_ce": null
+      },
+      "retrieved": [
+        "cmake-stale-cache",
+        "k8s-configmap-reload",
+        "docker-layer-cache-copy",
+        "react-useeffect-loop",
+        "bash-set-e-pipe"
+      ]
+    },
+    {
+      "query": "in go le goroutine lanciate nel ciclo leggono tutte l'ultimo valore della variabile",
+      "expect": "go-loop-var-capture",
+      "kind": "crosslang",
+      "hit": "STRONG",
+      "got": "go-loop-var-capture",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.876648,
+        "s_lex": 0.171642,
+        "s_jaccard": 0.171642,
+        "s_ce": null
+      },
+      "retrieved": [
+        "go-loop-var-capture",
+        "go-nil-interface",
+        "flutter-setstate-disposed",
+        "regex-catastrophic",
+        "orbit-celery-reports-queue"
+      ]
+    },
+    {
+      "query": "rust non compila: cannot borrow as mutable mentre modifico il vettore dentro il for",
+      "expect": "rust-borrow-mutable-loop",
+      "kind": "crosslang",
+      "hit": "STRONG",
+      "got": "rust-borrow-mutable-loop",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.886174,
+        "s_lex": 0.276423,
+        "s_jaccard": 0.276423,
+        "s_ce": null
+      },
+      "retrieved": [
+        "rust-borrow-mutable-loop",
+        "git-rebase-autostash",
+        "pg-serial-sequence-reset",
+        "log-rotation-disk-full",
+        "k8s-configmap-reload"
+      ]
+    },
+    {
+      "query": "in spring l'annotazione @Transactional non fa rollback quando chiamo il metodo da un altro metodo della stessa classe",
+      "expect": "spring-transactional-self",
+      "kind": "crosslang",
+      "hit": "STRONG",
+      "got": "spring-transactional-self",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.922896,
+        "s_lex": 0.164557,
+        "s_jaccard": 0.164557,
+        "s_ce": null
+      },
+      "retrieved": [
+        "spring-transactional-self",
+        "pg-serial-sequence-reset",
+        "git-rebase-autostash",
+        "gha-secrets-forks",
+        "spring-lazy-init-exception"
+      ]
+    },
+    {
+      "query": "flutter mi dà setState called after dispose quando l'utente torna indietro prima che finisca il caricamento",
+      "expect": "flutter-setstate-disposed",
+      "kind": "crosslang",
+      "hit": "STRONG",
+      "got": "flutter-setstate-disposed",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.883419,
+        "s_lex": 0.27972,
+        "s_jaccard": 0.27972,
+        "s_ce": null
+      },
+      "retrieved": [
+        "flutter-setstate-disposed",
+        "git-rebase-autostash",
+        "python-mutable-default",
+        "react-useeffect-loop",
+        "regex-catastrophic"
+      ]
+    },
+    {
+      "query": "nelle pull request dei contributor esterni i secrets di github actions risultano vuoti",
+      "expect": "gha-secrets-forks",
+      "kind": "crosslang",
+      "hit": "STRONG",
+      "got": "gha-secrets-forks",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.918055,
+        "s_lex": 0.260163,
+        "s_jaccard": 0.260163,
+        "s_ce": null
+      },
+      "retrieved": [
+        "gha-secrets-forks",
+        "gha-cache-branch-scope",
+        "orbit-secrets-vault",
+        "ssh-agent-forwarding",
+        "git-submodule-detached"
+      ]
+    },
+    {
+      "query": "il token jwt viene rifiutato come non ancora valido solo su uno dei server",
+      "expect": "ntp-clock-skew-jwt",
+      "kind": "crosslang",
+      "hit": "STRONG",
+      "got": "ntp-clock-skew-jwt",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.8706,
+        "s_lex": 0.160305,
+        "s_jaccard": 0.160305,
+        "s_ce": null
+      },
+      "retrieved": [
+        "ntp-clock-skew-jwt",
+        "utf8-bom-json",
+        "tls-missing-intermediate",
+        "ssh-agent-forwarding",
+        "cors-preflight-credentials"
+      ]
+    },
+    {
+      "query": "i totali delle fatture sono sbagliati di un centesimo, gli importi sono salvati come float",
+      "expect": "float-money",
+      "kind": "crosslang",
+      "hit": "STRONG",
+      "got": "float-money",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.872179,
+        "s_lex": 0.109489,
+        "s_jaccard": 0.109489,
+        "s_ce": null
+      },
+      "retrieved": [
+        "float-money",
+        "utf8-bom-json",
+        "pg-serial-sequence-reset",
+        "ts-strict-null",
+        "flutter-setstate-disposed"
+      ]
+    },
+    {
+      "query": "il job cron gira un'ora in ritardo da quando è cambiata l'ora legale",
+      "expect": "cron-utc",
+      "kind": "crosslang",
+      "hit": "STRONG",
+      "got": "cron-utc",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.871064,
+        "s_lex": 0.072,
+        "s_jaccard": 0.072,
+        "s_ce": null
+      },
+      "retrieved": [
+        "cron-utc",
+        "ntp-clock-skew-jwt",
+        "orbit-staging-nightly-restore",
+        "python-datetime-naive",
+        "orbit-deploy-freeze-friday"
+      ]
+    },
+    {
+      "query": "how do I run db migrations on orbit? alembic upgrade head put tables in the wrong schema",
+      "expect": "orbit-migrations-make-target",
+      "kind": "project",
+      "hit": "STRONG",
+      "got": "orbit-migrations-make-target",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.913249,
+        "s_lex": 0.184397,
+        "s_jaccard": 0.184397,
+        "s_ce": null
+      },
+      "retrieved": [
+        "orbit-migrations-make-target",
+        "orbit-billing-async-only",
+        "orbit-feature-flags-yaml",
+        "pg-idle-in-transaction",
+        "orbit-api-v1-frozen"
+      ]
+    },
+    {
+      "query": "why can't api just call the billing service over http on orbit, lint is yelling at me",
+      "expect": "orbit-billing-async-only",
+      "kind": "project",
+      "hit": "STRONG",
+      "got": "orbit-billing-async-only",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.833546,
+        "s_lex": 0.282443,
+        "s_jaccard": 0.282443,
+        "s_ce": null
+      },
+      "retrieved": [
+        "orbit-billing-async-only",
+        "orbit-contracts-codegen",
+        "orbit-api-v1-frozen",
+        "orbit-local-postgres-5433",
+        "orbit-migrations-make-target"
+      ]
+    },
+    {
+      "query": "the test tenant I set up on staging yesterday is gone this morning, did someone delete it?",
+      "expect": "orbit-staging-nightly-restore",
+      "kind": "project",
+      "hit": "MISS",
+      "got": null,
+      "outcome": "miss",
+      "rank": 2,
+      "signals": {
+        "s_vec": 0.737858,
+        "s_lex": 0.0740741,
+        "s_jaccard": 0.0740741,
+        "s_ce": null
+      },
+      "retrieved": [
+        "orbit-tenant-scoped-session",
+        "orbit-staging-nightly-restore",
+        "flutter-setstate-disposed",
+        "orbit-preview-env-ttl",
+        "java-hashcode-equals"
+      ]
+    },
+    {
+      "query": "I flipped a feature flag in the orbit admin panel but nothing changed",
+      "expect": "orbit-feature-flags-yaml",
+      "kind": "project",
+      "hit": "STRONG",
+      "got": "orbit-feature-flags-yaml",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.832789,
+        "s_lex": 0.20339,
+        "s_jaccard": 0.20339,
+        "s_ce": null
+      },
+      "retrieved": [
+        "orbit-feature-flags-yaml",
+        "orbit-migrations-make-target",
+        "orbit-api-v1-frozen",
+        "k8s-configmap-reload",
+        "orbit-billing-async-only"
+      ]
+    },
+    {
+      "query": "CI contracts-drift job fails saying generated contracts are out of date, what do I run?",
+      "expect": "orbit-contracts-codegen",
+      "kind": "project",
+      "hit": "MISS",
+      "got": null,
+      "outcome": "miss",
+      "rank": 0,
+      "signals": {
+        "s_vec": 0.728893,
+        "s_lex": 0.1,
+        "s_jaccard": 0.1,
+        "s_ce": null
+      },
+      "retrieved": [
+        "cors-preflight-credentials",
+        "npm-ci-lockfile",
+        "pg-serial-sequence-reset",
+        "ntp-clock-skew-jwt",
+        "orbit-migrations-make-target"
+      ]
+    },
+    {
+      "query": "my orbit PR shows the e2e check as skipped and I can't merge",
+      "expect": "orbit-e2e-label",
+      "kind": "project",
+      "hit": "STRONG",
+      "got": "orbit-e2e-label",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.878533,
+        "s_lex": 0.119658,
+        "s_jaccard": 0.119658,
+        "s_ce": null
+      },
+      "retrieved": [
+        "orbit-e2e-label",
+        "orbit-api-v1-frozen",
+        "orbit-migrations-make-target",
+        "bash-set-e-pipe",
+        "pg-serial-sequence-reset"
+      ]
+    },
+    {
+      "query": "my PR's preview environment url stopped working after the weekend",
+      "expect": "orbit-preview-env-ttl",
+      "kind": "project",
+      "hit": "STRONG",
+      "got": "orbit-preview-env-ttl",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.79803,
+        "s_lex": 0.185185,
+        "s_jaccard": 0.185185,
+        "s_ce": null
+      },
+      "retrieved": [
+        "orbit-preview-env-ttl",
+        "orbit-e2e-label",
+        "cors-preflight-credentials",
+        "powershell-execution-policy",
+        "orbit-deploy-freeze-friday"
+      ]
+    },
+    {
+      "query": "I updated a secret with kubectl edit secret in orbit and a few minutes later it reverted",
+      "expect": "orbit-secrets-vault",
+      "kind": "project",
+      "hit": "STRONG",
+      "got": "orbit-secrets-vault",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.815394,
+        "s_lex": 0.138686,
+        "s_jaccard": 0.138686,
+        "s_ce": null
+      },
+      "retrieved": [
+        "orbit-secrets-vault",
+        "orbit-staging-nightly-restore",
+        "orbit-migrations-make-target",
+        "k8s-configmap-reload",
+        "orbit-tenant-scoped-session"
+      ]
+    },
+    {
+      "query": "lockfile-guard step failed on my PR complaining about package-lock.json",
+      "expect": "orbit-pnpm-only",
+      "kind": "project",
+      "hit": "STRONG",
+      "got": "npm-ci-lockfile",
+      "outcome": "wrong_strong",
+      "rank": 3,
+      "signals": {
+        "s_vec": 0.822776,
+        "s_lex": 0.211009,
+        "s_jaccard": 0.211009,
+        "s_ce": null
+      },
+      "retrieved": [
+        "npm-ci-lockfile",
+        "utf8-bom-json",
+        "orbit-pnpm-only",
+        "pg-serial-sequence-reset",
+        "pg-idle-in-transaction"
+      ]
+    },
+    {
+      "query": "my query returns rows from other tenants locally but returns nothing in prod, orbit core",
+      "expect": "orbit-tenant-scoped-session",
+      "kind": "project",
+      "hit": "STRONG",
+      "got": "orbit-tenant-scoped-session",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.819061,
+        "s_lex": 0.124183,
+        "s_jaccard": 0.124183,
+        "s_ce": null
+      },
+      "retrieved": [
+        "orbit-tenant-scoped-session",
+        "orbit-migrations-make-target",
+        "orbit-api-v1-frozen",
+        "log-rotation-disk-full",
+        "orbit-billing-async-only"
+      ]
+    },
+    {
+      "query": "deploy-prod workflow fails with 'deploy freeze active', it's friday afternoon and I need to ship a fix",
+      "expect": "orbit-deploy-freeze-friday",
+      "kind": "project",
+      "hit": "STRONG",
+      "got": "orbit-deploy-freeze-friday",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.791163,
+        "s_lex": 0.113333,
+        "s_jaccard": 0.113333,
+        "s_ce": null
+      },
+      "retrieved": [
+        "orbit-deploy-freeze-friday",
+        "http-keepalive-502",
+        "python-asyncio-blocking",
+        "orbit-feature-flags-yaml",
+        "node-unhandled-rejection"
+      ]
+    },
+    {
+      "query": "can I upgrade orbit services to python 3.12? uv sync breaks with no matching distribution",
+      "expect": "orbit-python-311-pin",
+      "kind": "project",
+      "hit": "STRONG",
+      "got": "orbit-python-311-pin",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.798553,
+        "s_lex": 0.146497,
+        "s_jaccard": 0.146497,
+        "s_ce": null
+      },
+      "retrieved": [
+        "orbit-python-311-pin",
+        "orbit-api-v1-frozen",
+        "orbit-migrations-make-target",
+        "orbit-secrets-vault",
+        "orbit-feature-flags-yaml"
+      ]
+    },
+    {
+      "query": "after make dev, psql says database orbit does not exist",
+      "expect": "orbit-local-postgres-5433",
+      "kind": "project",
+      "hit": "STRONG",
+      "got": "orbit-migrations-make-target",
+      "outcome": "wrong_strong",
+      "rank": 2,
+      "signals": {
+        "s_vec": 0.793885,
+        "s_lex": 0.205357,
+        "s_jaccard": 0.205357,
+        "s_ce": null
+      },
+      "retrieved": [
+        "orbit-migrations-make-target",
+        "orbit-local-postgres-5433",
+        "orbit-tenant-scoped-session",
+        "orbit-pnpm-only",
+        "orbit-api-v1-frozen"
+      ]
+    },
+    {
+      "query": "where do I add a new field to the public api, the v1 serializer change got rejected by CI",
+      "expect": "orbit-api-v1-frozen",
+      "kind": "project",
+      "hit": "STRONG",
+      "got": "orbit-api-v1-frozen",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.765972,
+        "s_lex": 0.151079,
+        "s_jaccard": 0.151079,
+        "s_ce": null
+      },
+      "retrieved": [
+        "orbit-api-v1-frozen",
+        "spring-lazy-init-exception",
+        "npm-ci-lockfile",
+        "pg-serial-sequence-reset",
+        "spring-transactional-self"
+      ]
+    },
+    {
+      "query": "our export celery task keeps dying with SoftTimeLimitExceeded and retrying",
+      "expect": "orbit-celery-reports-queue",
+      "kind": "project",
+      "hit": "STRONG",
+      "got": "orbit-celery-reports-queue",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.765253,
+        "s_lex": 0.131783,
+        "s_jaccard": 0.131783,
+        "s_ce": null
+      },
+      "retrieved": [
+        "orbit-celery-reports-queue",
+        "http-keepalive-502",
+        "ntp-clock-skew-jwt",
+        "flutter-setstate-disposed",
+        "node-unhandled-rejection"
+      ]
+    },
+    {
+      "query": "container can't resolve other service names, nslookup api fails inside docker compose network",
+      "expect": null,
+      "kind": "negative",
+      "hit": "STRONG",
+      "got": "docker-localhost-host",
+      "outcome": "wrong_strong",
+      "rank": 0,
+      "signals": {
+        "s_vec": 0.781206,
+        "s_lex": 0.179688,
+        "s_jaccard": 0.179688,
+        "s_ce": null
+      },
+      "retrieved": [
+        "docker-localhost-host",
+        "regex-catastrophic",
+        "npm-ci-lockfile",
+        "docker-layer-cache-copy",
+        "pg-serial-sequence-reset"
+      ]
+    },
+    {
+      "query": "git blame is useless after a big reformat commit, how do I make it skip that commit",
+      "expect": null,
+      "kind": "negative",
+      "hit": "STRONG",
+      "got": "git-rebase-autostash",
+      "outcome": "wrong_strong",
+      "rank": 0,
+      "signals": {
+        "s_vec": 0.796602,
+        "s_lex": 0.128571,
+        "s_jaccard": 0.128571,
+        "s_ce": null
+      },
+      "retrieved": [
+        "git-crlf-windows",
+        "git-rebase-autostash",
+        "git-submodule-detached",
+        "ssh-agent-forwarding",
+        "pg-serial-sequence-reset"
+      ]
+    },
+    {
+      "query": "pg_dump of our 400GB postgres database takes 9 hours, how can I speed it up",
+      "expect": null,
+      "kind": "negative",
+      "hit": "MISS",
+      "got": null,
+      "outcome": "miss",
+      "rank": 0,
+      "signals": {
+        "s_vec": 0.704959,
+        "s_lex": 0.0802469,
+        "s_jaccard": 0.0802469,
+        "s_ce": null
+      },
+      "retrieved": [
+        "pg-serial-sequence-reset",
+        "docker-pid1-signals",
+        "pg-idle-in-transaction",
+        "orbit-staging-nightly-restore",
+        "cron-utc"
+      ]
+    },
+    {
+      "query": "postgres table keeps growing on disk even after deleting most rows, vacuum doesn't shrink it",
+      "expect": null,
+      "kind": "negative",
+      "hit": "MISS",
+      "got": null,
+      "outcome": "miss",
+      "rank": 0,
+      "signals": {
+        "s_vec": 0.703099,
+        "s_lex": 0.104575,
+        "s_jaccard": 0.104575,
+        "s_ce": null
+      },
+      "retrieved": [
+        "log-rotation-disk-full",
+        "pg-serial-sequence-reset",
+        "pg-index-not-used-lower",
+        "css-flex-min-width",
+        "pg-idle-in-transaction"
+      ]
+    },
+    {
+      "query": "redis keys are disappearing before their TTL expires under load",
+      "expect": null,
+      "kind": "negative",
+      "hit": "STRONG",
+      "got": "redis-keys-blocking",
+      "outcome": "wrong_strong",
+      "rank": 0,
+      "signals": {
+        "s_vec": 0.761627,
+        "s_lex": 0.137615,
+        "s_jaccard": 0.137615,
+        "s_ce": null
+      },
+      "retrieved": [
+        "redis-keys-blocking",
+        "java-hashcode-equals",
+        "git-rebase-autostash",
+        "pg-serial-sequence-reset",
+        "tls-missing-intermediate"
+      ]
+    },
+    {
+      "query": "ImportError: cannot import name 'User' from partially initialized module 'models' (most likely due to a circular import)",
+      "expect": null,
+      "kind": "negative",
+      "hit": "MISS",
+      "got": null,
+      "outcome": "miss",
+      "rank": 0,
+      "signals": {
+        "s_vec": 0.732649,
+        "s_lex": 0.0723684,
+        "s_jaccard": 0.0723684,
+        "s_ce": null
+      },
+      "retrieved": [
+        "pg-serial-sequence-reset",
+        "cors-preflight-credentials",
+        "react-useeffect-loop",
+        "orbit-pnpm-only",
+        "spring-lazy-init-exception"
+      ]
+    },
+    {
+      "query": "with asyncio.gather, how do I cancel the remaining tasks as soon as one of them raises",
+      "expect": null,
+      "kind": "negative",
+      "hit": "STRONG",
+      "got": "python-asyncio-blocking",
+      "outcome": "wrong_strong",
+      "rank": 0,
+      "signals": {
+        "s_vec": 0.803825,
+        "s_lex": 0.125926,
+        "s_jaccard": 0.125926,
+        "s_ce": null
+      },
+      "retrieved": [
+        "python-asyncio-blocking",
+        "flutter-setstate-disposed",
+        "python-mutable-default",
+        "git-rebase-autostash",
+        "regex-catastrophic"
+      ]
+    },
+    {
+      "query": "FATAL ERROR: Reached heap limit Allocation failed - JavaScript heap out of memory during webpack build",
+      "expect": null,
+      "kind": "negative",
+      "hit": "MISS",
+      "got": null,
+      "outcome": "miss",
+      "rank": 0,
+      "signals": {
+        "s_vec": 0.710641,
+        "s_lex": 0.0882353,
+        "s_jaccard": 0.0882353,
+        "s_ce": null
+      },
+      "retrieved": [
+        "java-hashcode-equals",
+        "k8s-oomkilled-limits",
+        "react-useeffect-loop",
+        "cors-preflight-credentials",
+        "docker-localhost-host"
+      ]
+    },
+    {
+      "query": "npm install fails with ERESOLVE unable to resolve dependency tree, conflicting peer dependency react@17",
+      "expect": null,
+      "kind": "negative",
+      "hit": "STRONG",
+      "got": "node-esm-require",
+      "outcome": "wrong_strong",
+      "rank": 0,
+      "signals": {
+        "s_vec": 0.766741,
+        "s_lex": 0.179856,
+        "s_jaccard": 0.179856,
+        "s_ce": null
+      },
+      "retrieved": [
+        "node-esm-require",
+        "orbit-pnpm-only",
+        "npm-ci-lockfile",
+        "docker-layer-cache-copy",
+        "node-unhandled-rejection"
+      ]
+    },
+    {
+      "query": "typescript path alias @/utils compiles fine but node says Cannot find module at runtime",
+      "expect": null,
+      "kind": "negative",
+      "hit": "STRONG",
+      "got": "git-submodule-detached",
+      "outcome": "wrong_strong",
+      "rank": 0,
+      "signals": {
+        "s_vec": 0.752198,
+        "s_lex": 0.0679012,
+        "s_jaccard": 0.0679012,
+        "s_ce": null
+      },
+      "retrieved": [
+        "git-submodule-detached",
+        "windows-path-length",
+        "ts-strict-null",
+        "react-useeffect-loop",
+        "spring-transactional-self"
+      ]
+    },
+    {
+      "query": "Warning: Each child in a list should have a unique key prop",
+      "expect": null,
+      "kind": "negative",
+      "hit": "MISS",
+      "got": null,
+      "outcome": "miss",
+      "rank": 0,
+      "signals": {
+        "s_vec": 0.725199,
+        "s_lex": 0.0655738,
+        "s_jaccard": 0.0655738,
+        "s_ce": null
+      },
+      "retrieved": [
+        "css-flex-min-width",
+        "java-hashcode-equals",
+        "float-money",
+        "regex-catastrophic",
+        "react-useeffect-loop"
+      ]
+    },
+    {
+      "query": "position: sticky header doesn't stick when the parent has overflow hidden",
+      "expect": null,
+      "kind": "negative",
+      "hit": "MISS",
+      "got": null,
+      "outcome": "miss",
+      "rank": 0,
+      "signals": {
+        "s_vec": 0.696015,
+        "s_lex": 0.119048,
+        "s_jaccard": 0.119048,
+        "s_ce": null
+      },
+      "retrieved": [
+        "css-flex-min-width",
+        "flutter-setstate-disposed",
+        "c-strncpy-nul",
+        "cmake-stale-cache",
+        "gha-secrets-forks"
+      ]
+    },
+    {
+      "query": "Mixed Content: the page was loaded over HTTPS but requested an insecure resource",
+      "expect": null,
+      "kind": "negative",
+      "hit": "MISS",
+      "got": null,
+      "outcome": "miss",
+      "rank": 0,
+      "signals": {
+        "s_vec": 0.692835,
+        "s_lex": 0.111111,
+        "s_jaccard": 0.111111,
+        "s_ce": null
+      },
+      "retrieved": [
+        "cors-preflight-credentials",
+        "tls-missing-intermediate",
+        "docker-localhost-host",
+        "java-hashcode-equals",
+        "ntp-clock-skew-jwt"
+      ]
+    },
+    {
+      "query": "kubernetes pod stuck in Pending with 0/3 nodes are available: insufficient cpu",
+      "expect": null,
+      "kind": "negative",
+      "hit": "STRONG",
+      "got": "k8s-configmap-reload",
+      "outcome": "wrong_strong",
+      "rank": 0,
+      "signals": {
+        "s_vec": 0.757155,
+        "s_lex": 0.15,
+        "s_jaccard": 0.15,
+        "s_ce": null
+      },
+      "retrieved": [
+        "k8s-crashloop-probe",
+        "k8s-configmap-reload",
+        "k8s-oomkilled-limits",
+        "orbit-celery-reports-queue",
+        "python-asyncio-blocking"
+      ]
+    },
+    {
+      "query": "pod in ImagePullBackOff pulling from our private registry, how do I add credentials",
+      "expect": null,
+      "kind": "negative",
+      "hit": "MISS",
+      "got": null,
+      "outcome": "miss",
+      "rank": 0,
+      "signals": {
+        "s_vec": 0.728514,
+        "s_lex": 0.115385,
+        "s_jaccard": 0.115385,
+        "s_ce": null
+      },
+      "retrieved": [
+        "pg-serial-sequence-reset",
+        "k8s-crashloop-probe",
+        "docker-layer-cache-copy",
+        "k8s-configmap-reload",
+        "gha-secrets-forks"
+      ]
+    },
+    {
+      "query": "bash read loop strips leading spaces and backslashes from each line of the file",
+      "expect": null,
+      "kind": "negative",
+      "hit": "STRONG",
+      "got": "bash-word-splitting",
+      "outcome": "wrong_strong",
+      "rank": 0,
+      "signals": {
+        "s_vec": 0.794293,
+        "s_lex": 0.125,
+        "s_jaccard": 0.125,
+        "s_ce": null
+      },
+      "retrieved": [
+        "bash-word-splitting",
+        "bash-set-e-pipe",
+        "log-rotation-disk-full",
+        "go-loop-var-capture",
+        "git-submodule-detached"
+      ]
+    },
+    {
+      "query": "go build fails with verifying module: checksum mismatch in go.sum",
+      "expect": null,
+      "kind": "negative",
+      "hit": "MISS",
+      "got": null,
+      "outcome": "miss",
+      "rank": 0,
+      "signals": {
+        "s_vec": 0.706769,
+        "s_lex": 0.12,
+        "s_jaccard": 0.12,
+        "s_ce": null
+      },
+      "retrieved": [
+        "go-nil-interface",
+        "git-submodule-detached",
+        "pg-serial-sequence-reset",
+        "git-crlf-windows",
+        "go-loop-var-capture"
+      ]
+    },
+    {
+      "query": "spring boot ignores application-dev.yml, the dev profile values never load",
+      "expect": null,
+      "kind": "negative",
+      "hit": "STRONG",
+      "got": "log-rotation-disk-full",
+      "outcome": "wrong_strong",
+      "rank": 0,
+      "signals": {
+        "s_vec": 0.75141,
+        "s_lex": 0.184874,
+        "s_jaccard": 0.184874,
+        "s_ce": null
+      },
+      "retrieved": [
+        "orbit-feature-flags-yaml",
+        "log-rotation-disk-full",
+        "k8s-configmap-reload",
+        "powershell-execution-policy",
+        "docker-layer-cache-copy"
+      ]
+    },
+    {
+      "query": "github actions workflow does not trigger when I push a tag",
+      "expect": null,
+      "kind": "negative",
+      "hit": "STRONG",
+      "got": "gha-cache-branch-scope",
+      "outcome": "wrong_strong",
+      "rank": 0,
+      "signals": {
+        "s_vec": 0.797057,
+        "s_lex": 0.201835,
+        "s_jaccard": 0.201835,
+        "s_ce": null
+      },
+      "retrieved": [
+        "gha-cache-branch-scope",
+        "gha-secrets-forks",
+        "git-rebase-autostash",
+        "spring-transactional-self",
+        "react-strict-double"
+      ]
+    },
+    {
+      "query": "how do we rotate JWT signing keys with a JWKS endpoint without logging everybody out",
+      "expect": null,
+      "kind": "negative",
+      "hit": "MISS",
+      "got": null,
+      "outcome": "miss",
+      "rank": 0,
+      "signals": {
+        "s_vec": 0.772063,
+        "s_lex": 0.0616438,
+        "s_jaccard": 0.0616438,
+        "s_ce": null
+      },
+      "retrieved": [
+        "ntp-clock-skew-jwt",
+        "spring-lazy-init-exception",
+        "tls-missing-intermediate",
+        "redis-keys-blocking",
+        "sqlite-wal-readers"
+      ]
+    },
+    {
+      "query": "how do I get access to orbit's grafana dashboards as a new hire",
+      "expect": null,
+      "kind": "negative",
+      "hit": "MISS",
+      "got": null,
+      "outcome": "miss",
+      "rank": 0,
+      "signals": {
+        "s_vec": 0.714845,
+        "s_lex": 0.0967742,
+        "s_jaccard": 0.0967742,
+        "s_ce": null
+      },
+      "retrieved": [
+        "orbit-tenant-scoped-session",
+        "orbit-secrets-vault",
+        "orbit-api-v1-frozen",
+        "orbit-migrations-make-target",
+        "orbit-billing-async-only"
+      ]
+    },
+    {
+      "query": "what's the branch naming convention for orbit feature branches",
+      "expect": null,
+      "kind": "negative",
+      "hit": "STRONG",
+      "got": "gha-cache-branch-scope",
+      "outcome": "wrong_strong",
+      "rank": 0,
+      "signals": {
+        "s_vec": 0.724856,
+        "s_lex": 0.205607,
+        "s_jaccard": 0.205607,
+        "s_ce": null
+      },
+      "retrieved": [
+        "orbit-feature-flags-yaml",
+        "orbit-billing-async-only",
+        "gha-cache-branch-scope",
+        "orbit-migrations-make-target",
+        "orbit-api-v1-frozen"
+      ]
+    },
+    {
+      "query": "which i18n library does the orbit web app use and where are translation files",
+      "expect": null,
+      "kind": "negative",
+      "hit": "MISS",
+      "got": null,
+      "outcome": "miss",
+      "rank": 0,
+      "signals": {
+        "s_vec": 0.707945,
+        "s_lex": 0.107383,
+        "s_jaccard": 0.107383,
+        "s_ce": null
+      },
+      "retrieved": [
+        "orbit-secrets-vault",
+        "orbit-migrations-make-target",
+        "orbit-python-311-pin",
+        "orbit-pnpm-only",
+        "orbit-api-v1-frozen"
+      ]
+    },
+    {
+      "query": "how is the orbit elasticsearch search index rebuilt after a mapping change",
+      "expect": null,
+      "kind": "negative",
+      "hit": "MISS",
+      "got": null,
+      "outcome": "miss",
+      "rank": 0,
+      "signals": {
+        "s_vec": 0.701759,
+        "s_lex": 0.10274,
+        "s_jaccard": 0.10274,
+        "s_ce": null
+      },
+      "retrieved": [
+        "orbit-migrations-make-target",
+        "java-hashcode-equals",
+        "orbit-api-v1-frozen",
+        "orbit-tenant-scoped-session",
+        "orbit-secrets-vault"
+      ]
+    },
+    {
+      "query": "who is on call for orbit this week and where is the pager schedule",
+      "expect": null,
+      "kind": "negative",
+      "hit": "STRONG",
+      "got": "orbit-preview-env-ttl",
+      "outcome": "wrong_strong",
+      "rank": 0,
+      "signals": {
+        "s_vec": 0.754065,
+        "s_lex": 0.0827586,
+        "s_jaccard": 0.0827586,
+        "s_ce": null
+      },
+      "retrieved": [
+        "orbit-deploy-freeze-friday",
+        "orbit-preview-env-ttl",
+        "orbit-billing-async-only",
+        "orbit-celery-reports-queue",
+        "orbit-tenant-scoped-session"
+      ]
+    },
+    {
+      "query": "how do I reverse a singly linked list in place",
+      "expect": null,
+      "kind": "negative",
+      "hit": "MISS",
+      "got": null,
+      "outcome": "miss",
+      "rank": 0,
+      "signals": {
+        "s_vec": 0.707282,
+        "s_lex": 0.0540541,
+        "s_jaccard": 0.0540541,
+        "s_ce": null
+      },
+      "retrieved": [
+        "pg-serial-sequence-reset",
+        "java-hashcode-equals",
+        "log-rotation-disk-full",
+        "pg-idle-in-transaction",
+        "python-asyncio-blocking"
+      ]
+    },
+    {
+      "query": "what is the difference between a process and a thread",
+      "expect": null,
+      "kind": "negative",
+      "hit": "MISS",
+      "got": null,
+      "outcome": "miss",
+      "rank": 0,
+      "signals": {
+        "s_vec": 0.687042,
+        "s_lex": 0.132743,
+        "s_jaccard": 0.132743,
+        "s_ce": null
+      },
+      "retrieved": [
+        "spring-transactional-self",
+        "python-mutable-default",
+        "git-submodule-detached",
+        "float-money",
+        "flutter-setstate-disposed"
+      ]
+    },
+    {
+      "query": "what is the worst-case time complexity of quicksort and why",
+      "expect": null,
+      "kind": "negative",
+      "hit": "MISS",
+      "got": null,
+      "outcome": "miss",
+      "rank": 0,
+      "signals": {
+        "s_vec": 0.686958,
+        "s_lex": 0.0833333,
+        "s_jaccard": 0.0833333,
+        "s_ce": null
+      },
+      "retrieved": [
+        "k8s-crashloop-probe",
+        "pg-serial-sequence-reset",
+        "orbit-celery-reports-queue",
+        "ts-strict-null",
+        "regex-catastrophic"
+      ]
+    },
+    {
+      "query": "explain dependency injection with a simple example",
+      "expect": null,
+      "kind": "negative",
+      "hit": "MISS",
+      "got": null,
+      "outcome": "miss",
+      "rank": 0,
+      "signals": {
+        "s_vec": 0.697731,
+        "s_lex": 0.158879,
+        "s_jaccard": 0.158879,
+        "s_ce": null
+      },
+      "retrieved": [
+        "docker-layer-cache-copy",
+        "react-useeffect-loop",
+        "regex-catastrophic",
+        "pg-serial-sequence-reset",
+        "node-esm-require"
+      ]
+    },
+    {
+      "query": "how should I structure a REST API for pagination, offset or cursor?",
+      "expect": null,
+      "kind": "negative",
+      "hit": "MISS",
+      "got": null,
+      "outcome": "miss",
+      "rank": 0,
+      "signals": {
+        "s_vec": 0.731998,
+        "s_lex": 0.057971,
+        "s_jaccard": 0.057971,
+        "s_ce": null
+      },
+      "retrieved": [
+        "regex-catastrophic",
+        "cors-preflight-credentials",
+        "react-strict-double",
+        "orbit-api-v1-frozen",
+        "react-useeffect-loop"
+      ]
+    }
+  ]
+}

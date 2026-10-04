@@ -121,7 +121,7 @@ class Graft < Formula
       pkgshare.install "viewer/dist" => "viewer"
     end
 
-    (pkgshare/"integrations").install "integrations/standard" => "standard"
+    (pkgshare/"integrations/standard").install "plugins/graft/skills"
   end
 
   def caveats

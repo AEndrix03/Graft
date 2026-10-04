@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "MCP server bridging chat LLMs to the graft CLI"
 requires-python = ">=3.10"
 dependencies = [
-  "mcp>=1.0",
+  "mcp>=1.0,<2",
   "httpx>=0.27",
   "PyJWT[crypto]>=2.8",
   "starlette>=0.37",

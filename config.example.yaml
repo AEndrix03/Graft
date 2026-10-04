@@ -309,6 +309,43 @@ explore:
 
 
 # -----------------------------------------------------------------------------
+# maintenance — `graft maintain` (scan / resolve / apply-safe / status)
+# -----------------------------------------------------------------------------
+# Graft applies mechanical maintenance itself (apply-safe) and reports what
+# needs judgment as candidates (scan) that the agent resolves. These knobs
+# bound the scan's cost and set the retention of retired nodes.
+# -----------------------------------------------------------------------------
+maintenance:
+  # [quality] Cosine at which two active nodes are reported as a near-duplicate
+  # (or possible supersession when they share a keyword and are an hour+ apart).
+  # [range] 0.85..0.98. Lower = more candidates for the agent to adjudicate.
+  near_duplicate_min: 0.92
+
+  # [perf] Newest active nodes compared pairwise per scan. Cost is quadratic:
+  # 2000 nodes is ~2M dot products, well under a second.
+  scan_max_nodes: 2000
+
+  # [perf] Near-duplicate partners kept per node.
+  scan_neighbors: 5
+
+  # [perf] Candidates kept per scan (the pending backlog). `scan --limit`
+  # returns the most urgent ones from it.
+  scan_cap: 200
+
+  # [quality] Isolated (no edge), never-read nodes older than this many days
+  # are reported as low-value candidates.
+  isolated_min_age_days: 30
+
+  # [safety] Days a retired node stays restorable before apply-safe deletes it
+  # physically. 0 = purge on the next apply-safe.
+  retention_days: 30
+
+  # [trigger] `graft maintain status` recommends apply-safe / scan after this
+  # many inserts since the last run.
+  trigger_inserts: 50
+
+
+# -----------------------------------------------------------------------------
 # http — optional REST + viewer SPA  [security-sensitive]
 # -----------------------------------------------------------------------------
 # Off by default. Once enabled, ANY process able to reach `bind:port` can call

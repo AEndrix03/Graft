@@ -116,3 +116,84 @@ const char *mg_storage_migration_v3_sql(void) {
     "CREATE INDEX IF NOT EXISTS idx_nodes_origin ON nodes(origin);"
     "COMMIT;";
 }
+
+/* v4: provenance (issue #4). Additive and idempotent, so it runs on every
+ * open right after the base schema: an older DB just gains two empty tables,
+ * no rebuild. One source row per (project, kind, locator); a node links to
+ * any number of sources and a source supports any number of nodes. The
+ * link's fingerprint/observed_at record the source version the node was
+ * derived from (or last revalidated against), while the source row keeps
+ * the latest version seen through any node. project is '' for kinds that
+ * have none (url, conversation, manual). */
+const char *mg_storage_schema_v4_sql(void) {
+  return
+    "CREATE TABLE IF NOT EXISTS sources ("
+    "  id INTEGER PRIMARY KEY AUTOINCREMENT,"
+    "  project TEXT NOT NULL DEFAULT '',"
+    "  kind TEXT NOT NULL,"
+    "  locator TEXT NOT NULL,"
+    "  fingerprint TEXT,"
+    "  observed_at INTEGER NOT NULL,"
+    "  UNIQUE(project, kind, locator)"
+    ");"
+    "CREATE TABLE IF NOT EXISTS node_sources ("
+    "  node_id BLOB NOT NULL REFERENCES nodes(id) ON DELETE CASCADE,"
+    "  source_id INTEGER NOT NULL REFERENCES sources(id) ON DELETE CASCADE,"
+    "  role TEXT NOT NULL DEFAULT 'primary',"
+    "  fingerprint TEXT,"
+    "  observed_at INTEGER NOT NULL,"
+    "  PRIMARY KEY (node_id, source_id)"
+    ");"
+    "CREATE INDEX IF NOT EXISTS idx_ns_source ON node_sources(source_id);";
+}
+
+/* v5: maintenance (issue #5). Additive like v4. maintenance_meta holds
+ * counters and timestamps (last apply-safe, last scan); maintenance_retired
+ * records when a node was retired (state 3) and the state it had, so
+ * apply-safe can purge it after the retention window; maintenance_candidates
+ * caches the last scan's pending candidates (each one's emitted map as
+ * MessagePack) so status and resolve need no re-scan;
+ * maintenance_dismissals remembers `keep` decisions per candidate and
+ * evidence; maintenance_log is the audit trail of every resolution and
+ * apply-safe run. idx_nodes_created makes "inserts since" a range count. */
+const char *mg_storage_schema_v5_sql(void) {
+  return
+    "CREATE INDEX IF NOT EXISTS idx_nodes_created ON nodes(created_at);"
+    "CREATE TABLE IF NOT EXISTS maintenance_meta ("
+    "  key TEXT PRIMARY KEY,"
+    "  value INTEGER NOT NULL"
+    ");"
+    "CREATE TABLE IF NOT EXISTS maintenance_retired ("
+    "  node_id BLOB PRIMARY KEY REFERENCES nodes(id) ON DELETE CASCADE,"
+    "  retired_at INTEGER NOT NULL,"
+    "  prev_state INTEGER NOT NULL"
+    ");"
+    "CREATE TABLE IF NOT EXISTS maintenance_candidates ("
+    "  id TEXT PRIMARY KEY,"
+    "  kind TEXT NOT NULL,"
+    "  priority INTEGER NOT NULL,"
+    "  score REAL NOT NULL,"
+    "  nodes TEXT NOT NULL,"
+    "  evidence TEXT NOT NULL,"
+    "  payload BLOB NOT NULL,"
+    "  created_at INTEGER NOT NULL"
+    ");"
+    "CREATE TABLE IF NOT EXISTS maintenance_dismissals ("
+    "  candidate_id TEXT PRIMARY KEY,"
+    "  kind TEXT NOT NULL,"
+    "  evidence TEXT NOT NULL,"
+    "  dismissed_at INTEGER NOT NULL,"
+    "  note TEXT"
+    ");"
+    "CREATE TABLE IF NOT EXISTS maintenance_log ("
+    "  id INTEGER PRIMARY KEY AUTOINCREMENT,"
+    "  ts INTEGER NOT NULL,"
+    "  actor TEXT NOT NULL,"
+    "  action TEXT NOT NULL,"
+    "  candidate_id TEXT,"
+    "  kind TEXT,"
+    "  nodes TEXT NOT NULL DEFAULT '',"
+    "  detail TEXT,"
+    "  note TEXT"
+    ");";
+}

@@ -75,7 +75,8 @@ function colorFromString(s) {
 }
 
 function nodeColor(n) {
-  if (n.state === 'superseded') return new THREE.Color(COLOR.superseded);
+  // superseded and retired nodes are out of search: render them muted
+  if (n.state === 'superseded' || n.state === 'retired') return new THREE.Color(COLOR.superseded);
   return colorFromString(n.primary_keyword || n.title || n.id_hex);
 }
 

@@ -34,7 +34,9 @@ Knobs, all optional:
 | `GRAFT_NO_MODEL=1` | skip the model download (the daemon cannot embed until you supply one) |
 | `GRAFT_NO_PATH=1` | do not touch shell rc files / the user `PATH` |
 
-Then wire it into your agent:
+Then wire it into your agent. On Claude Code and Codex the plugin marketplace is
+the simpler route, and its `graft-init` installs the CLI for you - see
+[the README](../../README.md#install). Otherwise:
 
 ```bash
 graft setup     # copies the skills into every agent found on this machine

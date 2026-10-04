@@ -1,149 +1,110 @@
 <div align="center">
 
-<img src="./assets/graft.png" alt="Graft logo" width="180"/>
+<img src="./assets/graft.png" alt="Graft logo" width="160"/>
 
 # graft
 
-### Your coding agent already learned this. Graft makes sure it doesn't forget.
+### Your coding agent already solved this. Graft makes sure it remembers.
 
-**Persistent local memory for AI coding agents.**  
-Graft brings back useful fixes, decisions, gotchas and project knowledge when they become relevant again.
-
-The agent still reasons. **Graft gives it a head start.**
-
-<br/>
-
-[![GitHub Stars](https://img.shields.io/github/stars/AEndrix03/Graft?style=flat-square)](https://github.com/AEndrix03/Graft/stargazers)
+[![CI](https://img.shields.io/github/actions/workflow/status/AEndrix03/Graft/ci.yml?branch=develop&style=flat-square&label=ci)](https://github.com/AEndrix03/Graft/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/AEndrix03/Graft?style=flat-square)](https://github.com/AEndrix03/Graft/releases)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-blue.svg?style=flat-square)](./LICENSE)
-[![Platforms](https://img.shields.io/badge/Linux%20%7C%20macOS%20%7C%20Windows-supported-lightgrey.svg?style=flat-square)](./docs/install/)
-[![Local first](https://img.shields.io/badge/local--first-no%20SaaS-success.svg?style=flat-square)](#local-by-default)
-
-<br/>
-
-**Claude Code · Codex · ChatGPT · Claude Desktop · Gemini CLI · Open Code · custom agents**
-
-<sub>C11 · SQLite · sqlite-vec · FTS5 · BGE-M3 · llama.cpp · MCP · MessagePack</sub>
 
 </div>
 
 ---
 
-## Graft in 20 seconds
+## How it works
 
-Your agent solves something difficult.
+<img src="./assets/how-it-works.png" alt="Solved once, remembered, answered instantly" width="100%"/>
 
-**Graft remembers the useful part.**
+Your agent writes down what it learns: the fix, the gotcha, the decision and why.
+Next time it runs into the same thing, graft hands it the answer before it starts
+over. The agent spends a moment checking it still holds, then moves on.
 
-Later, another session hits a similar problem.
-
-**Graft surfaces the old learning before the agent wastes time rediscovering it.**
-
-```text
-solve something
-      │
-      ▼
- remember what mattered
-      │
-      ▼
-     Graft
-      │
-      ├── likely same problem ──► verified recall
-      ├── related knowledge ────► hybrid retrieval
-      └── broader context ──────► graph exploration
-                                  │
-                                  ▼
-                              your agent
-```
-
-**No SaaS. No external embedding API. No account. No API key.**
-
-Graft does not replace the agent's reasoning. It gives the agent relevant prior knowledge and lets the agent decide what to do with it.
+- **Fewer tokens.** No more whole turns of reasoning for a problem already solved once.
+- **Faster.** A lookup takes a fraction of a second.
+- **Consistent.** The same problem gets the same answer, not a new invention every session.
 
 ---
 
 ## Stop solving the same problem twice
 
-Without persistent memory:
-
 ```text
-session 1
-bug → investigate → understand → fix → context disappears
-
-session 27
-similar bug → investigate → understand → fix → context disappears
+without graft    bug → investigate → fix → forgotten   (again, next week)
+with graft       bug → recall → check → done
 ```
 
-With Graft:
+---
 
-```text
-session 1
-bug → investigate → fix → remember
+## Benchmark
 
-session 27
-similar bug → recall → decide → continue
-```
+<img src="./assets/bench-hero.svg" alt="On questions about a team's own codebase, Claude Code answers 40% faster with 49% fewer tokens with graft, right answers go from 27% to 73% and made-up answers from 27% to 0%" width="100%"/>
 
-Graft is useful for knowledge that is expensive to rediscover:
+- **It stops making things up.** Without graft, a quarter of the answers about the
+  team's own code were invented. With graft, none.
+- **A wrong note does not derail it.** On 30 questions no note answers, graft
+  sometimes offered the wrong note, and the agent set it aside every time.
+- **Where it still slips.** graft finds the right note for 88% of the questions.
+  When it picks a wrong one, the question is usually about the same technology as
+  another note: that is the next thing being fixed.
 
-- root causes that took hours to find
-- architectural decisions and why they were made
-- framework and infrastructure gotchas
-- project-specific conventions
-- dependency constraints
-- failed approaches worth avoiding
-- fixes that may apply again
-
-This is **agent memory**, not document storage.
+How it was measured, and how to run it yourself → [`bench/`](./bench/)
 
 ---
 
 ## Install
 
-**Linux**
+### 1. The CLI
+
+<img src="./assets/badges/linux.svg" alt="Linux" height="26"/>
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/AEndrix03/Graft/master/install.sh | sh
 ```
 
-**Windows**
+<img src="./assets/badges/windows.svg" alt="Windows" height="26"/>
 
 ```powershell
 irm https://raw.githubusercontent.com/AEndrix03/Graft/master/install.ps1 | iex
 ```
 
-**macOS** — prebuilt archives aren't published yet, so use the tap:
+```powershell
+scoop install https://raw.githubusercontent.com/AEndrix03/Graft/master/bucket/graft.json
+```
+
+<img src="./assets/badges/macos.svg" alt="macOS" height="26"/>
 
 ```bash
 brew tap AEndrix03/graft https://github.com/AEndrix03/Graft.git && brew install graft
 ```
 
-The one-liners drop prebuilt, checksum-verified binaries into `~/.graft` — no
-compiler, no submodules, no MSYS2. The embedding model (~600 MB) is downloaded
-once. Nothing else to configure.
+The installer also copies the skills into every agent it finds. Then run
+`/graft-init` inside your agent.
 
-Then wire it into your coding agent, which is two commands:
+### 2. Or straight from your agent's marketplace
+
+<img src="./assets/badges/claude-code.svg" alt="Claude Code" height="26"/>
+
+```text
+/plugin marketplace add AEndrix03/Graft
+/plugin install graft@graft
+/graft:graft-init
+```
+
+<img src="./assets/badges/codex.svg" alt="Codex" height="26"/>
 
 ```bash
-graft setup     # copies the skills into every agent found on this machine
-/graft-init     # run this inside the agent; it asks one question and writes the rule
+codex plugin marketplace add AEndrix03/Graft
+codex plugin add graft@graft
 ```
 
-Prefer Scoop on Windows?
+then ask Codex to *set up graft*.
 
-```powershell
-scoop install https://raw.githubusercontent.com/AEndrix03/Graft/master/bucket/graft.json
-```
+`graft-init` installs the CLI if it is missing, asks whether graft should be on
+everywhere or in this project only, and you are done.
 
-Building from source (contributors, GPU builds, unsupported platforms):
-
-```bash
-git clone https://github.com/AEndrix03/Graft.git && cd Graft
-bash scripts/build-from-source.sh          # pwsh scripts/build-from-source.ps1 on Windows
-GRAFT_GPU=cuda bash scripts/build-from-source.sh   # or GRAFT_GPU=hip
-```
-
-Full installation reference → **[`docs/install/`](./docs/install/)**
+Building from source, GPU builds, other options → [`docs/install/`](./docs/install/)
 
 ---
 
@@ -190,402 +151,62 @@ Different prompt. Same underlying problem.
 
 ---
 
-## One memory layer, several ways to use it
+## Browse your memory
 
 <table>
 <tr>
-<td width="33%" valign="top">
-
-### Verified recall
-
-`graft query`
-
-Fast top-1 lookup with confidence gating:
-
-`STRONG` · `WEAK` · `MISS`
-
-Use it when the agent wants to know:
-
-> Have I seen this before?
-
-</td>
-<td width="33%" valign="top">
-
-### Hybrid retrieval
-
-`graft retrieve`
-
-Combines:
-
-- BGE-M3 vectors
-- BM25 title search
-- BM25 body search
-- Reciprocal Rank Fusion
-
-Use it when several memories may help.
-
-</td>
-<td width="33%" valign="top">
-
-### Graph exploration
-
-`graft explore`
-
-Walks semantic and keyword relationships with beam search, score decay and MMR diversity.
-
-Use it when the agent wants to know:
-
-> What else is connected to this?
-
-</td>
+<td width="60%"><img src="./assets/graph-example.png" alt="Every memory in the graph and how they connect"/></td>
+<td width="40%"><img src="./assets/graph-exploration.png" alt="An exploration lighting up the notes related to one memory"/></td>
+</tr>
+<tr>
+<td align="center"><sub>Every memory and how it connects</sub></td>
+<td align="center"><sub>From one note to the related ones</sub></td>
 </tr>
 </table>
 
----
-
-## Why not just a vector database?
-
-Because Graft is shaped around **what an agent learns while working**, not around bulk document ingestion.
-
-| | Vector DB / traditional RAG | Graft |
-|---|---|---|
-| Primary data | Documents | Agent learnings |
-| Typical write | Bulk ingestion | Remember something useful |
-| Typical read | Top-k chunks | Recall / retrieve / explore |
-| Consumer | Application | AI agent |
-| Confidence | Similarity ranking | `STRONG` / `WEAK` / `MISS` |
-| Relationships | Usually external | Semantic + keyword graph |
-| Knowledge changes | Replace/update documents | Supersession |
-| Deployment | Database/service | Local binary + SQLite |
-
-If you need to index millions of documents, use a vector database.
-
-If you want your agent to remember **what it discovered while solving real problems**, Graft is built for that.
+`graft view` opens it in your browser.
 
 ---
 
-## Agent-native by design
-
-Graft is a binary with a CLI contract. Any agent that can run a subprocess can use it.
-
-| Agent | Integration | Setup |
-|---|---|---|
-| **Claude Code** | Skills | `graft setup` then `/graft-init` |
-| **Codex** | Skills | `graft setup` then `/graft-init` |
-| **Open Code** | Native skills | `graft setup` then `/graft-init` |
-| **Gemini CLI** | `GEMINI.md` workflow | [`integrations/gemini-cli/`](./integrations/gemini-cli/) |
-| **Claude Desktop** | MCP | [`integrations/claude-ai/`](./integrations/claude-ai/) |
-| **ChatGPT** | MCP stdio / HTTP | [`integrations/chatgpt/`](./integrations/chatgpt/) |
-| **Your agent** | CLI, subprocess, REST or MCP | [`docs/integrations/`](./docs/integrations/) |
-
-The shipped integrations teach agents a simple pattern:
-
-```text
-non-trivial task
-      │
-      ▼
- search memory
-      │
-      ├── useful memory ───────► consider it
-      │
-      └── nothing useful ──────► solve normally
-                                      │
-                                      ▼
-                              worth remembering?
-                                      │
-                                      ▼
-                                   save it
-```
-
-For Claude Code, Graft includes skills such as:
-
-- `recall` — smart search that escalates only when needed
-- `memoryze` — distill useful learnings into reusable memories
-- `learn` — intentionally ingest useful knowledge
-- `memory-audit` — inspect memory quality and reuse
-
-`/graft-init` writes the usage rule into your CLAUDE.md or AGENTS.md (and, on Claude Code, a rule file under `.claude/rules/`). It never touches hooks or agent settings files.
-
----
-
-## Local by default
-
-Graft keeps its core runtime on your machine:
-
-```text
-agent
-  │
-  ▼
-graft CLI
-  │
-  │ MessagePack / AF_UNIX
-  ▼
-graftd
-  │
-  ├── SQLite + FTS5 + sqlite-vec
-  │
-  └── llama.cpp + BGE-M3
-```
-
-That means:
-
-- one local database
-- local embeddings
-- no managed memory service
-- no telemetry requirement
-- no external API key
-- CPU works out of the box
-- CUDA / ROCm are optional
-
-Chat clients can reach the same core through MCP.
-
-```text
-ChatGPT / Claude Desktop
-          │
-         MCP
-          │
-          ▼
-    MCP adapter
-          │
-          ▼
-      graft CLI
-          │
-          ▼
-        graftd
-```
-
----
-
-## Three commands cover most workflows
-
-### `query` — Do I already know this?
-
-```bash
-graft query "docker container exits after healthcheck"
-```
-
-Returns one confidence-gated result.
-
-### `retrieve` — What relevant knowledge do I have?
-
-```bash
-graft retrieve "docker healthcheck networking"
-```
-
-Returns ranked memories using dense + lexical retrieval.
-
-### `explore` — What is connected to this?
-
-```bash
-graft explore "deployment failures" --keyword docker
-```
-
-Walks the memory graph for broader context.
-
----
-
-## Under the hood
-
-### Recall
-
-```text
-query
-  → BGE-M3 embedding
-  → vector candidates
-  → lexical verification
-  → confidence gating
-  → STRONG / WEAK / MISS
-```
-
-### Retrieval
-
-```text
-vector search ─┐
-BM25 title ────┼─→ RRF → ranked memories
-BM25 body ─────┘
-```
-
-### Explore
-
-```text
-semantic seed
-  → graph edges
-  → beam search
-  → score decay
-  → MMR diversity
-```
-
-The core is written in C11. Embeddings run locally through llama.cpp using BGE-M3. Storage is SQLite with FTS5 and sqlite-vec.
-
-Graft itself does not require an external LLM call to store or retrieve memory.
-
----
-
-## Memory that can evolve
-
-A memory node contains:
-
-```text
-title
-body
-keywords
-vector
-relationships
-status
-```
-
-Nodes can be connected through keyword and semantic edges.
-
-When knowledge becomes outdated, Graft supports **supersession** rather than silently pretending the old knowledge never existed:
-
-```text
-old decision
-     │
-     └── SUPERSEDED BY ──► new decision
-```
-
-History stays inspectable while the newer memory becomes the useful one.
-
----
-
-## Profiles
-
-Separate memory spaces without running separate products:
-
-```bash
-GRAFT_PROFILE=work graft query "deployment rule"
-GRAFT_PROFILE=personal graft query "docker workaround"
-```
-
-Profiles can be created, switched, exported, imported and merged.
-
-```bash
-graft profile list
-graft profile add project-x
-graft profile set project-x
-```
-
-This also gives you a straightforward way to move or combine local memory stores when needed.
-
----
-
-## Inspect everything
-
-The memory is not hidden behind a hosted platform.
-
-```bash
-graft stats
-graft analytics
-graft get <id>
-graft delete <id>
-```
-
-Optional tooling includes:
-
-- REST API
-- MCP access
-- browser graph viewer
-- profile management
-- usage analytics
-
----
-
-## What Graft is not
-
-**Not an LLM.**  
-Your agent still reasons.
-
-**Not a chatbot.**  
-Bring your own agent.
-
-**Not a hosted memory SaaS.**  
-The default runtime is local.
-
-**Not a vector database replacement.**  
-It is opinionated around agent memory.
-
-**Not just a semantic cache.**  
-Verified reuse is one primitive. Graft also provides ranked retrieval, graph exploration, evolving memories and agent workflows.
-
----
-
-## A secondary use case: semantic reuse in services
-
-The same primitives can sit in front of an LLM-backed service:
-
-```text
-request
-   │
-   ▼
-exact cache
-   │ MISS
-   ▼
-Graft
-   │ no useful memory
-   ▼
-LLM
-   │
-   └──► remember result
-```
-
-This is an **experimental design pattern**, not Graft's primary positioning.
-
-See [`docs/microservices/`](./docs/microservices/).
+## Works with your agent
+
+| | |
+|---|---|
+| <img src="./assets/badges/claude-code.svg" alt="Claude Code" height="22"/> | plugin from the marketplace |
+| <img src="./assets/badges/codex.svg" alt="Codex" height="22"/> | plugin from the marketplace |
+| <img src="./assets/badges/opencode.svg" alt="OpenCode" height="22"/> | skills, installed by the CLI |
+| <img src="./assets/badges/gemini-cli.svg" alt="Gemini CLI" height="22"/> | [`integrations/gemini-cli/`](./integrations/gemini-cli/) |
+| <img src="./assets/badges/claude-desktop.svg" alt="Claude Desktop" height="22"/> | MCP · [`integrations/claude-ai/`](./integrations/claude-ai/) |
+| <img src="./assets/badges/chatgpt.svg" alt="ChatGPT" height="22"/> | MCP · [`integrations/chatgpt/`](./integrations/chatgpt/) |
+| <img src="./assets/badges/any-agent.svg" alt="Any agent" height="22"/> | anything that can run a command · [`docs/integrations/`](./docs/integrations/) |
 
 ---
 
 ## Project status
 
-> **Active alpha — v0.1.x**
+> **Alpha — v0.2.x.** The CLI and its JSON output may still change before 1.0.
 
 Working today:
 
-- local daemon + CLI
-- SQLite storage
-- BGE-M3 embeddings
-- verified recall
-- hybrid retrieval
-- graph exploration
-- profiles
-- Claude Code / Codex / Open Code skills
-- MCP bridge
-- optional REST API and graph viewer
+- one local binary and daemon, memory in a single SQLite file on your machine
+- multilingual: a question in Italian finds a note written in English
+- plugins for Claude Code and Codex, skills for OpenCode, MCP for Claude Desktop and ChatGPT
+- set up once, then hands off: the agent bootstraps each new project, searches,
+  fixes stale notes, saves what it learned and keeps the graph tidy on its own
+- on Claude Code, recall without asking: the plugin looks up every prompt and
+  hands the agent a close note when there is one
+- a graph viewer to browse every memory, and usage stats to see what actually gets reused
+- a reproducible benchmark in [`bench/`](./bench/)
 
-Still evolving:
+Coming next:
 
-- API surface before 1.0
-- packaging and platform coverage
-- remote / shared memory
-- team workflows
-- neural reranking
-
-The cross-encoder reranker is currently scaffolded but not active; verification currently relies on vector similarity plus lexical signals.
-
----
-
-## Roadmap
-
-**Now**
-
-- harden CLI and JSON contracts
-- improve coding-agent integrations
-- improve memory quality and observability
-- publish better benchmarks
-
-**Next**
-
-- BGE reranker
-- contradiction detection
-- adaptive thresholds
-- richer hooks
-- remote read-only profiles
-
-**Later**
-
-- shared team memory
-- distributed profile sync
-- automatic consolidation
-- richer admin tooling
+- **Finding the right note more often.** In the benchmark every answer the agent
+  still got wrong with graft came from a lookup that missed or picked a
+  neighbouring note. Wrong notes it simply sets aside, so the work goes into
+  recall, not into stricter gates.
+- **Recall without asking beyond Claude Code.** The same per-prompt lookup for
+  the other agents, where their hook systems allow it.
+- **Signed Windows binaries** and prebuilt macOS archives.
 
 ---
 
@@ -594,7 +215,8 @@ The cross-encoder reranker is currently scaffolded but not active; verification 
 | | |
 |---|---|
 | **Getting started** | [`docs/install/`](./docs/install/) |
-| **Use cases** | [`docs/use-cases.md`](./docs/use-cases.md) |\n| **Guide: persistent coding-agent memory** | [`docs/use-cases/persistent-memory-for-coding-agents.md`](./docs/use-cases/persistent-memory-for-coding-agents.md) |
+| **Use cases** | [`docs/use-cases.md`](./docs/use-cases.md) |
+| **Guide: persistent coding-agent memory** | [`docs/use-cases/persistent-memory-for-coding-agents.md`](./docs/use-cases/persistent-memory-for-coding-agents.md) |
 | **Concepts** | [`docs/concepts.md`](./docs/concepts.md) |
 | **Integrations** | [`docs/integrations/`](./docs/integrations/) |
 | **Architecture** | [`docs/architecture/`](./docs/architecture/) |
@@ -641,8 +263,6 @@ You can use, modify, distribute and embed Graft in proprietary projects subject 
 <img src="./assets/graft.png" alt="Graft" width="72"/>
 
 ### Let your agents keep what they learn.
-
-**Local-first · Agent-native · No SaaS · No API key**
 
 [`docs`](./docs/) · [`install`](./docs/install/) · [`integrations`](./docs/integrations/) · [`releases`](https://github.com/AEndrix03/Graft/releases) · [`issues`](https://github.com/AEndrix03/Graft/issues)
 

@@ -30,6 +30,28 @@ mg_err_t mg_op_consolidate(mg_ctx_t *ctx, mpack_node_t args, mpack_writer_t *res
 mg_err_t mg_op_delete(mg_ctx_t *ctx, mpack_node_t args, mpack_writer_t *result);
 mg_err_t mg_op_view(mg_ctx_t *ctx, mpack_node_t args, mpack_writer_t *result);
 mg_err_t mg_op_remote_sync(mg_ctx_t *ctx, mpack_node_t args, mpack_writer_t *result);
+mg_err_t mg_op_sources_list(mg_ctx_t *ctx, mpack_node_t args, mpack_writer_t *result);
+mg_err_t mg_op_sources_refresh(mg_ctx_t *ctx, mpack_node_t args, mpack_writer_t *result);
+/* Maintenance (issue #5, src/maintain/maintain.c). */
+mg_err_t mg_op_maintain_scan(mg_ctx_t *ctx, mpack_node_t args, mpack_writer_t *result);
+mg_err_t mg_op_maintain_apply_safe(mg_ctx_t *ctx, mpack_node_t args, mpack_writer_t *result);
+mg_err_t mg_op_maintain_resolve(mg_ctx_t *ctx, mpack_node_t args, mpack_writer_t *result);
+mg_err_t mg_op_maintain_log(mg_ctx_t *ctx, mpack_node_t args, mpack_writer_t *result);
+mg_err_t mg_op_maintain_status(mg_ctx_t *ctx, mpack_node_t args, mpack_writer_t *result);
+
+/* Parses the optional "sources" array of an insert request into storage
+ * records stamped with observed_at. Each element is either a map
+ * { kind, locator, project?, fingerprint?, role? } (what the CLI sends after
+ * resolving file paths itself) or a locator string such as "url:..." or
+ * "file:/abs/path" resolved here (HTTP). Free with mg_op_sources_free. */
+mg_err_t mg_op_parse_sources(mpack_node_t args, int64_t observed_at,
+                             mg_source_t **out, size_t *out_count);
+void     mg_op_sources_free(mg_source_t *sources, size_t count);
+
+/* Writes a node's sources as one mpack array value:
+ * [ { kind, locator, project, fingerprint|nil, role, observed_at }, ... ] */
+mg_err_t mg_op_write_node_sources(mg_storage_t *s, const mg_node_id_t id,
+                                  mpack_writer_t *w);
 
 /* Dispatch: legge "op" dal frame, instrada all'handler giusto. */
 mg_err_t mg_dispatch(mg_ctx_t *ctx, const void *req_payload, size_t req_len,

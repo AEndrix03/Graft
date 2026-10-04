@@ -537,6 +537,41 @@ int main(void) {
   remove("./test_storage.db-wal");
   remove("./test_storage.db-shm");
 
+  /* --- 17. GRAFT_DB_KEY quoting: every ' is doubled in PRAGMA key, so a key
+   * made of quotes needs twice its length. Opening must neither overflow nor
+   * fail (vanilla sqlite ignores the pragma and only warns). --- */
+  {
+    static char many[4097];
+    char long_key[4097];
+    const char *keys[4];
+    int k;
+    memset(many, '\'', 4096); many[4096] = '\0';
+    memset(long_key, 'k', 4096); long_key[4096] = '\0';
+    keys[0] = "plain-key";
+    keys[1] = "it's";
+    keys[2] = many;
+    keys[3] = long_key;
+    for (k = 0; k < 4; ++k) {
+      mg_storage_t *ks = NULL;
+#ifdef _WIN32
+      _putenv_s("GRAFT_DB_KEY", keys[k]);
+#else
+      setenv("GRAFT_DB_KEY", keys[k], 1);
+#endif
+      CHECK(mg_storage_open("./test_storage_key.db", &ks) == MG_OK, "open with GRAFT_DB_KEY");
+      if (ks) mg_storage_close(ks);
+      remove("./test_storage_key.db");
+      remove("./test_storage_key.db-wal");
+      remove("./test_storage_key.db-shm");
+    }
+#ifdef _WIN32
+    _putenv_s("GRAFT_DB_KEY", "");
+#else
+    unsetenv("GRAFT_DB_KEY");
+#endif
+    printf("ok db key quoting\n");
+  }
+
   if (g_fail > 0) {
     fprintf(stderr, "test_storage: %d assertion(s) failed\n", g_fail);
     return 1;

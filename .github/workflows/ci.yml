@@ -1,0 +1,177 @@
+name: ci
+
+# Build and test every push to the long-lived branches and every PR into them.
+# Releases have their own pipeline (release.yml); this one only answers
+# "does it still build and pass on the platforms we ship?".
+
+on:
+  push:
+    branches: [develop, master]
+    paths-ignore: ["**.md", "docs/**", "assets/**", "Formula/**", "bucket/**"]
+  pull_request:
+    branches: [develop, master]
+    paths-ignore: ["**.md", "docs/**", "assets/**", "Formula/**", "bucket/**"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  linux:
+    name: ctest (linux x86_64)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Plugin manifests match VERSION
+        run: bash scripts/check-plugin-version.sh
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake pkg-config libsqlite3-dev libyaml-dev
+      - name: Compute llama.cpp cache key
+        id: llamakey
+        shell: bash
+        run: |
+          sha=$(git submodule status third_party/llama.cpp | awk '{print $1}' | tr -d '+-')
+          echo "key=llama-linux-x86_64-${sha}-v1" >> "$GITHUB_OUTPUT"
+      - name: Cache llama.cpp build
+        id: llamacache
+        uses: actions/cache@v4
+        with:
+          path: third_party/llama.cpp/build
+          key: ${{ steps.llamakey.outputs.key }}
+      - name: ccache
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          key: ccache-ci-${{ runner.os }}
+          max-size: 500M
+      - name: Build llama.cpp
+        if: steps.llamacache.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          cmake -S third_party/llama.cpp -B third_party/llama.cpp/build \
+            -DBUILD_SHARED_LIBS=ON -DGGML_NATIVE=OFF \
+            -DLLAMA_CURL=OFF -DLLAMA_BUILD_SERVER=OFF \
+            -DLLAMA_BUILD_TOOLS=OFF -DLLAMA_BUILD_EXAMPLES=OFF \
+            -DLLAMA_BUILD_TESTS=OFF -DLLAMA_BUILD_COMMON=OFF \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_BUILD_RPATH='$ORIGIN'
+          cmake --build third_party/llama.cpp/build --parallel 2
+      - name: Build graft with tests
+        run: |
+          set -euo pipefail
+          cmake -S . -B build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_BUILD_RPATH='$ORIGIN' \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+            -DGRAFT_BUILD_TESTS=ON
+          cmake --build build --parallel
+      - name: Run ctest
+        run: ctest --test-dir build --output-on-failure --parallel 2
+
+  windows:
+    name: ctest (windows x86_64)
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: "msys2 {0}"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          cache: true
+          install: >-
+            git
+            mingw-w64-x86_64-gcc
+            mingw-w64-x86_64-cmake
+            mingw-w64-x86_64-ninja
+            mingw-w64-x86_64-pkgconf
+            mingw-w64-x86_64-sqlite3
+            mingw-w64-x86_64-libyaml
+            mingw-w64-x86_64-ccache
+      - name: Compute llama.cpp cache key
+        id: llamakey
+        run: |
+          sha=$(git submodule status third_party/llama.cpp | awk '{print $1}' | tr -d '+-')
+          echo "key=llama-windows-x86_64-${sha}-v1" >> "$GITHUB_OUTPUT"
+      - name: Cache llama.cpp build
+        id: llamacache
+        uses: actions/cache@v4
+        with:
+          path: third_party/llama.cpp/build
+          key: ${{ steps.llamakey.outputs.key }}
+      - name: Cache ccache
+        uses: actions/cache@v4
+        with:
+          path: ~/.ccache
+          key: ccache-ci-windows-${{ github.sha }}
+          restore-keys: ccache-ci-windows-
+      - name: Build llama.cpp
+        if: steps.llamacache.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          cmake -S third_party/llama.cpp -B third_party/llama.cpp/build -G Ninja \
+            -DBUILD_SHARED_LIBS=ON -DGGML_NATIVE=OFF \
+            -DLLAMA_CURL=OFF -DLLAMA_BUILD_SERVER=OFF \
+            -DLLAMA_BUILD_TOOLS=OFF -DLLAMA_BUILD_EXAMPLES=OFF \
+            -DLLAMA_BUILD_TESTS=OFF -DLLAMA_BUILD_COMMON=OFF \
+            -DCMAKE_BUILD_TYPE=Release
+          cmake --build third_party/llama.cpp/build --parallel 2
+      - name: Build graft with tests
+        env:
+          CCACHE_MAXSIZE: 500M
+        run: |
+          set -euo pipefail
+          cmake -S . -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+            -DGRAFT_BUILD_TESTS=ON
+          cmake --build build --parallel
+      - name: Run ctest
+        run: ctest --test-dir build --output-on-failure --parallel 2
+
+  mcp-server:
+    name: pytest (mcp-server)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: integrations/mcp-server
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: integrations/mcp-server/pyproject.toml
+      - name: Install
+        run: pip install -e . pytest
+      - name: Run pytest
+        run: python -m pytest -q tests
+
+  viewer:
+    name: build (viewer)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: viewer
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: viewer/package-lock.json
+      - run: npm ci
+      - run: npm run build

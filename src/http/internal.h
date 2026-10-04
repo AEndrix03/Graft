@@ -3,6 +3,7 @@
 
 #include "graft/error.h"
 #include "graft/ops.h"
+#include "graft/http.h"
 
 #include <stddef.h>
 #include <stdbool.h>
@@ -35,6 +36,11 @@ typedef struct {
   char  *extra_headers[8 * 2];
   int    n_extra_headers;
 } mg_http_response_t;
+
+/* server.c — test hooks. The port the listener is bound to (useful with
+ * http_port 0), or -1; and the number of client threads still running. */
+int mg_http_server_port(const mg_http_server_t *srv);
+int mg_http_server_active_clients(const mg_http_server_t *srv);
 
 /* parse.c */
 mg_err_t mg_http_parse_request(int fd, mg_http_request_t *req);

@@ -44,6 +44,8 @@ mg_err_t mg_op_consolidate(mg_ctx_t *ctx, mpack_node_t args,
     mpack_write_int(result, report.orphan_node_keywords_deleted);
     mpack_write_cstr(result, "invalid_edges_deleted");
     mpack_write_int(result, report.invalid_edges_deleted);
+    mpack_write_cstr(result, "orphan_sources_deleted");
+    mpack_write_int(result, report.orphan_sources_deleted);
     mpack_write_cstr(result, "sqlite_analyzed");
     mpack_write_bool(result, true);
     mpack_complete_map(result);

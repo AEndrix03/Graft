@@ -9,6 +9,11 @@
  *   graft stats
  *   graft classify   --title "..."
  *   graft consolidate
+ *   graft sources    diff|refresh ...   (see sources.c)
+ *   graft project    status|mark|reset  (see project.c)
+ *   graft maintain   status|scan|apply-safe|resolve|log ...   (see maintain.c)
+ *   graft status     [--root DIR]                  (see status.c)
+ *   graft hook       session-start|prompt          (see hook.c)
  *
  * Connects to the daemon socket (default /tmp/graft.sock, override via
  * env GRAFT_SOCKET), sends a single request frame, prints the parsed
@@ -16,11 +21,15 @@
  * and exits.
  */
 
-#include "../daemon/internal.h"
-#include "graft/wire.h"
 #include "graft/error.h"
 #include "mpack.h"
-#include "autostart.h"
+#include "graft/source.h"
+#include "client.h"
+#include "sources.h"
+#include "project.h"
+#include "maintain.h"
+#include "status.h"
+#include "hook.h"
 #include "usage_log.h"
 #include "profile.h"
 #include "setup.h"
@@ -76,92 +85,16 @@ static long long mg_now_ms(void) {
 }
 #endif
 
-/* JSON-ish pretty-printer for mpack nodes.
- * mpack's own print helpers are gated on MPACK_DEBUG (off in release),
- * so we roll our own — small, no dependencies on the build flag. */
-static void print_value(mpack_node_t n, int indent);
-
-static void put_indent(int indent) {
-    for (int i = 0; i < indent; i++) fputs("  ", stdout);
-}
-
-static void print_str(mpack_node_t n) {
-    const char *p = mpack_node_str(n);
-    size_t      l = mpack_node_strlen(n);
-    fputc('"', stdout);
-    for (size_t i = 0; i < l; i++) {
-        unsigned char c = (unsigned char)p[i];
-        switch (c) {
-            case '"':  fputs("\\\"", stdout); break;
-            case '\\': fputs("\\\\", stdout); break;
-            case '\n': fputs("\\n",  stdout); break;
-            case '\r': fputs("\\r",  stdout); break;
-            case '\t': fputs("\\t",  stdout); break;
-            default:
-                if (c < 0x20) printf("\\u%04x", c);
-                else          fputc((int)c, stdout);
-        }
-    }
-    fputc('"', stdout);
-}
-
-static void print_value(mpack_node_t n, int indent) {
-    mpack_type_t t = mpack_node_type(n);
-    switch (t) {
-        case mpack_type_nil:    fputs("null",  stdout); return;
-        case mpack_type_bool:
-            fputs(mpack_node_bool(n) ? "true" : "false", stdout); return;
-        case mpack_type_int:
-            printf("%" PRId64, (int64_t)mpack_node_i64(n)); return;
-        case mpack_type_uint:
-            printf("%" PRIu64, (uint64_t)mpack_node_u64(n)); return;
-        case mpack_type_float:
-            printf("%g", (double)mpack_node_float(n)); return;
-        case mpack_type_double:
-            printf("%g", mpack_node_double(n)); return;
-        case mpack_type_str:
-            print_str(n); return;
-        case mpack_type_bin: {
-            size_t bl = mpack_node_bin_size(n);
-            printf("\"<bin:%zu bytes>\"", bl); return;
-        }
-        case mpack_type_array: {
-            size_t len = mpack_node_array_length(n);
-            if (len == 0) { fputs("[]", stdout); return; }
-            fputs("[\n", stdout);
-            for (size_t i = 0; i < len; i++) {
-                put_indent(indent + 1);
-                print_value(mpack_node_array_at(n, i), indent + 1);
-                fputs(i + 1 < len ? ",\n" : "\n", stdout);
-            }
-            put_indent(indent); fputc(']', stdout); return;
-        }
-        case mpack_type_map: {
-            size_t len = mpack_node_map_count(n);
-            if (len == 0) { fputs("{}", stdout); return; }
-            fputs("{\n", stdout);
-            for (size_t i = 0; i < len; i++) {
-                put_indent(indent + 1);
-                print_value(mpack_node_map_key_at(n, i), indent + 1);
-                fputs(": ", stdout);
-                print_value(mpack_node_map_value_at(n, i), indent + 1);
-                fputs(i + 1 < len ? ",\n" : "\n", stdout);
-            }
-            put_indent(indent); fputc('}', stdout); return;
-        }
-        default:
-            fputs("null", stdout); return;
-    }
-}
-
 #define MG_CLI_MAX_KEYWORDS 64
+#define MG_CLI_MAX_SOURCES  64
 
 static int usage(void) {
     fprintf(stderr,
         "usage:\n"
         "  graft insert --title T --body B [--keyword K | --tag K]...\n"
         "                  [--author NAME] [--expires-at UNIX_MS]\n"
-        "  graft query <text>\n"
+        "                  [--source file:PATH|url:URL|conversation|manual]...\n"
+        "  graft query <text> [--explain]\n"
         "  graft retrieve <text> [--top-k N]\n"
         "  graft explore <text> [--keyword K]... [--depth N] [--beam N]\n"
         "  graft get <hex_id> [--markdown]\n"
@@ -169,6 +102,17 @@ static int usage(void) {
         "  graft classify --title T\n"
         "  graft stats\n"
         "  graft consolidate\n"
+        "  graft sources diff [--root DIR] [--changed-only]\n"
+        "  graft sources refresh <hex_id> [--root DIR]\n"
+        "  graft project status [--root DIR]\n"
+        "  graft project mark [--root DIR] [--topic NAME]... [--state S] [--run]\n"
+        "  graft project reset [--root DIR]\n"
+        "  graft maintain status|apply-safe\n"
+        "  graft maintain scan [--limit N] [--root DIR] [--no-sources]\n"
+        "  graft maintain resolve [<candidate-id>] --action A [--node ID] [--by ID] [--note T]\n"
+        "  graft maintain log [--limit N] [--node ID]\n"
+        "  graft status [--root DIR]\n"
+        "  graft hook session-start|prompt   (Claude Code plugin hooks; JSON on stdin)\n"
         "  graft analytics [--since 7d|24h] [--seconds-per-hit 60]\n"
         "  graft profile <list|current|add|remove|set|import|export> ...\n"
         "  graft setup [claudecode|codex|opencode]   (default: every agent found)\n"
@@ -303,6 +247,39 @@ static void print_node_markdown(mpack_node_t result) {
             fputc('\n', stdout);
         }
     }
+    /* sources: one "kind:locator" line each; file sources show a short
+     * fingerprint, and their state when they belong to the cwd's project */
+    n = mpack_node_map_cstr_optional(result, "sources");
+    if (!mpack_node_is_missing(n) && mpack_node_type(n) == mpack_type_array
+        && mpack_node_array_length(n) > 0) {
+        fputs("sources:\n", stdout);
+        for (size_t i = 0; i < mpack_node_array_length(n); ++i) {
+            mpack_node_t src = mpack_node_array_at(n, i);
+            char *kind = NULL, *loc = NULL, *proj = NULL, *fp = NULL;
+            mpack_node_t f;
+            if (mpack_node_type(src) != mpack_type_map) continue;
+#define MG_DUP_FIELD(var, key) \
+            f = mpack_node_map_cstr_optional(src, key); \
+            if (!mpack_node_is_missing(f) && mpack_node_type(f) == mpack_type_str) \
+                var = mpack_node_cstr_alloc(f, 1u << 16);
+            MG_DUP_FIELD(kind, "kind")
+            MG_DUP_FIELD(loc, "locator")
+            MG_DUP_FIELD(proj, "project")
+            MG_DUP_FIELD(fp, "fingerprint")
+#undef MG_DUP_FIELD
+            if (kind) {
+                printf("  - %s%s%s", kind, (loc && *loc) ? ":" : "", loc ? loc : "");
+                if (fp) printf(" @%.12s", fp);
+                if (!strcmp(kind, "file")) {
+                    const char *state = mg_sources_file_state(proj, loc, fp);
+                    if (state) printf(" (%s)", state);
+                    else if (proj) printf(" [%s]", proj);
+                }
+                fputc('\n', stdout);
+            }
+            free(kind); free(loc); free(proj); free(fp);
+        }
+    }
     fputs("---\n\n", stdout);
     if (body) { fwrite(body, 1, body_n, stdout); }
     fputc('\n', stdout);
@@ -344,26 +321,68 @@ static int mg_parse_int(const char *flag, const char *s) {
 
 /* -------------- per-op argument writers -------------- */
 
+/* An option a builder does not recognise, or a known one missing its value,
+ * is a hard error. Ignoring it used to send a request with empty fields
+ * (e.g. the removed --summary / --detail) that the daemon then rejected, or
+ * silently dropped what a misspelled flag meant to say. */
+static void mg_reject_arg(const char *cmd, const char *arg) {
+    fprintf(stderr, "graft %s: unknown option or missing value: '%s'\n", cmd, arg);
+    exit(2);
+}
+
+static int mg_is_option(const char *arg) {
+    return arg[0] == '-' && arg[1] == '-';
+}
+
 static int build_insert(int argc, char **argv, mpack_writer_t *w) {
     const char *title = NULL, *body = NULL;
     const char *author_flag = NULL;
     const char *kws[MG_CLI_MAX_KEYWORDS];
     int n_kws = 0;
+    const char *srcs[MG_CLI_MAX_SOURCES];
+    int n_srcs = 0;
     int64_t expires_at = 0;
     for (int i = 2; i < argc; i++) {
         if      (!strcmp(argv[i], "--title")   && i + 1 < argc) title = argv[++i];
         else if (!strcmp(argv[i], "--body")    && i + 1 < argc) body  = argv[++i];
         else if (!strcmp(argv[i], "--author")  && i + 1 < argc) author_flag = argv[++i];
         else if (!strcmp(argv[i], "--expires-at") && i + 1 < argc) expires_at = (int64_t)mg_parse_ll("--expires-at", argv[++i]);
-        else if ((!strcmp(argv[i], "--keyword") || !strcmp(argv[i], "--tag")) && i + 1 < argc
-                 && n_kws < MG_CLI_MAX_KEYWORDS) {
+        else if ((!strcmp(argv[i], "--keyword") || !strcmp(argv[i], "--tag")) && i + 1 < argc) {
+            if (n_kws >= MG_CLI_MAX_KEYWORDS) {
+                fprintf(stderr, "graft insert: at most %d keywords\n", MG_CLI_MAX_KEYWORDS);
+                exit(2);
+            }
+            if (strchr(argv[i + 1], ',')) {
+                fprintf(stderr, "graft insert: keyword '%s' contains ',': "
+                                "pass each one as its own --keyword\n", argv[i + 1]);
+                exit(2);
+            }
             kws[n_kws++] = argv[++i];
+        }
+        else if (!strcmp(argv[i], "--source") && i + 1 < argc) {
+            if (n_srcs >= MG_CLI_MAX_SOURCES) {
+                fprintf(stderr, "graft insert: at most %d sources\n", MG_CLI_MAX_SOURCES);
+                exit(2);
+            }
+            srcs[n_srcs++] = argv[++i];
+        }
+        else mg_reject_arg("insert", argv[i]);
+    }
+    /* Resolve sources here, where relative paths mean something: the daemon
+     * gets the project id, the root-relative path and the fingerprint. */
+    mg_source_spec_t specs[MG_CLI_MAX_SOURCES];
+    for (int i = 0; i < n_srcs; i++) {
+        char err[512];
+        if (mg_source_parse(srcs[i], 1, &specs[i], err, sizeof(err)) != 0) {
+            fprintf(stderr, "graft insert: %s\n", err);
+            exit(2);
         }
     }
     char *author = mg_resolve_author(author_flag);
     int n_fields = 3
                  + (author      ? 1 : 0)
-                 + (expires_at > 0 ? 1 : 0);
+                 + (expires_at > 0 ? 1 : 0)
+                 + (n_srcs > 0 ? 1 : 0);
     mpack_start_map(w, (uint32_t)n_fields);
     mpack_write_cstr(w, "title"); mpack_write_cstr(w, title ? title : "");
     mpack_write_cstr(w, "body");  mpack_write_cstr(w, body  ? body  : "");
@@ -379,15 +398,43 @@ static int build_insert(int argc, char **argv, mpack_writer_t *w) {
         mpack_write_cstr(w, "expires_at");
         mpack_write_int(w, expires_at);
     }
+    if (n_srcs > 0) {
+        mpack_write_cstr(w, "sources");
+        mpack_start_array(w, (uint32_t)n_srcs);
+        for (int i = 0; i < n_srcs; i++) {
+            int has_fp = specs[i].fingerprint[0] != '\0';
+            mpack_start_map(w, has_fp ? 4 : 3);
+            mpack_write_cstr(w, "kind");    mpack_write_cstr(w, specs[i].kind);
+            mpack_write_cstr(w, "locator"); mpack_write_cstr(w, specs[i].locator);
+            mpack_write_cstr(w, "project"); mpack_write_cstr(w, specs[i].project);
+            if (has_fp) {
+                mpack_write_cstr(w, "fingerprint");
+                mpack_write_cstr(w, specs[i].fingerprint);
+            }
+            mpack_finish_map(w);
+            mg_source_spec_free(&specs[i]);
+        }
+        mpack_finish_array(w);
+    }
     mpack_finish_map(w);
     free(author);
     return 0;
 }
 
 static int build_query(int argc, char **argv, mpack_writer_t *w) {
-    const char *text = (argc >= 3) ? argv[2] : "";
-    mpack_start_map(w, 1);
-    mpack_write_cstr(w, "text"); mpack_write_cstr(w, text);
+    const char *text = NULL;
+    bool explain = false;
+    for (int i = 2; i < argc; i++) {
+        if (!strcmp(argv[i], "--explain")) explain = true;
+        else if (mg_is_option(argv[i])) mg_reject_arg("query", argv[i]);
+        else if (!text) text = argv[i];
+    }
+    mpack_start_map(w, explain ? 2 : 1);
+    mpack_write_cstr(w, "text"); mpack_write_cstr(w, text ? text : "");
+    if (explain) {
+        mpack_write_cstr(w, "explain");
+        mpack_write_bool(w, true);
+    }
     mpack_finish_map(w);
     return 0;
 }
@@ -397,6 +444,7 @@ static int build_retrieve(int argc, char **argv, mpack_writer_t *w) {
     int top_k = 0;
     for (int i = 2; i < argc; i++) {
         if (!strcmp(argv[i], "--top-k") && i + 1 < argc) top_k = mg_parse_int("--top-k", argv[++i]);
+        else if (mg_is_option(argv[i])) mg_reject_arg("retrieve", argv[i]);
         else if (!text) text = argv[i];
     }
     int n = 1 + (top_k > 0 ? 1 : 0);
@@ -416,13 +464,18 @@ static int build_explore(int argc, char **argv, mpack_writer_t *w) {
     int n_kws = 0;
     int depth = 0, beam = 0;
     for (int i = 2; i < argc; i++) {
-        if (!strcmp(argv[i], "--keyword") && i + 1 < argc
-            && n_kws < MG_CLI_MAX_KEYWORDS) {
+        if (!strcmp(argv[i], "--keyword") && i + 1 < argc) {
+            if (n_kws >= MG_CLI_MAX_KEYWORDS) {
+                fprintf(stderr, "graft explore: at most %d keywords\n", MG_CLI_MAX_KEYWORDS);
+                exit(2);
+            }
             kws[n_kws++] = argv[++i];
         } else if (!strcmp(argv[i], "--depth") && i + 1 < argc) {
             depth = mg_parse_int("--depth", argv[++i]);
         } else if (!strcmp(argv[i], "--beam") && i + 1 < argc) {
             beam = mg_parse_int("--beam", argv[++i]);
+        } else if (mg_is_option(argv[i])) {
+            mg_reject_arg("explore", argv[i]);
         } else if (!text) {
             text = argv[i];
         }
@@ -449,6 +502,7 @@ static int build_get(int argc, char **argv, mpack_writer_t *w) {
     const char *id = NULL;
     for (int i = 2; i < argc; i++) {
         if (!strcmp(argv[i], "--markdown")) g_markdown = 1;
+        else if (mg_is_option(argv[i])) mg_reject_arg(argv[1], argv[i]);
         else if (!id) id = argv[i];
     }
     if (!id) id = "";
@@ -462,6 +516,7 @@ static int build_classify(int argc, char **argv, mpack_writer_t *w) {
     const char *title = NULL;
     for (int i = 2; i < argc; i++) {
         if (!strcmp(argv[i], "--title") && i + 1 < argc) title = argv[++i];
+        else mg_reject_arg("classify", argv[i]);
     }
     mpack_start_map(w, 1);
     mpack_write_cstr(w, "title"); mpack_write_cstr(w, title ? title : "");
@@ -507,6 +562,18 @@ int main(int argc, char **argv) {
      * each profile gets its own daemon, isolated from the others. */
     mg_apply_profile_env();
 
+    /* `sources` re-hashes files client-side around its own daemon calls. */
+    if (!strcmp(cmd, "sources")) return mg_sources_cmd(argc, argv);
+    /* `maintain scan` does the same for its provenance candidates. */
+    if (!strcmp(cmd, "maintain")) return mg_maintain_cmd(argc, argv);
+
+    /* `project` reads its state file and the DB itself: no daemon. */
+    if (!strcmp(cmd, "project")) return mg_project_cmd(argc, argv);
+
+    /* `status` and `hook` ask a running daemon at most; they never start it. */
+    if (!strcmp(cmd, "status")) return mg_status_cmd(argc, argv);
+    if (!strcmp(cmd, "hook"))   return mg_hook_cmd(argc, argv);
+
     /* ---- build request ---- */
     char  *req     = NULL;
     size_t req_len = 0;
@@ -544,51 +611,13 @@ int main(int argc, char **argv) {
     }
 
     /* ---- connect & exchange ---- */
-    const char *sock_path = getenv("GRAFT_SOCKET");
-    if (!sock_path || !*sock_path) sock_path = "/tmp/graft.sock";
-
     long long t_start = mg_now_ms();
-
-    int fd = -1;
-    if (mg_daemon_socket_connect(sock_path, &fd) != MG_OK) {
-        /* Daemon down — try to spawn it next to this binary, then retry once.
-         * This pays a one-time cost (~1-2s) on the first command of a session
-         * and saves the user from having to start the daemon manually. */
-        /* Roomy: the message quotes the tail of the daemon log. */
-        char ae[2048] = { 0 };
-        if (mg_autostart_daemon(sock_path, ae, sizeof(ae)) != MG_OK) {
-            fprintf(stderr, "connect failed: %s\nauto-start: %s\n", sock_path, ae);
-            free(req);
-            mg_daemon_socket_shutdown();
-            return 1;
-        }
-        if (mg_daemon_socket_connect(sock_path, &fd) != MG_OK) {
-            fprintf(stderr, "connect failed after auto-start: %s\n", sock_path);
-            free(req);
-            mg_daemon_socket_shutdown();
-            return 1;
-        }
-    }
-
-    if (mg_wire_write_frame(fd, req, req_len) != MG_OK) {
-        fprintf(stderr, "send failed\n");
-        mg_daemon_socket_close(fd);
-        free(req);
-        mg_daemon_socket_shutdown();
-        return 1;
-    }
-    free(req);
 
     void  *resp     = NULL;
     size_t resp_len = 0;
-    if (mg_wire_read_frame(fd, &resp, &resp_len) != MG_OK) {
-        fprintf(stderr, "recv failed\n");
-        mg_daemon_socket_close(fd);
-        mg_daemon_socket_shutdown();
-        return 1;
-    }
-    mg_daemon_socket_close(fd);
-    mg_daemon_socket_shutdown();
+    int xrc = mg_cli_exchange(req, req_len, &resp, &resp_len);
+    free(req);
+    if (xrc != 0) return 1;
 
     /* ---- parse and print ---- */
     long long t_end = mg_now_ms();
@@ -615,7 +644,7 @@ int main(int argc, char **argv) {
             else
                 fputs("(no result)\n", stdout);
         } else {
-            print_value(root, 0);
+            mg_cli_print_value(root, 0);
             printf("\n");
         }
         /* Propagate non-zero status to exit code so scripts can check it. */

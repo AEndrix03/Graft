@@ -33,7 +33,7 @@ Two families:
 
 | Agent          | Integration type             | Where it lives                                       |
 | -------------- | ---------------------------- | ---------------------------------------------------- |
-| Claude Code    | Skills + rule                | `integrations/claude-code/`                          |
+| Claude Code    | Skills + rule + plugin hooks | `integrations/claude-code/`                          |
 | Codex          | Skills + `AGENTS.md` rule    | `integrations/codex/`                                |
 | Claude Desktop | MCP server (stdio)           | `integrations/claude-ai/` + `integrations/mcp-server/` |
 | ChatGPT        | MCP server (stdio or HTTP)   | `integrations/chatgpt/` + `integrations/mcp-server/` |
@@ -50,13 +50,23 @@ For the CLI assistants we ship **two** things that look similar but behave very 
 
 ### Skills (or `AGENTS.md`, or `GEMINI.md`)
 
-These are **prompts**. They tell the model **when** to use graft:
+These are **prompts**. They tell the model **when** to use graft. The rule `/graft-init`
+writes is a zero-touch lifecycle: once set up, the user never has to run a graft command.
 
-- search before answering non-trivial questions,
-- save after solving non-obvious ones,
-- skip for trivial work (formatting, renaming).
+- once per session in a project, `graft status` (one cheap call, never starts the
+  daemon) and the bounded housekeeping its `next` list asks for: a `/learn bootstrap`
+  pass on a project seen for the first time (task area first, never blocking the
+  user's task), `apply-safe`, a small batch of maintenance candidates;
+- search before non-trivial work;
+- repair a note contradicted by the code on the spot (`graft maintain resolve
+  --node <old> --action supersede --by <new>`);
+- save durable knowledge after substantial work, with `--source file:` when it
+  comes from a file;
+- never ask the user about graft in the normal path: surface it only when it is
+  broken, data loss is suspected, or an irreversible action cannot be decided
+  from context.
 
-The model decides whether to follow the instruction. Skills are useful — they shape what the agent **wants** to do.
+The model decides whether to follow the instruction. Skills are useful — they shape what the agent **wants** to do; the details live in the `graft` skill's *Lifecycle* section.
 
 For Claude Code we ship six skills:
 
@@ -66,23 +76,43 @@ For Claude Code we ship six skills:
 | `graft-init`     | One-shot configurator: writes a `<!-- graft:start -->...<!-- graft:end -->` block into `CLAUDE.md`. |
 | `recall`         | Smart search: tries `query`, falls back to `retrieve`, then to `explore`, escalating only when results are weak. |
 | `memoryze`       | Distills the current conversation into 1–5 well-formed nodes and saves them. |
-| `learn`          | Batch-ingestion from external sources (codebase, docs tree): plan + confirm + ingest. |
-| `memory-audit`   | Read-only health check: hit rate, hoarding ratio, top reused nodes, never-reused nodes. |
+| `learn`          | Batch-ingestion from external sources (codebase, docs tree): plan + confirm + ingest. `/learn docs` takes in all of a repository's documentation (README, docs/, ADRs, guides), incrementally on re-runs. `/learn bootstrap` is the unattended, progressive cold start of a whole project: a topic map, bounded runs by importance (task area first), coverage tracked by `graft project`. |
+| `memory-audit`   | Maintenance pass + health check: runs `graft maintain` (apply-safe, scan, resolve each candidate against the current code) and reports hit rate, hoarding ratio, reuse. |
 
-All six are copied into `~/.claude/skills/` (or `.claude/skills/`) by `graft setup`.
+All six ship in the graft plugin (`plugins/graft/`), installed from the marketplace
+(`/plugin install graft@graft`), where they are namespaced as `/graft:<name>`. Without
+the marketplace, `graft setup` copies them into `~/.claude/skills/`.
 
-### No hooks
+### Plugin hooks (Claude Code only)
 
-Graft ships no harness hooks and writes no harness configuration. Installing the
-integration copies skills; `/graft-init` writes one rule into the instruction file
-the agent already reads. Nothing else on the machine is modified, which is what
-makes the integration reversible: delete the skills directory and the rule block.
+Graft writes no harness configuration. Installing the integration copies skills;
+`/graft-init` writes one rule into the instruction file the agent already reads.
+Nothing else on the machine is modified, which is what makes the integration
+reversible: delete the skills directory and the rule block.
 
-If you want the harness to guarantee the lookup instead of trusting the agent to
-remember it, `integrations/optional/hooks/` keeps the three event hooks
-(`UserPromptSubmit`, `PostToolUse`, `Stop`) and the instructions to wire them by
-hand. They are deliberately outside the installed path: `graft setup` never
-writes them, and never reads your harness configuration.
+The Claude Code **plugin** also carries two hooks (`plugins/graft/hooks/hooks.json`),
+active only while the plugin is installed and enabled, so no `settings.json` is
+edited:
+
+| Event | Command | What it does |
+| ----- | ------- | ------------ |
+| `SessionStart` (startup, resume, clear) | `graft hook session-start` | Runs the `graft status` logic for the session's directory and, when housekeeping is due, injects one `graft:` line with the `next` steps. Nothing due, nothing printed. |
+| `UserPromptSubmit` | `graft hook prompt` | Runs `graft query` on the prompt (first 1000 bytes; slash commands and prompts under 3 words skipped) and injects the note only on a `STRONG` hit, with its id, title and the first 800 bytes of its body. `WEAK` and `MISS` inject nothing. |
+
+Both are the graft binary itself reading the hook JSON on stdin, so no bash or
+PowerShell script has to work everywhere. Neither starts the daemon (a cold start
+loads the model, which must not happen on the prompt path): until the first graft
+command of the session has started it, the prompt lookup is skipped. Both print
+nothing and exit 0 on any failure, and the command ends with `; exit 0`, so a
+missing or older `graft` binary cannot block a prompt. Timeout: 5 s each; a
+lookup takes about 0.2 s on a warm daemon.
+
+Opt out with `GRAFT_HOOKS=0` in the environment (or in `settings.json` `env`), or
+`GRAFT_HOOK_PROMPT=0` for the prompt lookup only; or disable the plugin.
+
+`integrations/optional/hooks/` keeps the older hand-wired scripts (`PostToolUse`,
+`Stop` save proposals) for people who want them; do not wire their
+`UserPromptSubmit` lookup next to the plugin's, or every prompt is looked up twice.
 
 ---
 
@@ -181,11 +211,11 @@ If you're writing your own skill / `AGENTS.md`, the rule of thumb is:
 
 ### Claude Code
 
-`graft setup` copies skills into `~/.claude/skills/`, then `/graft-init` writes the rule into `CLAUDE.md` plus `.claude/rules/graft.md`. `~/.claude/settings.json` is never touched. See [`../../integrations/claude-code/README.md`](../../integrations/claude-code/README.md) for recommended `permissions.allow` entries.
+The plugin (`/plugin install graft@graft`) or `graft setup` provides the skills, then `/graft-init` installs the CLI if needed and writes the rule into `CLAUDE.md` plus `.claude/rules/graft.md`. The plugin adds the two hooks above; `graft setup` does not. `~/.claude/settings.json` is never touched. See [`../../integrations/claude-code/README.md`](../../integrations/claude-code/README.md) for recommended `permissions.allow` entries.
 
 ### Codex
 
-`graft setup` copies skills into `~/.codex/skills/`, then `/graft-init` writes the rule into `AGENTS.md`. `~/.codex/hooks.json` and `~/.codex/config.toml` are never touched.
+The plugin (`codex plugin add graft@graft`) or `graft setup` provides the skills, then `graft-init` installs the CLI if needed and writes the zero-touch rule into `AGENTS.md`; the agent drives the lifecycle from `graft status`. No hooks ship for Codex: `~/.codex/hooks.json` and `~/.codex/config.toml` are never touched.
 
 ### Claude Desktop / ChatGPT
 

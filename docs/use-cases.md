@@ -134,7 +134,7 @@ Remote profiles will allow a team to expose a shared graft instance (read-only o
 
 This means bug fixes, architectural decisions, and troubleshooting knowledge discovered by one team member become immediately available to all agents across the team — without any manual documentation step.
 
-Follow the [roadmap](../README.md#roadmap) for progress on remote profiles.
+Follow the [project status](../README.md#project-status) for what is coming next.
 
 ---
 
