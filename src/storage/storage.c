@@ -975,7 +975,9 @@ static mg_err_t topk_scan(mg_storage_t *s, const mg_embedding_t query, int k, mg
   sqlite3_stmt *stmt = NULL;
   /* Only ACTIVE / STALE nodes are searchable: superseded and retired ones
    * (states 2, 3) and expired ones are excluded. Expiration is
-   * stored as Unix milliseconds; strftime('%s') is seconds, so scale it. */
+   * stored as Unix milliseconds; strftime('%s') is seconds, so scale it.
+   * Read paths only filter expired rows: deleting them is consolidate's job,
+   * so a query never needs a write transaction. */
   const char *sql_all = "SELECT v.id,v.embedding FROM node_vec v "
                         "JOIN nodes n ON n.id=v.id "
                         "WHERE n.state IN (0,1) "
@@ -995,7 +997,6 @@ static mg_err_t topk_scan(mg_storage_t *s, const mg_embedding_t query, int k, mg
   if (k == 0) {
     return MG_OK;
   }
-  (void)mg_storage_prune_expired(s, NULL);
   if (prepare(s->db, use_kw ? sql_kw : sql_all, &stmt) != MG_OK) {
     return MG_ERR_STORAGE;
   }
@@ -1121,8 +1122,6 @@ static mg_err_t storage_fts_search_unlocked(mg_storage_t *s, const char *query_t
     rank_expr = "bm25(node_fts, 0.0, 1.0)";
   }
 
-  (void)mg_storage_prune_expired(s, NULL);
-
   char sql[384];
   snprintf(sql, sizeof(sql),
            "SELECT nodes.id, -%s FROM node_fts "
@@ -1155,7 +1154,6 @@ static mg_err_t storage_neighbors_unlocked(mg_storage_t *s, const mg_node_id_t s
     return MG_ERR_INVALID_ARG;
   }
   *out_count = 0;
-  (void)mg_storage_prune_expired(s, NULL);
   if (prepare(s->db,
       "SELECT src,dst,kind,COALESCE(keyword_id,0),weight FROM ("
       "  SELECT e.src,e.dst,e.kind,e.keyword_id,e.weight FROM edges e "

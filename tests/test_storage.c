@@ -284,6 +284,12 @@ int main(void) {
     return 1;
   }
 
+  /* Read paths filter expired rows but never delete them: physical cleanup
+   * belongs to consolidate, so a query stays read-only. */
+  int64_t nodes_before_reads = -1, nodes_after_reads = -1;
+  CHECK(mg_storage_count(s, MG_STORAGE_COUNT_NODES, &nodes_before_reads) == MG_OK,
+        "count nodes before reads");
+
   err = mg_storage_vector_topk(s, emb, 8, scores, &count);
   if (err != MG_OK) {
     fprintf(stderr, "expired vector topk failed: %s\n", mg_strerror(err));
@@ -297,13 +303,21 @@ int main(void) {
       return 1;
     }
   }
+  err = mg_storage_neighbors(s, title_hit.id, MG_EDGE_SEMANTIC, NULL, 0, neighbors, 4, &n_neighbors);
+  CHECK(err == MG_OK, "neighbors after expired insert ok");
+  err = mg_storage_fts_search(s, "expired", 4, true, true, scores, &count);
+  CHECK(err == MG_OK && count == 0, "expired fts hidden");
+  CHECK(mg_storage_count(s, MG_STORAGE_COUNT_NODES, &nodes_after_reads) == MG_OK,
+        "count nodes after reads");
+  CHECK(nodes_before_reads >= 0 && nodes_after_reads == nodes_before_reads,
+        "read paths must not prune expired nodes");
   err = mg_storage_get_node(s, expired_vec.id, &got);
-  if (err != MG_ERR_NOT_FOUND) {
-    if (err == MG_OK) mg_node_free(&got);
-    fprintf(stderr, "expired vector node was not pruned: %s\n", mg_strerror(err));
+  if (err != MG_OK) {
+    fprintf(stderr, "expired vector node was pruned by a read: %s\n", mg_strerror(err));
     mg_storage_close(s);
     return 1;
   }
+  mg_node_free(&got);
 
   mg_node_t expired_fts;
   memset(&expired_fts, 0, sizeof(expired_fts));

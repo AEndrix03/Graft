@@ -11,6 +11,10 @@ to `## [x.y.z] - YYYY-MM-DD` and becomes the body of the GitHub Release.
 
 ## [Unreleased]
 
+### Changed
+
+- `query`, `retrieve` and `explore` are read-only again: they still hide expired notes but no longer delete them on the way, so a search never opens a write transaction on the shared database. Expired notes are removed by `graft consolidate` / `graft maintain apply-safe` ([#19](https://github.com/AEndrix03/Graft/issues/19)).
+
 ## [0.2.0] - 2026-10-04
 
 Graft now looks after itself: the agent bootstraps a project's memory, keeps it in sync with the files it came from, and maintains it without asking you. Install from the Claude Code or Codex marketplace, and eight bugs found in review are fixed.
