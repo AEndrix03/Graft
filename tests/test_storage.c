@@ -370,6 +370,27 @@ int main(void) {
     return 1;
   }
 
+  /* --- 6b. scoped FTS keeps every token of a many-short-token query --- */
+  {
+    mg_node_t letters;
+    memset(&letters, 0, sizeof(letters));
+    mg_uuidv7(letters.id);
+    mg_blake3((const uint8_t *)"letters", strlen("letters"), letters.content_hash);
+    letters.title = (char *)"q r s t u v w x";
+    letters.body = (char *)"letters body";
+    letters.created_at = 7;
+    letters.last_access = 7;
+    letters.state = MG_NODE_ACTIVE;
+    CHECK(mg_storage_insert_node_with_edges(s, &letters, emb, NULL, 0, NULL, 0, NULL) == MG_OK,
+          "insert letters");
+    CHECK(mg_storage_fts_search(s, "q r s t u v w x", 4, true, false, scores, &count) == MG_OK &&
+          count == 1 && same_id(scores[0].id, letters.id), "all short tokens match the title");
+    /* the last token is absent: a truncated expression would still match */
+    CHECK(mg_storage_fts_search(s, "q r s t u v w x zz", 4, true, false, scores, &count) == MG_OK &&
+          count == 0, "no short token is dropped from the expression");
+    printf("ok fts short tokens\n");
+  }
+
   /* --- 7. count() --- */
   {
     int64_t n_nodes = -1, n_edges = -1, n_keywords = -1;

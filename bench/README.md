@@ -8,6 +8,8 @@ Two reproducible benchmarks of what graft promises:
   with and without it, measured on correctness, time and tokens.
 
 `charts.py` turns the newest results into the charts in the project README.
+`fts_lexical.py` scores the BM25 lists of `retrieve` on their own, without a
+daemon or a model ([why AND stays](./results/2026-10-05-fts-match/README.md)).
 
 ## Latest results
 
@@ -38,6 +40,7 @@ python bench/run.py                       # held-out set, the graft on PATH
 python bench/run.py --set dev             # the author's set, optimistic
 python bench/agent.py                     # needs the claude CLI, billed to that account
 python bench/charts.py                    # writes assets/bench-*.svg
+python bench/fts_lexical.py               # the lexical branch alone, no daemon
 ```
 
 `run.py` and `agent.py` start their **own** `graftd` with a temporary

@@ -1062,55 +1062,45 @@ static mg_err_t storage_vector_topk_by_keyword_unlocked(mg_storage_t *s, const m
  * harmlessly as literal text to match. */
 static char *build_scoped_fts_query(const char *col, const char *query_text) {
   size_t in_len = strlen(query_text);
-  /* Worst-case output size: every char becomes a doubled quote inside a
-   * quoted phrase, plus `<col>:"` prefix and `"` suffix and a trailing
-   * space per token. Bound loosely as (in_len + col_len + 4) * 2. */
   size_t col_len = strlen(col);
-  size_t cap = (in_len + col_len + 4) * 2 + 1;
+  size_t n_tok = 0;
+  size_t i = 0;
+  while (i < in_len) {
+    while (i < in_len && isspace((unsigned char)query_text[i])) i++;
+    if (i >= in_len) break;
+    n_tok++;
+    while (i < in_len && !isspace((unsigned char)query_text[i])) i++;
+  }
+  if (n_tok == 0) {
+    return NULL;
+  }
+  /* Exact bound: every byte may double (a quote), plus per token the
+   * `<col>:"` prefix, the closing `"` and a separating space. A looser
+   * bound used to drop the tail of a query made of many short tokens. */
+  size_t cap = 2 * in_len + n_tok * (col_len + 4) + 1;
   char *out = (char *)malloc(cap);
   if (!out) {
     return NULL;
   }
   size_t op = 0;
-  size_t i = 0;
-  int wrote_any = 0;
+  i = 0;
   while (i < in_len) {
-    /* skip whitespace */
     while (i < in_len && isspace((unsigned char)query_text[i])) i++;
     if (i >= in_len) break;
-    /* find token end */
     size_t tok_start = i;
     while (i < in_len && !isspace((unsigned char)query_text[i])) i++;
-    size_t tok_len = i - tok_start;
-    if (tok_len == 0) continue;
-    if (wrote_any) {
-      if (op + 1 < cap) out[op++] = ' ';
-    }
+    if (op > 0) out[op++] = ' ';
     /* <col>:"<token with " doubled>" */
-    if (op + col_len + 2 >= cap) break;
     memcpy(out + op, col, col_len); op += col_len;
     out[op++] = ':';
     out[op++] = '"';
-    for (size_t j = 0; j < tok_len; j++) {
-      char c = query_text[tok_start + j];
-      if (c == '"') {
-        if (op + 2 >= cap) { op = cap - 1; break; }
-        out[op++] = '"';
-        out[op++] = '"';
-      } else {
-        if (op + 1 >= cap) { op = cap - 1; break; }
-        out[op++] = c;
-      }
+    for (size_t j = tok_start; j < i; j++) {
+      if (query_text[j] == '"') out[op++] = '"';
+      out[op++] = query_text[j];
     }
-    if (op + 1 >= cap) { op = cap - 1; }
     out[op++] = '"';
-    wrote_any = 1;
   }
   out[op] = '\0';
-  if (!wrote_any) {
-    free(out);
-    return NULL;
-  }
   return out;
 }
 

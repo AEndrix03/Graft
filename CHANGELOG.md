@@ -15,6 +15,7 @@ makes it, under `## [Unreleased]
 
 ### Fixed
 
+- A full-text query made of many short tokens (`a b c d e`) silently lost its last tokens: the buffer for the scoped FTS expression was sized too small and the builder stopped writing instead of growing it. The bound is now exact. Joining the tokens with OR instead of the implicit AND was also evaluated and not adopted: it makes `retrieve` worse on the held-out set ([results](bench/results/2026-10-05-fts-match/README.md), [#21](https://github.com/AEndrix03/Graft/issues/21)).
 - A note marked `stale` could come back as a `STRONG` hit looking exactly like a live one, and the Claude Code prompt hook injected it without a word. `query` (and its `--explain` candidates), `retrieve` and `explore` now report each result's `state`, over the CLI, HTTP and MCP alike; the prompt hook (and the optional `query_inject.js` hook) labels a stale note and tells the agent to verify it before relying on it. Stale notes stay searchable, as documented ([#17](https://github.com/AEndrix03/Graft/issues/17)).
 - Inserting the exact content of a superseded note no longer looks like an ordinary successful duplicate. The insert response now carries the node's `state`, and for a superseded match also `superseded_by`, the note that replaced it; the old note stays superseded (restoring it would break its lineage). A retired match is still restored and reported `active` ([#20](https://github.com/AEndrix03/Graft/issues/20)).
 
