@@ -70,12 +70,38 @@ Dropping English/Italian stopwords and 1–2 character tokens before OR-ing was
 checked on the lexical branch alone and barely moved it (held-out title
 recall@1 0.700 → 0.756, body unchanged), so it does not address the fusion.
 
-## Follow-up
+## Follow-up: OR with a down-weighted lexical vote
 
-The lever is the fusion, not the MATCH expression: weight the lexical lists
-below the vector list in RRF (or merge title and body into one lexical vote),
-then OR becomes worth re-measuring, with the project-question gain as the
-target. Any weight must be chosen on the dev set and reported on held-out.
+The lever looked like the fusion, not the MATCH expression, so OR was
+re-measured with the two lexical lists weighted `w` in RRF
+(`w/(k+rank)` instead of `1/(k+rank)`; the vector list keeps weight 1). The
+weight was to be chosen on the dev set only and reported on held-out.
+
+recall@1 / MRR over all answerable questions:
+
+| Variant | dev | held-out | held-out project (n=15) |
+| ------- | -: | -: | -: |
+| AND (current) | **0.980 / 0.988** | 0.844 / 0.900 | 0.733 / 0.822 |
+| OR, w = 1 | 0.950 / 0.963 | 0.822 / 0.868 | 0.933 / 0.947 |
+| OR, w = 0.5 | 0.950 / 0.965 | 0.811 / 0.868 | 0.933 / 0.947 |
+| OR, w = 0.25 | 0.960 / 0.975 | 0.856 / 0.903 | 0.867 / 0.900 |
+| OR, w = 0.1 | 0.970 / 0.983 | **0.867 / 0.920** | 0.867 / 0.900 |
+
+**Still not adopted.** On the dev set, the only one a weight may be chosen on,
+no OR variant beats AND, so the rule picks AND. The held-out gain of w = 0.1
+(+0.022 recall@1) is two questions out of 90 (9 ranked better, 6 worse), and
+the dev difference is one question (2 better, 2 worse): both are inside what a
+65-note corpus can resolve. Choosing w = 0.1 because of the held-out numbers
+would tune on the test set.
+
+The trend is the useful finding: the smaller the lexical weight, the better,
+and since AND lists are empty, AND is already "vector only". A small lexical
+tie-breaker may help project-specific vocabulary, but proving it needs a larger
+corpus and question set (more project notes especially) before any default
+changes.
+
+Raw rows: `or-w0.5-*.json`, `or-w0.25-*.json`, `or-w0.1-*.json`, produced with
+a second temporary switch, `MG_RRF_LEX_W=<w>`, read in `mg_retrieve_run_rrf`.
 
 ## Reproducing
 
