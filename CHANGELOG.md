@@ -15,6 +15,7 @@ makes it, under `## [Unreleased]
 
 ### Fixed
 
+- A note marked `stale` could come back as a `STRONG` hit looking exactly like a live one, and the Claude Code prompt hook injected it without a word. `query` (and its `--explain` candidates), `retrieve` and `explore` now report each result's `state`, over the CLI, HTTP and MCP alike; the prompt hook (and the optional `query_inject.js` hook) labels a stale note and tells the agent to verify it before relying on it. Stale notes stay searchable, as documented ([#17](https://github.com/AEndrix03/Graft/issues/17)).
 - Inserting the exact content of a superseded note no longer looks like an ordinary successful duplicate. The insert response now carries the node's `state`, and for a superseded match also `superseded_by`, the note that replaced it; the old note stays superseded (restoring it would break its lineage). A retired match is still restored and reported `active` ([#20](https://github.com/AEndrix03/Graft/issues/20)).
 
 ## [0.2.0] - 2026-10-04
