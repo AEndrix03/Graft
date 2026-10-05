@@ -79,6 +79,7 @@ Why not stricter STRONG thresholds? [`bench/`](../../bench/) tried raising them 
   "hit":   "STRONG",
   "id_hex": "...",
   "title":  "...",
+  "state":  "active",
   "body":   "...",
   "signals": { "s_vec": 0.91, "s_lex": 0.42, "s_jaccard": 0.38, "s_ce": null }
 }
@@ -91,6 +92,7 @@ Why not stricter STRONG thresholds? [`bench/`](../../bench/) tried raising them 
   "hit":   "WEAK",
   "id_hex": "...",
   "title":  "...",
+  "state":  "active",
   "body":   null,
   "signals": { "s_vec": 0.86, "s_lex": 0.07, "s_jaccard": 0.09, "s_ce": null }
 }
@@ -102,12 +104,14 @@ Why not stricter STRONG thresholds? [`bench/`](../../bench/) tried raising them 
 {
   "hit":  "MISS",
   "fallback_retrieve": {
-    "results": [{ "id_hex": "...", "title": "...", "score": 0.014 }, ...],
+    "results": [{ "id_hex": "...", "title": "...", "state": "active", "score": 0.014 }, ...],
     "distinct_keywords": ["..."]
   },
   "signals": { "s_vec": 0.21, ... }
 }
 ```
+
+`state` is the matched node's lifecycle state, `active` or `stale` (the same field appears on every `retrieve` result, every `explore` node and every `--explain` candidate). A STALE note is still searchable, because doubtful context beats none, but it can come back as a `STRONG` hit: treat a stale hit as a lead to verify against the current code and sources, never as an answer. The Claude Code prompt hook says so explicitly when it injects one.
 
 ### Side effects
 

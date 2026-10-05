@@ -35,8 +35,10 @@ int    mg_hook_prompt_worth(const char *prompt);
 /* The one-line session hint for a plan; 0 when there is nothing to say. */
 size_t mg_hook_session_text(const mg_status_step_t *steps, size_t n, char *buf, size_t cap);
 
-/* The context injected for a STRONG hit; returns its length. */
+/* The context injected for a STRONG hit; returns its length. `state` is
+ * the note's lifecycle state ("stale" gets an explicit warning; NULL is
+ * read as active). */
 size_t mg_hook_prompt_text(const char *id, const char *title, const char *body,
-                           char *buf, size_t cap);
+                           const char *state, char *buf, size_t cap);
 
 #endif

@@ -93,6 +93,7 @@ pipeline (trigram Jaccard + cosine + optional cross-encoder).
     "hit": "STRONG",
     "id_hex": "019e09a95e7a...",
     "title": "Spring Boot @Valid cascade on nested DTOs ...",
+    "state": "active",
     "body":  "Without @Valid on the nested field, ...",
     "signals": {
       "s_vec": 0.91, "s_lex": 0.42, "s_jaccard": 0.38, "s_ce": null
@@ -101,7 +102,9 @@ pipeline (trigram Jaccard + cosine + optional cross-encoder).
 }
 ```
 
-`body` is `null` on `WEAK` hits.
+`body` is `null` on `WEAK` hits. `state` is `active` or `stale`: a stale
+note is still searchable but doubtful, so verify it before relying on it.
+Search and explore results carry the same field.
 
 **Response — MISS:**
 
@@ -111,7 +114,7 @@ pipeline (trigram Jaccard + cosine + optional cross-encoder).
   "result": {
     "hit": "MISS",
     "fallback_retrieve": {
-      "results": [ { "id_hex": "...", "title": "...", "score": 0.014 } ]
+      "results": [ { "id_hex": "...", "title": "...", "state": "active", "score": 0.014 } ]
     },
     "signals": { "s_vec": 0.21, ... }
   }
@@ -130,7 +133,7 @@ Hybrid retrieval. Returns nodes ranked by RRF score over three lists
   "status": 0,
   "result": {
     "results": [
-      { "id_hex": "...", "title": "...", "score": 0.0314,
+      { "id_hex": "...", "title": "...", "state": "active", "score": 0.0314,
         "keywords": ["spring-boot", "validation"] }
     ],
     "distinct_keywords": [ "spring-boot", "validation", ... ]
@@ -151,7 +154,7 @@ to the seed selection.
   "status": 0,
   "result": {
     "nodes": [
-      { "id_hex": "...", "title": "...", "score": 0.66, "cosine": 0.66, "depth_reached": 0 }
+      { "id_hex": "...", "title": "...", "state": "active", "score": 0.66, "cosine": 0.66, "depth_reached": 0 }
     ],
     "edges": [
       { "src_hex": "...", "dst_hex": "...", "kind": "semantic", "weight": 0.84 }

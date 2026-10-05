@@ -98,13 +98,14 @@ STRONG / WEAK:
     "hit":   "STRONG",
     "id_hex":"019e09a95e7a...",
     "title": "...",
+    "state": "active",
     "body":  "...",
     "signals": { "s_vec": 0.91, "s_lex": 0.42, "s_jaccard": 0.38, "s_ce": null }
   }
 }
 ```
 
-`body` is `null` on WEAK.
+`body` is `null` on WEAK. `state` is `active` or `stale` (doubtful: verify before relying on it); search and explore results carry it too.
 
 MISS:
 
@@ -130,7 +131,7 @@ Hybrid retrieval via RRF over `(R_vec, R_bm25_title, R_bm25_body)`:
   "status": 0,
   "result": {
     "results": [
-      { "id_hex": "...", "title": "...", "score": 0.0314, "keywords": ["spring-boot"] }
+      { "id_hex": "...", "title": "...", "state": "active", "score": 0.0314, "keywords": ["spring-boot"] }
     ],
     "distinct_keywords": [ "spring-boot", "validation", ... ]
   }
@@ -147,7 +148,7 @@ Beam search. Optional comma-separated keyword filter applied to the seed selecti
 {
   "status": 0,
   "result": {
-    "nodes": [{ "id_hex": "...", "title": "...", "score": 0.66, "cosine": 0.66, "depth_reached": 0 }],
+    "nodes": [{ "id_hex": "...", "title": "...", "state": "active", "score": 0.66, "cosine": 0.66, "depth_reached": 0 }],
     "edges": [{ "src_hex": "...", "dst_hex": "...", "kind": "semantic", "weight": 0.84 }]
   }
 }

@@ -315,16 +315,25 @@ static size_t utf8_cut(const char *s, size_t max) {
 }
 
 size_t mg_hook_prompt_text(const char *id, const char *title, const char *body,
-                           char *buf, size_t cap) {
+                           const char *state, char *buf, size_t cap) {
     size_t len = 0, bn = utf8_cut(body ? body : "", HOOK_BODY_MAX);
     char head[512];
     int k;
     if (cap == 0) return 0;
     buf[0] = '\0';
-    k = snprintf(head, sizeof(head),
-                 "graft memory: a stored note is a STRONG match for this prompt. Close is not "
-                 "proven - check it against the code before relying on it.\n[%s] %s\n",
-                 id ? id : "?", title ? title : "");
+    if (state && !strcmp(state, "stale")) {
+        /* still recalled for context, never passed off as a live note */
+        k = snprintf(head, sizeof(head),
+                     "graft memory: a stored note is a STRONG match for this prompt, but it is "
+                     "marked STALE (doubtful, possibly outdated). Verify it against the current "
+                     "code and sources before relying on it.\n[%s] (stale) %s\n",
+                     id ? id : "?", title ? title : "");
+    } else {
+        k = snprintf(head, sizeof(head),
+                     "graft memory: a stored note is a STRONG match for this prompt. Close is not "
+                     "proven - check it against the code before relying on it.\n[%s] %s\n",
+                     id ? id : "?", title ? title : "");
+    }
     if (k > 0) len = put(buf, len, cap, head, (size_t)k < sizeof(head) ? (size_t)k : sizeof(head) - 1);
     len = put(buf, len, cap, body ? body : "", bn);
     if (body && bn < strlen(body)) len = put_s(buf, len, cap, " [...]");
@@ -389,7 +398,7 @@ static void hook_session_start(const char *in, size_t len) {
 
 static void hook_prompt(const char *in, size_t len) {
     static char text[HOOK_TEXT_CAP];
-    char *prompt = NULL, *args = NULL, *id = NULL, *title = NULL, *body = NULL;
+    char *prompt = NULL, *args = NULL, *id = NULL, *title = NULL, *body = NULL, *state = NULL;
     size_t args_len = 0;
     mpack_writer_t w;
     mpack_tree_t tree;
@@ -425,12 +434,14 @@ static void hook_prompt(const char *in, size_t len) {
             DUP(id, "id_hex")
             DUP(title, "title")
             DUP(body, "body")
+            DUP(state, "state")
 #undef DUP
-            if (id && mg_hook_prompt_text(id, title, body, text, sizeof(text)) > 0)
+            if (id && mg_hook_prompt_text(id, title, body, state, text, sizeof(text)) > 0)
                 emit("UserPromptSubmit", text);
             free(id);
             free(title);
             free(body);
+            free(state);
         }
     }
     if (resp) {

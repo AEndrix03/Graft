@@ -216,9 +216,7 @@ static void write_insert_result(
   /* A duplicate answers with the existing node, which may not be live:
    * the state says whether a search can still reach it. */
   mpack_write_cstr(result, "state");
-  mpack_write_cstr(result, state == MG_NODE_STALE      ? "stale"
-                         : state == MG_NODE_SUPERSEDED ? "superseded"
-                         : state == MG_NODE_RETIRED    ? "retired" : "active");
+  mpack_write_cstr(result, mg_node_state_name(state));
   if (state == MG_NODE_SUPERSEDED) {
     if (superseded_by) {
       char by_hex[33];

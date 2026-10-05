@@ -278,6 +278,9 @@ mg_err_t mg_retrieve_run_rrf(mg_ctx_t *ctx,
         mpack_write_cstr(w, "title");
         mpack_write_cstr(w, node.title ? node.title : "");
 
+        mpack_write_cstr(w, "state");
+        mpack_write_cstr(w, mg_node_state_name(node.state));
+
         mpack_write_cstr(w, "score");
         mpack_write_float(w, cands[i].rrf);
 

@@ -250,16 +250,20 @@ static void test_texts(void) {
   CHECK(strchr(buf, '\n') == NULL, "one line");
   CHECK(mg_hook_session_text(st, 2, buf, 16) == 15 && strlen(buf) == 15, "truncated, terminated");
 
-  n = mg_hook_prompt_text("abcd", "Title", "short body", buf, sizeof(buf));
+  n = mg_hook_prompt_text("abcd", "Title", "short body", "active", buf, sizeof(buf));
   CHECK(n == strlen(buf) && strstr(buf, "[abcd] Title\nshort body") &&
         strstr(buf, "graft get abcd") && !strstr(buf, "[...]"), "short note injected whole");
+  CHECK(!strstr(buf, "STALE"), "an active note carries no stale warning");
+  n = mg_hook_prompt_text("abcd", "Title", "short body", "stale", buf, sizeof(buf));
+  CHECK(n == strlen(buf) && strstr(buf, "marked STALE") && strstr(buf, "[abcd] (stale) Title") &&
+        strstr(buf, "short body"), "a stale note is injected with a warning");
   /* 799 ASCII bytes then a 2-byte char: the cut must not split it */
   memset(body, 'x', 799);
   body[799] = '\xc3';
   body[800] = '\xa8';
   memset(body + 801, 'y', 100);
   body[901] = '\0';
-  n = mg_hook_prompt_text("id", "T", body, buf, sizeof(buf));
+  n = mg_hook_prompt_text("id", "T", body, NULL, buf, sizeof(buf));
   CHECK(strstr(buf, "x [...]") != NULL && strstr(buf, "\xc3 [") == NULL,
         "long body cut on a UTF-8 boundary");
 }

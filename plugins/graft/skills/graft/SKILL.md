@@ -91,6 +91,10 @@ So: read the node, then check it against what is in front of you (the code, the
 config, the error). If it holds, use it and say where it came from. If it does
 not, see *Fixing stale evidence* below.
 
+Every result also carries `state`. `"stale"` means someone already marked the note
+doubtful: it is returned for context, even as a `STRONG` hit, but never use it
+without verifying it first; when you confirm or correct it, `restore` or supersede it.
+
 ## Asking well
 
 Query graft the way you query a search engine, not the way you talk to a person.

@@ -155,6 +155,9 @@ function exploreStrong(idHex, title) {
 
   if (r.hit === 'STRONG') {
     process.stdout.write('<graft-cache hit="STRONG">\n');
+    if (r.state === 'stale') {
+      process.stdout.write('state: stale (doubtful, possibly outdated): verify it against the current code and sources before relying on it\n');
+    }
     if (r.id_hex) process.stdout.write(`id_hex: ${r.id_hex}\n`);
     if (r.title) process.stdout.write(`title: ${r.title}\n`);
     if (r.body) process.stdout.write(`body: ${r.body}\n`);
@@ -165,7 +168,8 @@ function exploreStrong(idHex, title) {
     if (neighbours.length) {
       process.stdout.write('region (depth >= 1, open with graft get <id_hex> what may contradict or constrain the answer):\n');
       for (const n of neighbours) {
-        process.stdout.write(`- [d${n.depth_reached}] ${n.title} id_hex=${n.id_hex}\n`);
+        const stale = n.state === 'stale' ? ' (stale)' : '';
+        process.stdout.write(`- [d${n.depth_reached}] ${n.title}${stale} id_hex=${n.id_hex}\n`);
       }
     }
     process.stdout.write('</graft-cache>\n');
@@ -179,7 +183,7 @@ function exploreStrong(idHex, title) {
 
     process.stdout.write('<graft-cache hit="WEAK">\n');
     if (r.id_hex) process.stdout.write(`weak_id_hex: ${r.id_hex}\n`);
-    if (r.title) process.stdout.write(`weak_title: ${r.title}\n`);
+    if (r.title) process.stdout.write(`weak_title: ${r.title}${r.state === 'stale' ? ' (stale)' : ''}\n`);
     if (keywords.length) process.stdout.write(`classified_keywords: ${keywords.join(', ')}\n`);
     process.stdout.write(`explore_depth: ${WEAK_EXPLORE_DEPTH}\n`);
     process.stdout.write(`explore_beam: ${WEAK_EXPLORE_BEAM}\n`);
@@ -188,7 +192,8 @@ function exploreStrong(idHex, title) {
       for (const n of candidates) {
         const score = typeof n.score === 'number' ? ` score=${n.score.toFixed(3)}` : '';
         const id = n.id_hex ? ` id_hex=${n.id_hex}` : '';
-        process.stdout.write(`- ${n.title}${id}${score}\n`);
+        const stale = n.state === 'stale' ? ' (stale)' : '';
+        process.stdout.write(`- ${n.title}${stale}${id}${score}\n`);
       }
     }
     process.stdout.write('If you use this WEAK match as the basis for a different solution, save a new node that strengthens the memory.\n');

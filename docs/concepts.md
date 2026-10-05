@@ -14,7 +14,7 @@ A node has:
 - **`keywords`** — one or more tags that link this node into the graph (e.g. `spring-boot`, `validation`, `gotcha`). Keywords create edges between related nodes.
 - **`author`** — who (or which agent) created this node. Defaults to `user@hostname`.
 - **`expires_at`** — optional TTL. After this timestamp, the node is hidden from all queries and cleaned up by `graft consolidate`.
-- **`state`** — `ACTIVE`, `STALE`, or `SUPERSEDED`. Only ACTIVE nodes are returned by queries.
+- **`state`** — `ACTIVE`, `STALE`, `SUPERSEDED` or `RETIRED`. `query`, `retrieve` and `explore` return ACTIVE and STALE nodes (a stale note is doubtful but kept for context) and report each result's `state`, so a stale note is never mistaken for a live one; superseded and retired nodes are left out. See [maintenance](maintenance/README.md).
 
 **Writing good titles is the most important thing.** The title is the retrieval anchor. A good title is the specific, complete sentence that someone would be looking for when they need this memory. A vague title (`"Spring Boot issue"`) produces weak hits; a specific one (`"Spring Boot @Valid does not cascade to nested DTOs without @Valid on the nested field"`) produces STRONG hits even with different query phrasing.
 
