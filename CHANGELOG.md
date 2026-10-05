@@ -6,18 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 Every change that a user could notice lands here in the same pull request that
-makes it, under `## [Unreleased]`. When a release is cut, that section is renamed
-to `## [x.y.z] - YYYY-MM-DD` and becomes the body of the GitHub Release.
+makes it, under `## [Unreleased]
 
-## [Unreleased]
+### Changed
+
+- The MCP server's instructions, the `graft_delete` description, the ChatGPT / Claude.ai prompt snippets and the `learn` skill no longer recommend "delete, then re-insert" to fix a note. A correction is now an insert followed by `graft_maintain_resolve` `supersede`; doubtful notes go `stale`, useless ones `retire`, all audited and reversible. `graft_delete` is described as the permanent, unaudited hard delete it is, for content that must vanish such as a leaked secret ([#18](https://github.com/AEndrix03/Graft/issues/18)).
+- `query`, `retrieve` and `explore` are read-only again: they still hide expired notes but no longer delete them on the way, so a search never opens a write transaction on the shared database. Expired notes are removed by `graft consolidate` / `graft maintain apply-safe` ([#19](https://github.com/AEndrix03/Graft/issues/19)).
 
 ### Fixed
 
 - Inserting the exact content of a superseded note no longer looks like an ordinary successful duplicate. The insert response now carries the node's `state`, and for a superseded match also `superseded_by`, the note that replaced it; the old note stays superseded (restoring it would break its lineage). A retired match is still restored and reported `active` ([#20](https://github.com/AEndrix03/Graft/issues/20)).
-
-### Changed
-
-- `query`, `retrieve` and `explore` are read-only again: they still hide expired notes but no longer delete them on the way, so a search never opens a write transaction on the shared database. Expired notes are removed by `graft consolidate` / `graft maintain apply-safe` ([#19](https://github.com/AEndrix03/Graft/issues/19)).
 
 ## [0.2.0] - 2026-10-04
 
