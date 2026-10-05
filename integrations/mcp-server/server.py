@@ -115,8 +115,13 @@ def create_mcp(**kwargs: Any) -> FastMCP:
             "non-trivial problems (graft_query / graft_retrieve / graft_explore) "
             "and save AFTER novel solutions (graft_classify + graft_insert). "
             "Multi-tenant via profiles: pass `profile=<name>` to any tool to target "
-            "a specific tenant. Use graft_delete to remove obsolete/wrong nodes; "
-            "to 'modify' a node, delete it then re-insert with the corrected fields."
+            "a specific tenant. Nodes are never edited in place. To correct a node, "
+            "graft_insert the corrected version, then graft_maintain_resolve "
+            "node=<old> action='supersede' by=<new>. A doubtful node you cannot "
+            "verify: action='stale'. One no longer useful: action='retire'. All "
+            "of these are audited and reversible ('restore'). graft_delete is a "
+            "permanent hard delete that bypasses history and the audit log: use it "
+            "only for content that must disappear, e.g. a secret saved by mistake."
         ),
         **kwargs,
     )
@@ -198,7 +203,10 @@ def register_tools(mcp: FastMCP) -> FastMCP:
 
     @mcp.tool()
     def graft_delete(id_hex: str, profile: Optional[str] = None) -> dict:
-        """Remove a node from the graph by its 32-char hex id."""
+        """Permanently delete a node by its 32-char hex id. Destructive and not
+        audited: not the way to edit or retire knowledge (use graft_insert +
+        graft_maintain_resolve supersede / stale / retire for that). Only for
+        content that must disappear, e.g. a secret saved by mistake."""
         _require_scopes(ADMIN_SCOPE)
         return _run(["delete", id_hex], profile=profile)
 
