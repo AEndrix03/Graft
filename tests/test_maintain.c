@@ -749,6 +749,111 @@ static void test_sources(void) {
   cleanup_db(path);
 }
 
+/* A node stored under the hash `insert` computes for title + body and no
+ * keywords, so inserting the same text through the op hits it. */
+static void add_insertable(mg_storage_t *s, mg_node_id_t id, const char *title, const char *body,
+                           int block, const mg_node_id_t *supersedes) {
+  mg_node_t n;
+  mg_embedding_t e;
+  char buf[256];
+  size_t tl = strlen(title), bl = strlen(body);
+  memset(&n, 0, sizeof(n));
+  mg_uuidv7(n.id);
+  memcpy(buf, title, tl);
+  buf[tl] = '\0';
+  memcpy(buf + tl + 1, body, bl);
+  buf[tl + 1 + bl] = '\0';
+  mg_blake3((const uint8_t *)buf, tl + bl + 2, n.content_hash);
+  n.title = (char *)title;
+  n.body = (char *)body;
+  n.created_at = now_ms();
+  n.last_access = n.created_at;
+  block_emb(e, block, 0.0f);
+  if (mg_storage_insert_node_with_edges(s, &n, e, NULL, 0, NULL, 0, supersedes) != MG_OK) {
+    fprintf(stderr, "insert %s failed\n", title);
+    exit(1);
+  }
+  memcpy(id, n.id, MG_NODE_ID_BYTES);
+}
+
+static mpack_node_t insert_text(mg_ctx_t *ctx, const char *title, const char *body, int *status) {
+  char *args = NULL;
+  size_t len = 0;
+  mpack_writer_t w;
+  mpack_node_t r;
+  mpack_writer_init_growable(&w, &args, &len);
+  mpack_start_map(&w, 3);
+  mpack_write_cstr(&w, "title");    mpack_write_cstr(&w, title);
+  mpack_write_cstr(&w, "body");     mpack_write_cstr(&w, body);
+  mpack_write_cstr(&w, "keywords"); mpack_start_array(&w, 0); mpack_finish_array(&w);
+  mpack_finish_map(&w);
+  mpack_writer_destroy(&w);
+  r = dispatch(ctx, "insert", args, len, status);
+  free(args);
+  return r;
+}
+
+/* Issue #20: an exact duplicate reports the lifecycle of the node it hits;
+ * a superseded node is never passed off as a live one, nor restored. */
+static void test_duplicate_insert_states(void) {
+  const char *path = "test_maintain_dup.db";
+  mg_storage_t *s = open_db(path);
+  mg_ctx_t ctx;
+  mg_config_t cfg;
+  mg_node_id_t active, stale, retired, old, newer;
+  char h[33], hnewer[33];
+  int st;
+  mpack_node_t r;
+  mg_config_defaults(&cfg);
+  init_ctx(&ctx, s, &cfg);
+  /* never dereferenced: a duplicate answers before anything is embedded */
+  ctx.embed = (mg_embed_ctx_t *)&cfg;
+
+  add_insertable(s, active, "active note", "a", 1, NULL);
+  add_insertable(s, stale, "stale note", "s", 2, NULL);
+  add_insertable(s, retired, "retired note", "r", 3, NULL);
+  add_insertable(s, old, "old note", "o", 4, NULL);
+  add_insertable(s, newer, "new note", "n", 5, (const mg_node_id_t *)&old);
+  hex(newer, hnewer);
+
+  hex(stale, h);
+  call(&ctx, "maintain_resolve", &st, "node", h, "action", "stale", NULL);
+  CHECK(st == 0, "mark stale");
+  hex(retired, h);
+  call(&ctx, "maintain_resolve", &st, "node", h, "action", "retire", NULL);
+  CHECK(st == 0, "retire");
+
+  r = insert_text(&ctx, "active note", "a", &st);
+  hex(active, h);
+  CHECK(st == 0 && mpack_node_bool(mpack_node_map_cstr_optional(r, "duplicate")), "active dup");
+  CHECK(str_eq(mpack_node_map_cstr_optional(r, "id_hex"), h), "active dup id");
+  CHECK(str_eq(mpack_node_map_cstr_optional(r, "state"), "active"), "active dup state");
+  CHECK(mpack_node_is_missing(mpack_node_map_cstr_optional(r, "superseded_by")),
+        "no successor on an active dup");
+
+  r = insert_text(&ctx, "stale note", "s", &st);
+  CHECK(st == 0 && str_eq(mpack_node_map_cstr_optional(r, "state"), "stale"), "stale dup state");
+  CHECK(node_state(s, stale) == MG_NODE_STALE, "stale dup left stale");
+
+  r = insert_text(&ctx, "retired note", "r", &st);
+  CHECK(st == 0 && str_eq(mpack_node_map_cstr_optional(r, "state"), "active"), "retired dup restored");
+  CHECK(node_state(s, retired) == MG_NODE_ACTIVE, "retired dup back to active");
+
+  r = insert_text(&ctx, "old note", "o", &st);
+  hex(old, h);
+  CHECK(st == 0 && mpack_node_bool(mpack_node_map_cstr_optional(r, "duplicate")), "superseded dup");
+  CHECK(str_eq(mpack_node_map_cstr_optional(r, "id_hex"), h), "superseded dup id");
+  CHECK(str_eq(mpack_node_map_cstr_optional(r, "state"), "superseded"), "superseded dup state");
+  CHECK(str_eq(mpack_node_map_cstr_optional(r, "superseded_by"), hnewer), "superseded dup successor");
+  CHECK(node_state(s, old) == MG_NODE_SUPERSEDED, "superseded dup not restored");
+  CHECK(!in_vector_search(s, old, 4), "superseded dup still out of search");
+
+  if (g_resp) { mpack_tree_destroy(&g_tree); free(g_resp); g_resp = NULL; }
+  mg_config_free(&cfg);
+  mg_storage_close(s);
+  cleanup_db(path);
+}
+
 int main(void) {
   test_pairs_and_resolve();
   test_merge_action();
@@ -756,6 +861,7 @@ int main(void) {
   test_apply_safe_and_status();
   test_low_value_and_keywords();
   test_sources();
+  test_duplicate_insert_states();
   if (g_fail) {
     fprintf(stderr, "test_maintain: %d failure(s)\n", g_fail);
     return 1;

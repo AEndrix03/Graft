@@ -128,6 +128,9 @@ mg_err_t mg_storage_prune_expired(mg_storage_t *s, int64_t *out_deleted);
 /* Lookup idempotenza */
 mg_err_t mg_storage_node_id_by_hash(mg_storage_t *s, const mg_hash_t h, mg_node_id_t out);
 
+/* Newest node with a SUPERSEDES edge to `id`. MG_ERR_NOT_FOUND when none. */
+mg_err_t mg_storage_superseded_by(mg_storage_t *s, const mg_node_id_t id, mg_node_id_t out);
+
 mg_err_t mg_storage_touch_access(mg_storage_t *s, const mg_node_id_t id);
 
 /* === Keywords === */

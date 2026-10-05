@@ -182,7 +182,7 @@ Body (`application/json`):
 Response:
 
 ```json
-{ "status": 0, "result": { "id_hex": "019e0a44...", "duplicate": false, "n_kw_edges": 3, "n_sem_edges": 2 } }
+{ "status": 0, "result": { "id_hex": "019e0a44...", "duplicate": false, "state": "active", "n_kw_edges": 3, "n_sem_edges": 2 } }
 ```
 
 When `supersedes` is provided and resolves to an existing node:

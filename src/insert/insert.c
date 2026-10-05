@@ -194,12 +194,15 @@ static void write_insert_result(
   size_t n_kw_edges,
   size_t n_sem_edges,
   bool duplicate,
-  size_t n_sources
+  size_t n_sources,
+  mg_node_state_t state,
+  const mg_node_id_t superseded_by
 ) {
   char id_hex[33];
   write_id_hex(id, id_hex);
 
-  mpack_start_map(result, n_sources > 0 ? 6 : 5);
+  mpack_start_map(result, 6u + (n_sources > 0 ? 1u : 0u)
+                          + (state == MG_NODE_SUPERSEDED ? 1u : 0u));
   mpack_write_cstr(result, "id");
   mpack_write_bin(result, (const char *)id, MG_NODE_ID_BYTES);
   mpack_write_cstr(result, "id_hex");
@@ -210,6 +213,23 @@ static void write_insert_result(
   mpack_write_u64(result, (uint64_t)n_sem_edges);
   mpack_write_cstr(result, "duplicate");
   mpack_write_bool(result, duplicate);
+  /* A duplicate answers with the existing node, which may not be live:
+   * the state says whether a search can still reach it. */
+  mpack_write_cstr(result, "state");
+  mpack_write_cstr(result, state == MG_NODE_STALE      ? "stale"
+                         : state == MG_NODE_SUPERSEDED ? "superseded"
+                         : state == MG_NODE_RETIRED    ? "retired" : "active");
+  if (state == MG_NODE_SUPERSEDED) {
+    if (superseded_by) {
+      char by_hex[33];
+      write_id_hex(superseded_by, by_hex);
+      mpack_write_cstr(result, "superseded_by");
+      mpack_write_cstr(result, by_hex);
+    } else {
+      mpack_write_cstr(result, "superseded_by");
+      mpack_write_nil(result);
+    }
+  }
   if (n_sources > 0) {
     /* also on a duplicate: the sources were attached to the existing node */
     mpack_write_cstr(result, "sources_attached");
@@ -218,20 +238,29 @@ static void write_insert_result(
   mpack_finish_map(result);
 }
 
-/* Saving the exact content of a retired node again means it is wanted
- * after all: bring it back (audited like a `maintain resolve ... restore`)
- * instead of answering with an id no search can reach. */
-static mg_err_t restore_if_retired(mg_storage_t *s, const mg_node_id_t id, int64_t now) {
+/* Saving the exact content of an existing node again. A retired node is
+ * wanted after all: bring it back (audited like a `maintain resolve ...
+ * restore`) instead of answering with an id no search can reach. A
+ * superseded one stays superseded, since restoring it would break its
+ * lineage: the caller gets its state and successor and decides. */
+static mg_err_t settle_duplicate(mg_storage_t *s, const mg_node_id_t id, int64_t now,
+                                 mg_node_state_t *state, mg_node_id_t superseded_by,
+                                 bool *has_superseded_by) {
   mg_node_t node;
   mg_maint_change_t change;
   mg_maint_log_t log;
   char hex[33];
-  int retired;
   mg_err_t err = mg_storage_get_node(s, id, &node);
   if (err != MG_OK) return err;
-  retired = node.state == MG_NODE_RETIRED;
+  *state = node.state;
+  *has_superseded_by = false;
   mg_node_free(&node);
-  if (!retired) return MG_OK;
+  if (*state == MG_NODE_SUPERSEDED) {
+    err = mg_storage_superseded_by(s, id, superseded_by);
+    if (err == MG_OK) *has_superseded_by = true;
+    return err == MG_ERR_NOT_FOUND ? MG_OK : err;
+  }
+  if (*state != MG_NODE_RETIRED) return MG_OK;
   memset(&change, 0, sizeof(change));
   change.to = MG_MAINT_TO_ACTIVE;
   memcpy(change.node, id, MG_NODE_ID_BYTES);
@@ -242,7 +271,9 @@ static mg_err_t restore_if_retired(mg_storage_t *s, const mg_node_id_t id, int64
   log.action = "restore";
   log.nodes = hex;
   log.detail = "same content inserted again";
-  return mg_storage_maint_apply(s, &change, 1, NULL, NULL, NULL, NULL, &log);
+  err = mg_storage_maint_apply(s, &change, 1, NULL, NULL, NULL, NULL, &log);
+  if (err == MG_OK) *state = MG_NODE_ACTIVE;
+  return err;
 }
 
 mg_err_t mg_op_insert(mg_ctx_t *ctx, mpack_node_t args, mpack_writer_t *result) {
@@ -338,6 +369,9 @@ mg_err_t mg_op_insert(mg_ctx_t *ctx, mpack_node_t args, mpack_writer_t *result) 
   size_t n_kw_edges = 0u;
   size_t n_sem_edges = 0u;
   mg_node_id_t existing_id;
+  mg_node_id_t dup_by;
+  mg_node_state_t dup_state = MG_NODE_ACTIVE;
+  bool has_dup_by = false;
   mg_node_t node;
   memset(&node, 0, sizeof(node));
 
@@ -355,10 +389,11 @@ mg_err_t mg_op_insert(mg_ctx_t *ctx, mpack_node_t args, mpack_writer_t *result) 
       err = mg_storage_attach_sources(ctx->storage, existing_id, sources, n_sources);
     }
     if (err == MG_OK) {
-      err = restore_if_retired(ctx->storage, existing_id, now);
+      err = settle_duplicate(ctx->storage, existing_id, now, &dup_state, dup_by, &has_dup_by);
     }
     if (err == MG_OK) {
-      write_insert_result(result, existing_id, 0u, 0u, true, n_sources);
+      write_insert_result(result, existing_id, 0u, 0u, true, n_sources, dup_state,
+                          has_dup_by ? dup_by : NULL);
     }
     goto done;
   }
@@ -419,7 +454,8 @@ mg_err_t mg_op_insert(mg_ctx_t *ctx, mpack_node_t args, mpack_writer_t *result) 
                                             has_supersedes ? (const mg_node_id_t *)&supersedes_id : NULL,
                                             sources, n_sources);
   if (err == MG_OK) {
-    write_insert_result(result, node.id, n_kw_edges, n_sem_edges, false, n_sources);
+    write_insert_result(result, node.id, n_kw_edges, n_sem_edges, false, n_sources,
+                        MG_NODE_ACTIVE, NULL);
   } else if (err == MG_ERR_DUPLICATE &&
              mg_storage_node_id_by_hash(ctx->storage, content_hash, existing_id) == MG_OK) {
     /* A concurrent insert of the same content committed between our hash
@@ -429,7 +465,11 @@ mg_err_t mg_op_insert(mg_ctx_t *ctx, mpack_node_t args, mpack_writer_t *result) 
         ? mg_storage_attach_sources(ctx->storage, existing_id, sources, n_sources)
         : MG_OK;
     if (err == MG_OK) {
-      write_insert_result(result, existing_id, 0u, 0u, true, n_sources);
+      err = settle_duplicate(ctx->storage, existing_id, now, &dup_state, dup_by, &has_dup_by);
+    }
+    if (err == MG_OK) {
+      write_insert_result(result, existing_id, 0u, 0u, true, n_sources, dup_state,
+                          has_dup_by ? dup_by : NULL);
     }
   }
 

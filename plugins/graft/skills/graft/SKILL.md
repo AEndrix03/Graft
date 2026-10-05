@@ -158,7 +158,9 @@ graft insert --title "short searchable title" \
 
 The title is the retrieval anchor: phrase it the way you would *search* for it
 later, not the way you solved it. `insert` is idempotent - the same
-title+body+keywords returns the existing id with `"duplicate": true`.
+title+body+keywords returns the existing id with `"duplicate": true`. Check its
+`"state"`: `"superseded"` means that exact content was already replaced, and
+`"superseded_by"` names the note that holds the current version.
 
 When a note is derived from a file, add `--source file:<path>` (repeatable): graft
 stores the file's project-relative path and fingerprint. `graft sources diff` then

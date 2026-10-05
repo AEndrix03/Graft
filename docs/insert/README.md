@@ -26,6 +26,7 @@ Response:
   "result": {
     "id_hex":      "019e0a4466...",
     "duplicate":   false,
+    "state":       "active",
     "n_kw_edges":  3,
     "n_sem_edges": 2
   }
@@ -33,6 +34,8 @@ Response:
 ```
 
 `duplicate: true` means the content hash already exists. The existing id is returned; no new node, no new edges. This is how `insert` is idempotent. Sources passed with a duplicate are still **attached to the existing node** (the response then carries `sources_attached`), so re-running an ingestion over a changed corpus accumulates provenance and refreshes the fingerprints of content that is still identical, instead of failing.
+
+`state` is the lifecycle state of the returned node (`active` for a new one). On a duplicate it tells whether the existing node is still reachable by search: `active` or `stale` as usual; a `retired` node is restored by the insert and comes back `active`; a `superseded` node is **not** restored, since that would break its lineage, and the response adds `superseded_by` (the id of the newest node that replaced it, `null` if unknown). Save the knowledge on the successor instead, or bring the old node back with `graft maintain resolve --node <id> --action restore` if it is right after all.
 
 ## What a "good" node looks like
 

@@ -899,6 +899,29 @@ static mg_err_t storage_node_id_by_hash_unlocked(mg_storage_t *s, const mg_hash_
   return rc == SQLITE_DONE ? MG_ERR_NOT_FOUND : MG_ERR_STORAGE;
 }
 
+/* The node whose SUPERSEDES edge points at `id`. Ids are UUIDv7, so the
+ * highest src is the newest successor when several replaced the node. */
+static mg_err_t storage_superseded_by_unlocked(mg_storage_t *s, const mg_node_id_t id, mg_node_id_t out) {
+  sqlite3_stmt *stmt = NULL;
+  int rc;
+  if (!s || !id || !out) {
+    return MG_ERR_INVALID_ARG;
+  }
+  if (prepare(s->db, "SELECT src FROM edges WHERE dst=? AND kind=? ORDER BY src DESC LIMIT 1;", &stmt) != MG_OK) {
+    return MG_ERR_STORAGE;
+  }
+  sqlite3_bind_blob(stmt, 1, id, MG_NODE_ID_BYTES, SQLITE_STATIC);
+  sqlite3_bind_int(stmt, 2, (int)MG_EDGE_SUPERSEDES);
+  rc = sqlite3_step(stmt);
+  if (rc == SQLITE_ROW) {
+    memcpy(out, sqlite3_column_blob(stmt, 0), MG_NODE_ID_BYTES);
+    sqlite3_finalize(stmt);
+    return MG_OK;
+  }
+  sqlite3_finalize(stmt);
+  return rc == SQLITE_DONE ? MG_ERR_NOT_FOUND : MG_ERR_STORAGE;
+}
+
 static mg_err_t storage_touch_access_unlocked(mg_storage_t *s, const mg_node_id_t id) {
   sqlite3_stmt *stmt = NULL;
   mg_err_t err;
@@ -2040,6 +2063,10 @@ mg_err_t mg_storage_get_node(mg_storage_t *s, const mg_node_id_t id, mg_node_t *
 
 mg_err_t mg_storage_node_id_by_hash(mg_storage_t *s, const mg_hash_t h, mg_node_id_t out) {
   STORAGE_LOCKED(s, storage_node_id_by_hash_unlocked(s, h, out));
+}
+
+mg_err_t mg_storage_superseded_by(mg_storage_t *s, const mg_node_id_t id, mg_node_id_t out) {
+  STORAGE_LOCKED(s, storage_superseded_by_unlocked(s, id, out));
 }
 
 mg_err_t mg_storage_touch_access(mg_storage_t *s, const mg_node_id_t id) {

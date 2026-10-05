@@ -11,6 +11,10 @@ to `## [x.y.z] - YYYY-MM-DD` and becomes the body of the GitHub Release.
 
 ## [Unreleased]
 
+### Fixed
+
+- Inserting the exact content of a superseded note no longer looks like an ordinary successful duplicate. The insert response now carries the node's `state`, and for a superseded match also `superseded_by`, the note that replaced it; the old note stays superseded (restoring it would break its lineage). A retired match is still restored and reported `active` ([#20](https://github.com/AEndrix03/Graft/issues/20)).
+
 ### Changed
 
 - `query`, `retrieve` and `explore` are read-only again: they still hide expired notes but no longer delete them on the way, so a search never opens a write transaction on the shared database. Expired notes are removed by `graft consolidate` / `graft maintain apply-safe` ([#19](https://github.com/AEndrix03/Graft/issues/19)).

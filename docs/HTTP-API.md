@@ -212,6 +212,7 @@ candidate selection (they're still reachable via `/v1/nodes/{id}`).
   "result": {
     "id_hex": "019e0a4466...",
     "duplicate": false,
+    "state": "active",
     "n_kw_edges":  3,
     "n_sem_edges": 2
   }
@@ -219,7 +220,10 @@ candidate selection (they're still reachable via `/v1/nodes/{id}`).
 ```
 
 `duplicate: true` when the content hash matched an existing node — the
-returned `id_hex` is the existing one, no new node was created.
+returned `id_hex` is the existing one, no new node was created. `state` is
+that node's lifecycle state: a `retired` match is restored (`active`), a
+`superseded` one is left as is and the response adds `superseded_by`, the
+id of the node that replaced it (see [insert](insert/README.md)).
 
 ### `GET /v1/nodes/{id_hex}`
 
