@@ -138,7 +138,7 @@ Hybrid retrieval via RRF over `(R_vec, R_bm25_title, R_bm25_body)`:
 }
 ```
 
-`score` is raw RRF (`Σ 1 / (60 + rank_i)`); max ≈ `0.0492` for rank-1 in all three lists.
+`score` is raw weighted RRF (`Σ w_i / (60 + rank_i)`, `w` = 1 for the vector list and `retrieval.lexical_weight` = 0.1 for each BM25 list); max ≈ `0.0197` for rank-1 in all three lists.
 
 ### `GET /v1/explore?text=...&depth=3&beam=4&keywords=a,b,c`
 

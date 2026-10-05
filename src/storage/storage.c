@@ -1059,7 +1059,12 @@ static mg_err_t storage_vector_topk_by_keyword_unlocked(mg_storage_t *s, const m
  * ASCII whitespace and wrap each token as `<col>:"<token>"`, doubling any
  * internal `"` per FTS5 quoting rules. Quoted phrases lose all special
  * meaning to FTS5, so `(`, `)`, `:`, and column-name keywords pass through
- * harmlessly as literal text to match. */
+ * harmlessly as literal text to match.
+ *
+ * Tokens are joined with OR and BM25 ranks rows by how much of the query
+ * they match. Implicit AND left the list empty for almost every
+ * natural-language question, since some word of it is always missing from
+ * the note (bench/results/2026-10-05-fts-match). */
 static char *build_scoped_fts_query(const char *col, const char *query_text) {
   size_t in_len = strlen(query_text);
   size_t col_len = strlen(col);
@@ -1075,9 +1080,9 @@ static char *build_scoped_fts_query(const char *col, const char *query_text) {
     return NULL;
   }
   /* Exact bound: every byte may double (a quote), plus per token the
-   * `<col>:"` prefix, the closing `"` and a separating space. A looser
+   * `<col>:"` prefix, the closing `"` and a ` OR ` separator. A looser
    * bound used to drop the tail of a query made of many short tokens. */
-  size_t cap = 2 * in_len + n_tok * (col_len + 4) + 1;
+  size_t cap = 2 * in_len + n_tok * (col_len + 7) + 1;
   char *out = (char *)malloc(cap);
   if (!out) {
     return NULL;
@@ -1089,7 +1094,10 @@ static char *build_scoped_fts_query(const char *col, const char *query_text) {
     if (i >= in_len) break;
     size_t tok_start = i;
     while (i < in_len && !isspace((unsigned char)query_text[i])) i++;
-    if (op > 0) out[op++] = ' ';
+    if (op > 0) {
+      memcpy(out + op, " OR ", 4);
+      op += 4;
+    }
     /* <col>:"<token with " doubled>" */
     memcpy(out + op, col, col_len); op += col_len;
     out[op++] = ':';

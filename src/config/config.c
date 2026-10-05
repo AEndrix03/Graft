@@ -63,6 +63,7 @@ void mg_config_defaults(mg_config_t *cfg) {
   cfg->verify_weak_min_fused = 0.5f;
   cfg->retrieve_top_k = 25;
   cfg->rrf_k_const = 60;
+  cfg->lexical_weight = 0.1f;
   cfg->query_fallback_top_k = 5;
   cfg->rerank_enabled = false;
   cfg->rerank_top_k = 25;
@@ -236,6 +237,7 @@ static mg_err_t mg_config_apply(mg_config_t *cfg,
   } else if (strcmp(section, "retrieval") == 0) {
     if (strcmp(key, "top_k") == 0 && mg_parse_int(value, &cfg->retrieve_top_k)) return MG_OK;
     if (strcmp(key, "rrf_k_const") == 0 && mg_parse_int(value, &cfg->rrf_k_const)) return MG_OK;
+    if (strcmp(key, "lexical_weight") == 0 && mg_parse_float(value, &cfg->lexical_weight)) return MG_OK;
     if (strcmp(key, "query_fallback_top_k") == 0 && mg_parse_int(value, &cfg->query_fallback_top_k)) return MG_OK;
   } else if (strcmp(section, "rerank") == 0) {
     if (strcmp(key, "enabled") == 0 && mg_parse_bool(value, &b)) {

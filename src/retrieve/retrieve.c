@@ -108,11 +108,11 @@ static int find_or_add_cand(mg_cand_t *cands, int *n,
 
 static void apply_rrf(mg_cand_t *cands, int *n,
                       const mg_node_score_t *list, int list_n,
-                      float k_const) {
+                      float k_const, float weight) {
     for (int rank = 0; rank < list_n; rank++) {
         int idx = find_or_add_cand(cands, n, list[rank].id);
         if (idx < 0) return;  /* candidate pool full */
-        cands[idx].rrf += 1.0f / (k_const + (float)(rank + 1));
+        cands[idx].rrf += weight / (k_const + (float)(rank + 1));
     }
 }
 
@@ -140,6 +140,11 @@ mg_err_t mg_retrieve_run_rrf(mg_ctx_t *ctx,
 
     const float k_const = (float)(ctx->config->rrf_k_const > 0
                                   ? ctx->config->rrf_k_const : 60);
+    /* The BM25 lists match any query token (OR), so on their own they are
+     * noisy: a generic word can rank an unrelated note first. They vote as a
+     * tie-breaker below the vector list (bench/results/2026-10-06-lexical-weight). */
+    const float lex_w = ctx->config->lexical_weight > 0.0f
+                        ? ctx->config->lexical_weight : 0.0f;
 
     mg_node_score_t r_vec[MG_RETRIEVE_PER_LIST_K];
     mg_node_score_t r_sum[MG_RETRIEVE_PER_LIST_K];
@@ -151,19 +156,21 @@ mg_err_t mg_retrieve_run_rrf(mg_ctx_t *ctx,
                                MG_RETRIEVE_PER_LIST_K, r_vec, &n_vec);
     if (e != MG_OK) { n_vec = 0; }
 
-    e = mg_storage_fts_search(ctx->storage, text, MG_RETRIEVE_PER_LIST_K,
-                              true, false, r_sum, &n_sum);
-    if (e != MG_OK) { n_sum = 0; }
+    if (lex_w > 0.0f) {
+        e = mg_storage_fts_search(ctx->storage, text, MG_RETRIEVE_PER_LIST_K,
+                                  true, false, r_sum, &n_sum);
+        if (e != MG_OK) { n_sum = 0; }
 
-    e = mg_storage_fts_search(ctx->storage, text, MG_RETRIEVE_PER_LIST_K,
-                              false, true, r_det, &n_det);
-    if (e != MG_OK) { n_det = 0; }
+        e = mg_storage_fts_search(ctx->storage, text, MG_RETRIEVE_PER_LIST_K,
+                                  false, true, r_det, &n_det);
+        if (e != MG_OK) { n_det = 0; }
+    }
 
     mg_cand_t cands[MG_RETRIEVE_MAX_CAND];
     int n_cands = 0;
-    apply_rrf(cands, &n_cands, r_vec, n_vec, k_const);
-    apply_rrf(cands, &n_cands, r_sum, n_sum, k_const);
-    apply_rrf(cands, &n_cands, r_det, n_det, k_const);
+    apply_rrf(cands, &n_cands, r_vec, n_vec, k_const, 1.0f);
+    apply_rrf(cands, &n_cands, r_sum, n_sum, k_const, lex_w);
+    apply_rrf(cands, &n_cands, r_det, n_det, k_const, lex_w);
 
     qsort(cands, (size_t)n_cands, sizeof(cands[0]), cmp_cand_rrf_desc);
 

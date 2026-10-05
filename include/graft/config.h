@@ -37,6 +37,7 @@ typedef struct {
   /* retrieval */
   int   retrieve_top_k;
   int   rrf_k_const;
+  float lexical_weight;         /* RRF weight of each BM25 list; the vector list weighs 1 */
   int   query_fallback_top_k;   /* cap on results returned in query MISS fallback_retrieve */
 
   /* rerank — second-stage reranker over RRF output */

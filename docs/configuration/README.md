@@ -38,6 +38,7 @@ cache:
 retrieval:
   top_k:                25
   rrf_k_const:          60
+  lexical_weight:       0.1
   query_fallback_top_k: 5
 
 edges:
@@ -121,6 +122,7 @@ Read [`retrieval/`](../retrieval/) for the full gating formula.
 | --- | ------- | ------------ |
 | `top_k`                | `25` | Default `top_k` for `graft retrieve`. Internally capped at 256. |
 | `rrf_k_const`          | `60` | The `k` in `1 / (k + rank_i)`. Standard RRF value. |
+| `lexical_weight`       | `0.1` | RRF weight of each BM25 list (title, body); the vector list weighs 1. The BM25 lists match any query word, so they work as a tie-breaker on team-specific vocabulary. `0` disables them (vector-only). |
 | `query_fallback_top_k` | `5`  | Cap on the `fallback_retrieve` list inside a `query` MISS response. Keeps the agent's context light on bad queries. |
 
 #### `edges`

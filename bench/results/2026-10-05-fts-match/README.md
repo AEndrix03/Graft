@@ -70,6 +70,10 @@ Dropping English/Italian stopwords and 1–2 character tokens before OR-ing was
 checked on the lexical branch alone and barely moved it (held-out title
 recall@1 0.700 → 0.756, body unchanged), so it does not address the fusion.
 
+> **Update 2026-10-06:** with 45 more project notes and questions, OR with
+> lexical weight 0.1 was chosen on dev and confirmed on held-out, and is now the
+> default: see [`2026-10-06-lexical-weight`](../2026-10-06-lexical-weight/README.md).
+
 ## Follow-up: OR with a down-weighted lexical vote
 
 The lever looked like the fusion, not the MATCH expression, so OR was

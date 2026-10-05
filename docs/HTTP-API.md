@@ -141,8 +141,10 @@ Hybrid retrieval. Returns nodes ranked by RRF score over three lists
 }
 ```
 
-`score` is the raw RRF (`Σ 1/(k+rank_i)` with `k=60`); the theoretical max
-is `3/61 ≈ 0.0492` for a doc that's rank 1 in all three lists.
+`score` is the raw weighted RRF (`Σ w_i/(k+rank_i)` with `k=60`, `w` = 1 for
+the vector list and `retrieval.lexical_weight` = 0.1 for each BM25 list); the
+theoretical max is `(1 + 2 × 0.1)/61 ≈ 0.0197` for a doc that's rank 1 in all
+three lists.
 
 ### `GET /v1/explore?text=...&depth=3&beam=4&keywords=a,b,c`
 

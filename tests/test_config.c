@@ -80,6 +80,7 @@ static void test_defaults(void) {
 
   expect_int(cfg.retrieve_top_k      == 25, "default retrieve_top_k");
   expect_int(cfg.rrf_k_const         == 60, "default rrf_k_const");
+  expect_float(cfg.lexical_weight, 0.1f, 0.001f, "default lexical_weight");
   expect_int(cfg.query_fallback_top_k == 5, "default query_fallback_top_k");
 
   expect_int(!cfg.rerank_enabled,    "default rerank_enabled=false");
@@ -163,6 +164,7 @@ static void test_overrides(void) {
     "retrieval:\n"
     "  top_k: 30\n"
     "  rrf_k_const: 50\n"
+    "  lexical_weight: 0.25\n"
     "  query_fallback_top_k: 10\n"
     "rerank:\n"
     "  enabled: true\n"
@@ -240,6 +242,7 @@ static void test_overrides(void) {
   expect_float(cfg.min_lex_overlap,    0.08f, 0.001f, "min_lex_overlap override");
   expect_int(cfg.retrieve_top_k      == 30, "retrieve_top_k override");
   expect_int(cfg.rrf_k_const         == 50, "rrf_k_const override");
+  expect_float(cfg.lexical_weight, 0.25f, 0.001f, "lexical_weight override");
   expect_int(cfg.query_fallback_top_k == 10, "query_fallback_top_k override");
   expect_int(cfg.rerank_enabled,      "rerank_enabled override");
   expect_int(cfg.rerank_top_k == 15,  "rerank_top_k override");

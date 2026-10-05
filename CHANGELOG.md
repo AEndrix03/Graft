@@ -8,14 +8,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Every change that a user could notice lands here in the same pull request that
 makes it, under `## [Unreleased]
 
+### Added
+
+- `bench/corpus-ext/`: 45 more project notes (Orbit and a second fictional codebase, "Ledgerline") with independently written held-out and dev questions, loaded with `bench/run.py --extend`, so retrieval changes can be measured on team-specific knowledge without moving the base numbers. `bench/fts_lexical.py` scores the BM25 lists of `retrieve` on their own, with no daemon or model ([#24](https://github.com/AEndrix03/Graft/issues/24)).
+
 ### Changed
 
+- `retrieve` uses its lexical signal again. The title and body BM25 lists now match any word of the question instead of all of them (with every word required they came back empty for almost every natural-language question, so `retrieve` was vector-only), and they vote in the rank fusion with the new `retrieval.lexical_weight` (default `0.1`; the vector list weighs 1; `0` turns them off). Chosen on the extended dev set; on the extended held-out set retrieve MRR goes from 0.832 to 0.848, project questions rank better 18 times and worse 7, general questions are unchanged. `query` is not affected. Raw RRF scores are on a new scale (max ≈ 0.0197 instead of 0.0492), and the viewer's percentage follows it ([#21](https://github.com/AEndrix03/Graft/issues/21), [#24](https://github.com/AEndrix03/Graft/issues/24)).
 - The MCP server's instructions, the `graft_delete` description, the ChatGPT / Claude.ai prompt snippets and the `learn` skill no longer recommend "delete, then re-insert" to fix a note. A correction is now an insert followed by `graft_maintain_resolve` `supersede`; doubtful notes go `stale`, useless ones `retire`, all audited and reversible. `graft_delete` is described as the permanent, unaudited hard delete it is, for content that must vanish such as a leaked secret ([#18](https://github.com/AEndrix03/Graft/issues/18)).
 - `query`, `retrieve` and `explore` are read-only again: they still hide expired notes but no longer delete them on the way, so a search never opens a write transaction on the shared database. Expired notes are removed by `graft consolidate` / `graft maintain apply-safe` ([#19](https://github.com/AEndrix03/Graft/issues/19)).
 
 ### Fixed
 
-- A full-text query made of many short tokens (`a b c d e`) silently lost its last tokens: the buffer for the scoped FTS expression was sized too small and the builder stopped writing instead of growing it. The bound is now exact. Joining the tokens with OR instead of the implicit AND was also evaluated and not adopted: it makes `retrieve` worse on the held-out set ([results](bench/results/2026-10-05-fts-match/README.md), [#21](https://github.com/AEndrix03/Graft/issues/21)).
+- A full-text query made of many short tokens (`a b c d e`) silently lost its last tokens: the buffer for the scoped FTS expression was sized too small and the builder stopped writing instead of growing it. The bound is now exact ([#21](https://github.com/AEndrix03/Graft/issues/21)).
 - A note marked `stale` could come back as a `STRONG` hit looking exactly like a live one, and the Claude Code prompt hook injected it without a word. `query` (and its `--explain` candidates), `retrieve` and `explore` now report each result's `state`, over the CLI, HTTP and MCP alike; the prompt hook (and the optional `query_inject.js` hook) labels a stale note and tells the agent to verify it before relying on it. Stale notes stay searchable, as documented ([#17](https://github.com/AEndrix03/Graft/issues/17)).
 - Inserting the exact content of a superseded note no longer looks like an ordinary successful duplicate. The insert response now carries the node's `state`, and for a superseded match also `superseded_by`, the note that replaced it; the old note stays superseded (restoring it would break its lineage). A retired match is still restored and reported `active` ([#20](https://github.com/AEndrix03/Graft/issues/20)).
 

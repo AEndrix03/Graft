@@ -133,7 +133,7 @@ Hybrid top-k. Returns nodes ranked by **Reciprocal Rank Fusion** over three inde
 - `R_bm25_title` — FTS5 BM25 over `nodes.title`.
 - `R_bm25_body`  — FTS5 BM25 over `nodes.body`.
 
-Score is `Σ 1 / (k_const + rank_i)`. Default `k_const = 60`. Theoretical max for a node that ranks #1 in all three lists is `3 / 61 ≈ 0.0492`.
+Score is `Σ w_i / (k_const + rank_i)`, with weight 1 for the vector list and `retrieval.lexical_weight` (default 0.1) for each BM25 list. Default `k_const = 60`. Theoretical max for a node that ranks #1 in all three lists is `(1 + 2 × 0.1) / 61 ≈ 0.0197`.
 
 `--top-k` defaults to `retrieval.top_k` from config (25). Capped at 256 internally.
 

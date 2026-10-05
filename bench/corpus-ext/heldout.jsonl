@@ -1,0 +1,120 @@
+{"query": "I added a field to the order.created payload and now every consumer is dumping messages into the DLQ. What did I miss?", "expect": "orbit-events-schema-version", "kind": "project", "lang": "en"}
+{"query": "Come registro una nuova versione di un evento con defineEvent? Il job events-compat in CI mi fallisce", "expect": "orbit-events-schema-version", "kind": "project", "lang": "it"}
+{"query": "What's the safe way to push messages from billing-events.dlq back onto the main queue?", "expect": "orbit-dlq-replay-cli", "kind": "project", "lang": "en"}
+{"query": "Ho rimesso in coda a mano i messaggi della dead letter dalla UI di RabbitMQ e i consumer falliscono di nuovo, come se non ci fosse il tenant. Perché?", "expect": "orbit-dlq-replay-cli", "kind": "project", "lang": "it"}
+{"query": "Some customers got charged twice when the api retried a publish. How is the dedup id supposed to be generated?", "expect": "orbit-billing-event-id-stable", "kind": "project", "lang": "en"}
+{"query": "billingEventId va calcolato fuori dal retry loop? Su cosa deduplica il consumer di billing?", "expect": "orbit-billing-event-id-stable", "kind": "project", "lang": "it"}
+{"query": "On my PR namespace every test order stays in pending_payment forever", "expect": "orbit-preview-billing-fake-psp", "kind": "project", "lang": "en"}
+{"query": "Nel preview environment della mia PR il pagamento non si chiude mai, gli webhook di Stripe non arrivano. Come testo il checkout lì?", "expect": "orbit-preview-billing-fake-psp", "kind": "project", "lang": "it"}
+{"query": "pytest fails with connection refused on port 5434 even though make dev is up", "expect": "orbit-test-db-port-5434", "kind": "project", "lang": "en"}
+{"query": "Ho lanciato i test e mi hanno svuotato tutte le tabelle del database di sviluppo. Su quale db dovrebbero girare?", "expect": "orbit-test-db-port-5434", "kind": "project", "lang": "it"}
+{"query": "I need to populate a new column for about 40M existing rows. Can I just do the UPDATE in the alembic revision?", "expect": "orbit-backfills-not-in-migrations", "kind": "project", "lang": "en"}
+{"query": "Where are one-off data fix scripts supposed to live, and how do I resume one that got interrupted halfway?", "expect": "orbit-backfills-not-in-migrations", "kind": "project", "lang": "en"}
+{"query": "migration-lint fails on my CREATE INDEX, squawk says it locks writes on the table", "expect": "orbit-migration-index-concurrently", "kind": "project", "lang": "en"}
+{"query": "Ho messo postgresql_concurrently=True ma alembic dice che CONCURRENTLY non può girare dentro un blocco di transazione", "expect": "orbit-migration-index-concurrently", "kind": "project", "lang": "it"}
+{"query": "api-v2-lint rejects my new list endpoint because it accepts a page query param. What's the expected pattern?", "expect": "orbit-api-v2-cursor-pagination", "kind": "project", "lang": "en"}
+{"query": "Come va fatta la paginazione nei nuovi endpoint di lista? Con offset sui tenant grandi vedo righe duplicate e query lente", "expect": "orbit-api-v2-cursor-pagination", "kind": "project", "lang": "it"}
+{"query": "Customers in Tokyo say their daily orders report is missing the last hours of the day", "expect": "orbit-tenant-timezone-reports", "kind": "project", "lang": "en"}
+{"query": "Is there a helper that gives me the start and end of a day for a given tenant, instead of using date.today() in the report task?", "expect": "orbit-tenant-timezone-reports", "kind": "project", "lang": "en"}
+{"query": "Every tenant got the invoice reminder email twice this morning, right after we touched the autoscaling config", "expect": "orbit-celery-beat-single-replica", "kind": "project", "lang": "en"}
+{"query": "Posso aumentare le repliche di worker-beat per reggere più carico?", "expect": "orbit-celery-beat-single-replica", "kind": "project", "lang": "it"}
+{"query": "A customer saw another company's product catalog, looks like the cache. How should cache keys be built?", "expect": "orbit-redis-cache-key-tenant", "kind": "project", "lang": "en"}
+{"query": "Come svuoto la cache Redis di un solo tenant su staging?", "expect": "orbit-redis-cache-key-tenant", "kind": "project", "lang": "it"}
+{"query": "import.meta.env.API_BASE_URL is undefined in the browser but the variable is definitely set in the deployment", "expect": "orbit-web-public-env-prefix", "kind": "project", "lang": "en"}
+{"query": "Perché la mia variabile d'ambiente non arriva al frontend? Nel pod c'è ma nel bundle JS no", "expect": "orbit-web-public-env-prefix", "kind": "project", "lang": "it"}
+{"query": "I changed a button's padding and now my PR can't merge because the ui-review check is yellow. How do I clear it?", "expect": "orbit-chromatic-ui-review", "kind": "project", "lang": "en"}
+{"query": "Ho modificato un componente in packages/ui e la PR è bloccata da un check sulle differenze visive, cosa devo fare?", "expect": "orbit-chromatic-ui-review", "kind": "project", "lang": "it"}
+{"query": "alert-lint is rejecting the Prometheus rule I just added, which annotation does it want?", "expect": "orbit-alert-runbook-url", "kind": "project", "lang": "en"}
+{"query": "I'm adding a new paging alert for queue backlog. What else has to go into the same PR?", "expect": "orbit-alert-runbook-url", "kind": "project", "lang": "en"}
+{"query": "pii-scan failed on my PR because I logged email= in a warning. What should I log instead?", "expect": "orbit-structlog-no-pii", "kind": "project", "lang": "en"}
+{"query": "Which logger are we supposed to use in the Python services? Is plain logging.getLogger ok?", "expect": "orbit-structlog-no-pii", "kind": "project", "lang": "en"}
+{"query": "My new reports chart deploys but the pod sits in Pending with 'untolerated taint'", "expect": "orbit-reports-node-toleration", "kind": "project", "lang": "en"}
+{"query": "Il pod resta in Pending: ho copiato la chart da un altro servizio, ma deve girare sui nodi ad alta memoria. Cosa manca?", "expect": "orbit-reports-node-toleration", "kind": "project", "lang": "it"}
+{"query": "docker build fails with 'no matching distribution found for orbit-core'", "expect": "orbit-make-image-pip-index", "kind": "project", "lang": "en"}
+{"query": "Come buildo l'immagine di un servizio in locale? Il docker build normale non riesce a scaricare i pacchetti interni", "expect": "orbit-make-image-pip-index", "kind": "project", "lang": "it"}
+{"query": "My k6 script runs fine against localhost but on staging I start getting 429s after a few seconds", "expect": "orbit-staging-rate-limit-loadtest", "kind": "project", "lang": "en"}
+{"query": "Dove trovo il token per i load test su staging e in quale header lo mando?", "expect": "orbit-staging-rate-limit-loadtest", "kind": "project", "lang": "it"}
+{"query": "I triggered a password reset on staging with my gmail address and nothing ever arrived", "expect": "orbit-email-mailpit-allowlist", "kind": "project", "lang": "en"}
+{"query": "In locale dove vedo le email transazionali che manda l'app?", "expect": "orbit-email-mailpit-allowlist", "kind": "project", "lang": "it"}
+{"query": "Staging search keeps returning records that the morning DB restore already deleted, why?", "expect": "orbit-search-reindex-alias", "kind": "project", "lang": "en"}
+{"query": "Ho cambiato il tipo di un campo nel mapping di OpenSearch e dopo il deploy non è cambiato niente, come si rifà l'indice?", "expect": "orbit-search-reindex-alias", "kind": "project", "lang": "it"}
+{"query": "How do I turn amount_minor into a display string? Is dividing by 100 fine?", "expect": "ledgerline-money-minor-units", "kind": "project", "lang": "en"}
+{"query": "I payout in yen sono usciti 100 volte più grandi del dovuto, come vanno convertiti gli importi?", "expect": "ledgerline-money-minor-units", "kind": "project", "lang": "it"}
+{"query": "My test fixture inserts rows straight into ledger.entries and the commit blows up with 'journal not balanced'", "expect": "ledgerline-ledgerwriter-balanced", "kind": "project", "lang": "en"}
+{"query": "What's the right way to create a transfer between two accounts in a test setup?", "expect": "ledgerline-ledgerwriter-balanced", "kind": "project", "lang": "en"}
+{"query": "After a consumer group rebalance we processed the same payment capture twice. How do we guard against redelivery?", "expect": "ledgerline-kafka-inbox-dedupe", "kind": "project", "lang": "en"}
+{"query": "Come funziona InboxGuard e in quale tabella salva i message_id già visti?", "expect": "ledgerline-kafka-inbox-dedupe", "kind": "project", "lang": "it"}
+{"query": "The no-kafka-in-tx test fails on my KafkaTemplate.send inside a @Transactional method", "expect": "ledgerline-outbox-relay", "kind": "project", "lang": "en"}
+{"query": "Se pubblico l'evento e poi la transazione fa rollback, il messaggio parte comunque. Qual è il pattern giusto da noi?", "expect": "ledgerline-outbox-relay", "kind": "project", "lang": "it"}
+{"query": "Works on my laptop, but in uat the producer gets UNKNOWN_TOPIC_OR_PARTITION", "expect": "ledgerline-kafka-topics-terraform", "kind": "project", "lang": "en"}
+{"query": "Come creo un nuovo topic Kafka e che convenzione di nomi devo seguire?", "expect": "ledgerline-kafka-topics-terraform", "kind": "project", "lang": "it"}
+{"query": "We briefly saw a negative balance because a refund got applied before the debit on the same account. What should the message key be?", "expect": "ledgerline-kafka-partition-account", "kind": "project", "lang": "en"}
+{"query": "Which key should I use when producing to ll.ledger.balance-changed.v1?", "expect": "ledgerline-kafka-partition-account", "kind": "project", "lang": "en"}
+{"query": "Why did the settlement batch fire at 21:30 UTC yesterday instead of 22:30?", "expect": "ledgerline-settlement-cutoff-london", "kind": "project", "lang": "en"}
+{"query": "La banca ci ha rifiutato il file di settlement perché era festivo in UK. Dove si aggiorna il calendario?", "expect": "ledgerline-settlement-cutoff-london", "kind": "project", "lang": "it"}
+{"query": "I ran an llctl command thinking I was on uat and it hit prod-eu. How does it decide the environment?", "expect": "ledgerline-llctl-explicit-env", "kind": "project", "lang": "en"}
+{"query": "Come ottengo i permessi di scrittura in prod con llctl?", "expect": "ledgerline-llctl-explicit-env", "kind": "project", "lang": "it"}
+{"query": "Running the service from IntelliJ it connects to Kafka, then fails with 'Connection to node 1 (kafka:9092) could not be established'", "expect": "ledgerline-local-kafka-29092", "kind": "project", "lang": "en"}
+{"query": "What port do I use to reach the local broker from my host machine?", "expect": "ledgerline-local-kafka-29092", "kind": "project", "lang": "en"}
+{"query": "pci-boundary fails because I added a cardNumber field to a DTO in the refunds module", "expect": "ledgerline-pci-tokenizer-boundary", "kind": "project", "lang": "en"}
+{"query": "Which service is allowed to see the actual card number, and how do the other services refer to a card?", "expect": "ledgerline-pci-tokenizer-boundary", "kind": "project", "lang": "en"}
+{"query": "How do I make a sandbox payment get declined for insufficient funds so I can test the error path?", "expect": "ledgerline-psp-sim-magic-amounts", "kind": "project", "lang": "en"}
+{"query": "In locale come simulo un chargeback o un timeout del PSP?", "expect": "ledgerline-psp-sim-magic-amounts", "kind": "project", "lang": "it"}
+{"query": "Service won't start: 'Validate failed: Migration checksum mismatch' after I fixed a typo in an old migration", "expect": "ledgerline-flyway-timestamp-versions", "kind": "project", "lang": "en"}
+{"query": "Come vanno numerate le migration Flyway? Con V43__ sono andato in conflitto con un altro branch", "expect": "ledgerline-flyway-timestamp-versions", "kind": "project", "lang": "it"}
+{"query": "migration-guard rejected my ALTER TABLE on ledger.entries, what does it require?", "expect": "ledgerline-migration-lock-timeout", "kind": "project", "lang": "en"}
+{"query": "Un ALTER TABLE in una migration è rimasto in attesa dietro una query lunga e ha bloccato tutti i pagamenti per minuti, come si evita?", "expect": "ledgerline-migration-lock-timeout", "kind": "project", "lang": "it"}
+{"query": "If the flag server is unreachable, what does Flags.killSwitch return?", "expect": "ledgerline-unleash-kill-switches", "kind": "project", "lang": "en"}
+{"query": "Se cambio un flag su Unleash devo rifare il deploy del servizio?", "expect": "ledgerline-unleash-kill-switches", "kind": "project", "lang": "it"}
+{"query": "pact-verify on payments-gateway fails with 'no pact found for consumer version'", "expect": "ledgerline-pact-provider-verify", "kind": "project", "lang": "en"}
+{"query": "I changed an interaction on the consumer side of a contract. In what order do I publish and rebuild so can-i-deploy lets uat through?", "expect": "ledgerline-pact-provider-verify", "kind": "project", "lang": "en"}
+{"query": "Gradle build fails with 'invalid source release 21' in ledger-core", "expect": "ledgerline-jdk21-toolchain", "kind": "project", "lang": "en"}
+{"query": "IntelliJ compila con Java 17 e la build fallisce, come sistemo la versione del JDK per i servizi Kotlin?", "expect": "ledgerline-jdk21-toolchain", "kind": "project", "lang": "it"}
+{"query": "go mod download in recon-worker returns 410 Gone for the ledgerkit module", "expect": "ledgerline-goprivate-ledgerkit", "kind": "project", "lang": "en"}
+{"query": "Come configuro Go per scaricare i moduli interni dal nostro GitLab?", "expect": "ledgerline-goprivate-ledgerkit", "kind": "project", "lang": "it"}
+{"query": "Cross-currency payments are failing with FX_RATE_STALE on a Tuesday morning", "expect": "ledgerline-fx-rate-staleness", "kind": "project", "lang": "en"}
+{"query": "Why do currency conversions go through with a three-day-old rate on Sunday but get rejected after one day during the week?", "expect": "ledgerline-fx-rate-staleness", "kind": "project", "lang": "en"}
+{"query": "I fixed the CAMT.053 parser bug and re-uploaded the statement to SFTP, but recon-worker just says 'duplicate statement'", "expect": "ledgerline-recon-reingest", "kind": "project", "lang": "en"}
+{"query": "Come faccio a riprocessare un estratto conto bancario già importato?", "expect": "ledgerline-recon-reingest", "kind": "project", "lang": "it"}
+{"query": "Payouts have been failing for 10 minutes now. Is this a SEV1 and how do I declare it?", "expect": "ledgerline-oncall-sev1-payouts", "kind": "project", "lang": "en"}
+{"query": "Entro quanto va scritto il postmortem e in quale cartella?", "expect": "ledgerline-oncall-sev1-payouts", "kind": "project", "lang": "it"}
+{"query": "I scaled payments-gateway with kubectl scale and a few minutes later it went back to the old replica count", "expect": "ledgerline-argocd-gitops", "kind": "project", "lang": "en"}
+{"query": "Durante un incidente devo scalare d'urgenza un servizio in prod-eu, come evito che la modifica venga annullata?", "expect": "ledgerline-argocd-gitops", "kind": "project", "lang": "it"}
+{"query": "How do I get the uat secrets for payments-gateway into a local env file so I can run it from my machine?", "expect": "ledgerline-sops-secrets", "kind": "project", "lang": "en"}
+{"query": "Which IAM role do I need to edit an encrypted secret file in ll-gitops?", "expect": "ledgerline-sops-secrets", "kind": "project", "lang": "en"}
+{"query": "A payout check right after a debit read an old balance; that method is annotated @ReadOnlyReplica", "expect": "ledgerline-read-replica-lag", "kind": "project", "lang": "en"}
+{"query": "Il saldo che leggo subito dopo una scrittura è vecchio di qualche secondo, da dove dovrei leggerlo?", "expect": "ledgerline-read-replica-lag", "kind": "project", "lang": "it"}
+{"query": "The test merchant I created in uat on Thursday is gone on Monday, together with its API key", "expect": "ledgerline-uat-weekly-refresh", "kind": "project", "lang": "en"}
+{"query": "Dove metto i merchant di test perché sopravvivano al refresh settimanale di uat?", "expect": "ledgerline-uat-weekly-refresh", "kind": "project", "lang": "it"}
+{"query": "Retrying POST /v3/payments returns 422 IDEMPOTENCY_KEY_REUSED, we changed the amount between attempts", "expect": "ledgerline-api-idempotency-header", "kind": "project", "lang": "en"}
+{"query": "What header does our client SDK have to send when creating a payment, and how long does the gateway remember it?", "expect": "ledgerline-api-idempotency-header", "kind": "project", "lang": "en"}
+{"query": "How do I add a new queue binding for order.cancelled in Orbit's RabbitMQ topology?", "expect": null, "kind": "negative", "lang": "en"}
+{"query": "How long are messages kept in billing-events.dlq before they get purged?", "expect": null, "kind": "negative", "lang": "en"}
+{"query": "How do I rotate the Stripe webhook signing secret used by stripe-relay?", "expect": null, "kind": "negative", "lang": "en"}
+{"query": "Come faccio il downgrade di una migration alembic su staging se il deploy è andato male?", "expect": null, "kind": "negative", "lang": "it"}
+{"query": "On the Orbit v2 list endpoints, how do I sort by created_at descending?", "expect": null, "kind": "negative", "lang": "en"}
+{"query": "Celery tasks on the worker deployment sit in the queue and are never acknowledged, how do I inspect them?", "expect": null, "kind": "negative", "lang": "en"}
+{"query": "Qual è il TTL di default delle chiavi nella cache Redis di Orbit?", "expect": null, "kind": "negative", "lang": "it"}
+{"query": "How do I add a lazily loaded route to the React router in apps/web?", "expect": null, "kind": "negative", "lang": "en"}
+{"query": "Chromatic snapshots are flaky because of animated components, how do we disable animations in stories?", "expect": null, "kind": "negative", "lang": "en"}
+{"query": "Who is the secondary on-call for Orbit this week and how do I swap a shift in PagerDuty?", "expect": null, "kind": "negative", "lang": "en"}
+{"query": "Come cerco in Loki tutti i log di una singola request?", "expect": null, "kind": "negative", "lang": "it"}
+{"query": "How do I add more nodes to the reports-pool node pool?", "expect": null, "kind": "negative", "lang": "en"}
+{"query": "How do we handle bounces for transactional emails in production?", "expect": null, "kind": "negative", "lang": "en"}
+{"query": "OpenSearch queries are slow for tenants with a huge catalog, how do I profile them?", "expect": null, "kind": "negative", "lang": "en"}
+{"query": "How does ll-money handle rounding when splitting a fee across three accounts?", "expect": null, "kind": "negative", "lang": "en"}
+{"query": "Come storno una scrittura contabile postata sul conto sbagliato in ledger-core?", "expect": null, "kind": "negative", "lang": "it"}
+{"query": "How many partitions should a new ll.payments topic have?", "expect": null, "kind": "negative", "lang": "en"}
+{"query": "Come resetto gli offset di un consumer group Kafka in uat per rileggere un topic dall'inizio?", "expect": null, "kind": "negative", "lang": "it"}
+{"query": "outbox-relay è in ritardo di diversi minuti, come vedo il backlog?", "expect": null, "kind": "negative", "lang": "it"}
+{"query": "Can settlement-batch be triggered manually for a single merchant in uat?", "expect": null, "kind": "negative", "lang": "en"}
+{"query": "Come aggiorno llctl all'ultima versione?", "expect": null, "kind": "negative", "lang": "it"}
+{"query": "Kafka from make up refuses to start with 'Cluster ID mismatch' after I pruned docker volumes", "expect": null, "kind": "negative", "lang": "en"}
+{"query": "What PCI DSS training do I need before getting access to the pci namespace?", "expect": null, "kind": "negative", "lang": "en"}
+{"query": "How do I simulate a 3-D Secure challenge with psp-sim?", "expect": null, "kind": "negative", "lang": "en"}
+{"query": "How do I write a repeatable R__ Flyway migration for a reporting view in ledger-core?", "expect": null, "kind": "negative", "lang": "en"}
+{"query": "Come rinomino un flag su Unleash senza rompere i servizi che lo leggono?", "expect": null, "kind": "negative", "lang": "it"}
+{"query": "The MDC request id gets lost when payments-gateway switches to Dispatchers.IO in a coroutine, how do I propagate it?", "expect": null, "kind": "negative", "lang": "en"}
+{"query": "fx-rates deve prendere anche valute che la BCE non pubblica, come si aggiunge un'altra fonte di tassi?", "expect": null, "kind": "negative", "lang": "it"}
+{"query": "How do I get read access to the Argo CD UI for the prod-us cluster?", "expect": null, "kind": "negative", "lang": "en"}
+{"query": "Come si configura un rate limit per singolo merchant sulla /v3/payments?", "expect": null, "kind": "negative", "lang": "it"}

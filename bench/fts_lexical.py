@@ -19,7 +19,7 @@ No daemon and no model: it shows what each strategy feeds the fusion, not the
 end-to-end result (measure that with run.py).
 
 Usage:
-  python bench/fts_lexical.py [--corpus DIR]
+  python bench/fts_lexical.py [--corpus DIR] [--extend DIR ...]
 
 Standard library only (needs an SQLite built with FTS5, as CPython's is).
 """
@@ -57,9 +57,15 @@ def search(db: sqlite3.Connection, col: str, query: str, mode: str) -> list[str]
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--corpus", default=str(HERE / "corpus"))
-    corpus = Path(ap.parse_args().corpus)
+    ap.add_argument("--extend", action="append", default=[], metavar="DIR",
+                    help="extension corpus dir, as in run.py; repeatable")
+    args = ap.parse_args()
+    corpus = Path(args.corpus)
+    extend = [Path(d) for d in args.extend]
 
     nodes = load_jsonl(corpus / "nodes.jsonl") + load_jsonl(corpus / "project_nodes.jsonl")
+    for d in extend:
+        nodes += load_jsonl(d / "project_nodes.jsonl")
     db = sqlite3.connect(":memory:")
     db.execute("CREATE VIRTUAL TABLE f USING fts5(title, body, key UNINDEXED, "
                "tokenize='unicode61 remove_diacritics 2')")
@@ -71,6 +77,9 @@ def main() -> None:
     print("| --- | -------- | ---- | -: | -: | -: | -: | -: |")
     for query_set, name in (("heldout", "heldout.jsonl"), ("dev", "queries.jsonl")):
         queries = load_jsonl(corpus / name)
+        for d in extend:
+            if (d / name).exists():
+                queries += load_jsonl(d / name)
         pos = [q for q in queries if q["expect"]]
         neg = [q for q in queries if not q["expect"]]
         for mode in ("and", "or", "and_then_or"):

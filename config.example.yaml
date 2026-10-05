@@ -192,6 +192,14 @@ retrieval:
   # influence. Almost never worth tuning.
   rrf_k_const: 60
 
+  # [quality] RRF weight of each of the two BM25 lists (title, body); the
+  # vector list weighs 1. [range] 0..1. The BM25 lists match any query word,
+  # so they are noisy on their own and help most as a tie-breaker on
+  # team-specific vocabulary (service names, commands, flags). 0 turns the
+  # lexical lists off (vector-only retrieval). 0.1 was chosen on the bench
+  # dev set; see bench/results/2026-10-06-lexical-weight.
+  lexical_weight: 0.1
+
   # [perf] Cap on the secondary "fallback_retrieve" pass that fires when a
   # cache-MISS query needs to surface SOMETHING. [range] 1..top_k. Kept low to
   # avoid drowning the user in marginal matches during exploration.

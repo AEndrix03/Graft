@@ -47,14 +47,17 @@ const selectedScore = computed(() => {
 });
 /* Mode-specific absolute normalization. The previous "% of top" was useless
  * (rank 1 always 100%) — this gives a real signal of match quality.
- *  - Retrieve uses RRF = Σ 1/(k+rank_i) over 3 ranked lists with k=60. The
- *    theoretical maximum (a doc that lands at rank 1 in all three) is 3/61.
- *    A score of 0.025 = ~50% means "halfway to the strongest possible RRF."
+ *  - Retrieve uses RRF = Σ w_i/(k+rank_i) over 3 ranked lists with k=60:
+ *    the vector list weighs 1, each BM25 list retrieval.lexical_weight
+ *    (default 0.1). The theoretical maximum (a doc that lands at rank 1 in
+ *    all three) is (1 + 2 × 0.1)/61; vector rank 1 alone is ~83% of it.
+ *    A daemon configured with another lexical_weight shifts the scale.
  *  - Explore propagates cosine through edges (cos × gamma^step × edge_w).
  *    The score is already roughly in [0, 1], so percent = score * 100 is
  *    directly meaningful as "approximate cosine to the seed."
  */
-const RRF_THEORETICAL_MAX = 3 / 61;
+const RRF_LEXICAL_WEIGHT = 0.1;
+const RRF_THEORETICAL_MAX = (1 + 2 * RRF_LEXICAL_WEIGHT) / 61;
 const selectedScorePct = computed(() => {
   if (selectedScore.value == null) return null;
   let v;

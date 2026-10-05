@@ -385,9 +385,12 @@ int main(void) {
           "insert letters");
     CHECK(mg_storage_fts_search(s, "q r s t u v w x", 4, true, false, scores, &count) == MG_OK &&
           count == 1 && same_id(scores[0].id, letters.id), "all short tokens match the title");
-    /* the last token is absent: a truncated expression would still match */
-    CHECK(mg_storage_fts_search(s, "q r s t u v w x zz", 4, true, false, scores, &count) == MG_OK &&
-          count == 0, "no short token is dropped from the expression");
+    /* only the last token matches: a truncated expression would find nothing */
+    CHECK(mg_storage_fts_search(s, "aa bb cc dd ee ff gg hh x", 4, true, false, scores, &count) == MG_OK &&
+          count == 1 && same_id(scores[0].id, letters.id), "no short token is dropped from the expression");
+    /* tokens are OR-ed: a word the note lacks does not hide it */
+    CHECK(mg_storage_fts_search(s, "q r zzz", 4, true, false, scores, &count) == MG_OK &&
+          count == 1 && same_id(scores[0].id, letters.id), "a missing token does not empty the list");
     printf("ok fts short tokens\n");
   }
 
