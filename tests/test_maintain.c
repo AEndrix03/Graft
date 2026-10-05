@@ -338,6 +338,7 @@ static void test_pairs_and_resolve(void) {
 
   /* supersede_a: the older one is superseded by the newer, with a SUPERSEDES edge */
   CHECK(find_candidate(r, "possible_supersession", c, cid, NULL), "supersession still pending");
+  CHECK(in_vector_search(s, c, 3), "c searchable before it is superseded");
   r = call(&ctx, "maintain_resolve", &st, "candidate_id", cid, "action", "supersede_a", NULL);
   CHECK(st == 0, "supersede_a ok");
   CHECK(node_state(s, c) == MG_NODE_SUPERSEDED && node_state(s, d) == MG_NODE_ACTIVE, "c superseded by d");
@@ -426,7 +427,7 @@ static void test_retire_restore_purge(void) {
   mg_storage_t *s = open_db(path);
   mg_ctx_t ctx;
   mg_config_t cfg;
-  mg_node_id_t a, b;
+  mg_node_id_t a, b, live;
   char ha[33];
   int64_t now = now_ms();
   int st;
@@ -436,11 +437,13 @@ static void test_retire_restore_purge(void) {
   init_ctx(&ctx, s, &cfg);
 
   add_node(s, a, "terraform state lives in s3", "bucket xyz", "a", 4, 0.0f, now, &k, 1, NULL, 0);
+  add_node(s, live, "terraform plan runs in ci", "plan", "live", 6, 0.0f, now, &k, 1, NULL, 0);
   {
-    /* b links to a so neighbors() has something to hide */
+    /* b links to a, which gets retired, and to `live`, which must stay
+     * reachable: an empty neighbour list cannot pass the check below */
     mg_node_t n;
     mg_embedding_t emb;
-    mg_edge_t edge;
+    mg_edge_t edges[2];
     memset(&n, 0, sizeof(n));
     mg_uuidv7(n.id);
     mg_blake3((const uint8_t *)"b", 1, n.content_hash);
@@ -449,17 +452,26 @@ static void test_retire_restore_purge(void) {
     n.created_at = now;
     n.last_access = now;
     block_emb(emb, 5, 0.0f);
-    memset(&edge, 0, sizeof(edge));
-    memcpy(edge.src, n.id, MG_NODE_ID_BYTES);
-    memcpy(edge.dst, a, MG_NODE_ID_BYTES);
-    edge.kind = MG_EDGE_KEYWORD;
-    edge.keyword_id = k;
-    edge.weight = 0.7f;
-    CHECK(mg_storage_insert_node_with_edges(s, &n, emb, &k, 1, &edge, 1, NULL) == MG_OK, "insert b");
+    memset(edges, 0, sizeof(edges));
+    for (int i = 0; i < 2; ++i) {
+      memcpy(edges[i].src, n.id, MG_NODE_ID_BYTES);
+      memcpy(edges[i].dst, i == 0 ? a : live, MG_NODE_ID_BYTES);
+      edges[i].kind = MG_EDGE_KEYWORD;
+      edges[i].keyword_id = k;
+      edges[i].weight = 0.7f;
+    }
+    CHECK(mg_storage_insert_node_with_edges(s, &n, emb, &k, 1, edges, 2, NULL) == MG_OK, "insert b");
     memcpy(b, n.id, MG_NODE_ID_BYTES);
   }
   hex(a, ha);
   CHECK(in_vector_search(s, a, 4) && in_fts(s, a, "terraform"), "visible before retire");
+  {
+    mg_edge_t out[8];
+    int n = 0, seen = 0;
+    CHECK(mg_storage_neighbors(s, b, -1, NULL, 0, out, 8, &n) == MG_OK, "neighbors before retire");
+    for (int i = 0; i < n; ++i) seen |= memcmp(out[i].dst, a, MG_NODE_ID_BYTES) == 0;
+    CHECK(seen, "a is a neighbour of b before retire");
+  }
 
   r = call(&ctx, "maintain_resolve", &st, "node", ha, "action", "retire", "note", "obsolete", NULL);
   CHECK(st == 0, "retire ok");
@@ -468,10 +480,14 @@ static void test_retire_restore_purge(void) {
   CHECK(!in_fts(s, a, "terraform state"), "retired leaves full-text search");
   {
     mg_edge_t out[8];
-    int n = 0, seen = 0;
+    int n = 0, seen = 0, seen_live = 0;
     CHECK(mg_storage_neighbors(s, b, -1, NULL, 0, out, 8, &n) == MG_OK, "neighbors ok");
-    for (int i = 0; i < n; ++i) seen |= memcmp(out[i].dst, a, MG_NODE_ID_BYTES) == 0;
+    for (int i = 0; i < n; ++i) {
+      seen |= memcmp(out[i].dst, a, MG_NODE_ID_BYTES) == 0;
+      seen_live |= memcmp(out[i].dst, live, MG_NODE_ID_BYTES) == 0;
+    }
     CHECK(!seen, "retired leaves graph traversal");
+    CHECK(seen_live, "the live neighbour stays in graph traversal");
   }
   /* get still answers by id, and says it is retired */
   r = call(&ctx, "get", &st, "id_hex", ha, NULL);
