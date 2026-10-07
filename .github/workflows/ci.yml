@@ -73,8 +73,25 @@ jobs:
             -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
             -DGRAFT_BUILD_TESTS=ON
           cmake --build build --parallel
+      # test_embed and the e2e_model suite need a real embedding model; they
+      # run here only (the other jobs report them as skipped).
+      - name: Cache embedding model
+        id: modelcache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/graft-models/bge-m3.gguf
+          key: model-bge-m3-Q8_0-9379ce497e88
+      - name: Download embedding model
+        if: steps.modelcache.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.cache/graft-models
+          curl -fsSL --retry 3 -o ~/.cache/graft-models/bge-m3.gguf \
+            'https://huggingface.co/lm-kit/bge-m3-gguf/resolve/9379ce497e8814b200f2dc0d18eb4045426dcb8c/bge-m3-Q8_0.gguf'
       - name: Run ctest
-        run: ctest --test-dir build --output-on-failure --parallel 2
+        run: |
+          export GRAFT_TEST_MODEL="$HOME/.cache/graft-models/bge-m3.gguf"
+          ctest --test-dir build --output-on-failure --parallel 2
 
   windows:
     name: ctest (windows x86_64)

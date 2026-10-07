@@ -27,7 +27,7 @@ int main(void) {
 
   if (!model_path) {
     printf("skip: no model\n");
-    return 0;
+    return 77; /* SKIP_RETURN_CODE: ctest reports it as skipped */
   }
 
   err = mg_embed_init(model_path, 2, 512, false, 1, &ctx);

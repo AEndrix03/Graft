@@ -191,11 +191,25 @@ if(GRAFT_BUILD_TESTS)
     target_link_libraries(${TNAME} graft_cli)
     add_test(NAME ${TNAME} COMMAND ${TNAME})
     # A hung test must fail, not hold a CI runner for its 6 h job limit.
-    set_tests_properties(${TNAME} PROPERTIES TIMEOUT 300)
+    # Exit code 77 means "skipped" (test_embed without GRAFT_TEST_MODEL).
+    set_tests_properties(${TNAME} PROPERTIES TIMEOUT 300 SKIP_RETURN_CODE 77)
     if(MG_TEST_PATHS)
       set_tests_properties(${TNAME} PROPERTIES ENVIRONMENT_MODIFICATION "${MG_TEST_PATHS}")
     endif()
   endforeach()
+
+  # End to end against a real model: a private graftd, the CLI and the prompt
+  # hook (tests/e2e/test_e2e.py). Skipped (exit 77) without GRAFT_TEST_MODEL.
+  find_package(Python3 COMPONENTS Interpreter)
+  if(Python3_Interpreter_FOUND)
+    add_test(NAME e2e_model
+             COMMAND Python3::Interpreter ${CMAKE_SOURCE_DIR}/tests/e2e/test_e2e.py
+                     --graft $<TARGET_FILE:graft>)
+    set_tests_properties(e2e_model PROPERTIES TIMEOUT 600 SKIP_RETURN_CODE 77)
+    if(MG_TEST_PATHS)
+      set_tests_properties(e2e_model PROPERTIES ENVIRONMENT_MODIFICATION "${MG_TEST_PATHS}")
+    endif()
+  endif()
 
   # The CLI must refuse an option it does not know, or a known one without its
   # value, before it ever talks to the daemon (no daemon runs during ctest).
