@@ -28,7 +28,11 @@ Response:
     "duplicate":   false,
     "state":       "active",
     "n_kw_edges":  3,
-    "n_sem_edges": 2
+    "n_sem_edges": 2,
+    "similar": [
+      { "id_hex": "019d...", "title": "Retries are enabled by default for outgoing HTTP calls",
+        "state": "active", "similarity": 0.9749 }
+    ]
   }
 }
 ```
@@ -36,6 +40,16 @@ Response:
 `duplicate: true` means the content hash already exists. The existing id is returned; no new node, no new edges. This is how `insert` is idempotent. Sources passed with a duplicate are still **attached to the existing node** (the response then carries `sources_attached`), so re-running an ingestion over a changed corpus accumulates provenance and refreshes the fingerprints of content that is still identical, instead of failing.
 
 `state` is the lifecycle state of the returned node (`active` for a new one). On a duplicate it tells whether the existing node is still reachable by search: `active` or `stale` as usual; a `retired` node is restored by the insert and comes back `active`; a `superseded` node is **not** restored, since that would break its lineage, and the response adds `superseded_by` (the id of the newest node that replaced it, `null` if unknown). Save the knowledge on the successor instead, or bring the old node back with `graft maintain resolve --node <id> --action restore` if it is right after all.
+
+`similar` comes with a **new** node only (it is absent on a duplicate): up to `edges.similar_report_max` (default 3, at most 10; `0` leaves the list empty) existing active or stale notes whose cosine to the new title is >= `edges.similar_report_min` (default `0.8`), most similar first, each as `{id_hex, title, state, similarity}` (similarity rounded to 4 decimals). The node an explicit `supersedes` already replaces is left out. It is the cheapest moment to catch a conflict: the agent that wrote the note still has the context, so it checks them right away:
+
+| The new note… | Do |
+| ------------- | -- |
+| corrects an old one | `graft maintain resolve --node <old> --action supersede --by <new>` |
+| conflicts with one, and which is right is not clear yet | `graft maintain resolve --node <new> --action contradicts --by <old>`: a `CONTRADICTS` edge, no state change; the pair comes back as a `contradiction` candidate in [`maintain scan`](../maintenance/README.md#autonomous-maintenance-graft-maintain) until it is settled |
+| is merely related | nothing |
+
+The example above is a real one: inserting "Retries are disabled by default for outgoing HTTP calls" after its `enabled` twin. Embeddings cannot tell a contradiction from a paraphrase (both score ~0.95), so Graft only finds the candidates and the agent judges.
 
 ## What a "good" node looks like
 
@@ -216,7 +230,7 @@ Use it in your insertion script when the user doesn't pass `--keyword` explicitl
 ## What's missing and how to improve it
 
 - **`graft insert --from <file>`** for batch ingestion of NDJSON or Markdown-with-frontmatter. Today batch ingestion runs through N CLI subprocesses (one per node), which pays the socket setup cost N times. A streaming op would be much faster.
-- **Optional NLI check at insert time.** When `nli_enabled` is wired, the insert path could compare the new node against its top semantic neighbour and emit a `MG_EDGE_CONTRADICTS` edge when the polarity flips.
+- **Body-aware `similar`.** The insert-time list compares titles only, so a conflict hidden in two bodies under distant titles surfaces later, if at all, as a `possible_contradiction` in `maintain scan`. Comparing the new text against the top neighbours' bodies with the same divergence heuristic would flag it at insert time.
 - **Title-quality lint.** A small heuristic ("title is one word", "title has fewer than three content tokens", "title ends with a question mark") could print a warning before saving. Off by default, opt-in via `--strict`.
 - **Author override hardening.** Right now `GRAFT_AUTHOR=""` opts out; `GRAFT_AUTHOR` unset uses `<user>@<host>`. There's no way to require an explicit author (e.g. for shared profiles). A config flag would close that gap.
 - **Sub-second body diff** for an UPDATE-vs-SUPERSEDE choice. Today the client decides; the daemon never offers a "did you mean to supersede?" hint. A `--smart-supersede` mode that calls `query` first and proposes supersession on a STRONG hit would reduce duplicate inserts.

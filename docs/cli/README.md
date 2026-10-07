@@ -81,11 +81,18 @@ Response shape:
   "result": {
     "id_hex":      "019e0a4466...",
     "duplicate":   false,
+    "state":       "active",
     "n_kw_edges":  3,
-    "n_sem_edges": 2
+    "n_sem_edges": 2,
+    "similar": [
+      { "id_hex": "019d...", "title": "Retries are enabled by default for outgoing HTTP calls",
+        "state": "active", "similarity": 0.9749 }
+    ]
   }
 }
 ```
+
+`similar` (new notes only, absent on a duplicate) lists up to `edges.similar_report_max` (default 3, at most 10; `0` leaves it empty) existing active or stale notes whose cosine to the new note's title is >= `edges.similar_report_min` (default `0.8`), most similar first, each with `id_hex`, `title`, `state` and `similarity`. The agent that wrote the note checks them right away: the new note corrects one → `graft maintain resolve --node <old> --action supersede --by <new>`; they conflict and it cannot tell yet which is right → `graft maintain resolve --node <new> --action contradicts --by <old>`; merely related → nothing.
 
 `--author` defaults to `<user>@<host>` taken from the OS. Override with `GRAFT_AUTHOR=...`, or set it to empty (`GRAFT_AUTHOR=""`) to opt out entirely.
 
@@ -388,7 +395,8 @@ Cheap (indexed counts and the candidate cache, no embedding): what an agent chec
 ```json
 { "last_apply_safe_at": 1791148203000, "last_scan_at": 1791148203000,
   "inserts_since_apply_safe": 12, "inserts_since_scan": 3,
-  "pending": { "total": 2, "by_kind": { "contradiction": 0, "source_removed": 0, "source_changed": 1,
+  "pending": { "total": 2, "by_kind": { "contradiction": 0, "possible_contradiction": 0,
+               "source_removed": 0, "source_changed": 1,
                "possible_supersession": 0, "near_duplicate": 1,
                "keyword_fragmentation": 0, "isolated_low_value": 0 } },
   "nodes": { "active": 120, "stale": 3, "superseded": 9, "retired": 1, "retired_due": 0 },
@@ -418,7 +426,8 @@ Emits candidates, most urgent first, **without changing any node, edge or source
 
 | Kind (priority order) | Found when | Signals | Suggested actions |
 |---|---|---|---|
-| `contradiction` | a `CONTRADICTS` edge joins two active nodes | `edge_weight`, `shared_keywords` | `supersede_a`, `supersede_b`, `stale`, `keep_both` |
+| `contradiction` | a `CONTRADICTS` edge (recorded with `resolve --action contradicts`) joins two active nodes | `edge_weight`, `shared_keywords` | `supersede_a`, `supersede_b`, `stale`, `keep_both` |
+| `possible_contradiction` | a near-duplicate pair whose texts (title + body) diverge with a score >= `maintenance.contradiction_min`: a negation on one side only, opposite terms split across the two (`enabled`/`disabled`, `always`/`never`, `sync`/`async`, Italian `sempre`/`mai`, ...), different numbers | as `near_duplicate`, plus `divergence: { score, negation, numbers, opposites[] }` | `supersede_a`, `supersede_b`, `stale`, `contradicts`, `keep_both` |
 | `source_removed` | a file source of an active node is gone | `project`, `sources[]` | `retire`, `stale`, `supersede`, `keep` |
 | `source_changed` | a file source of an active node no longer matches the fingerprint recorded on its link | `project`, `sources[]` with recorded and current fingerprint | `refresh`, `stale`, `supersede`, `retire` |
 | `possible_supersession` | a near-duplicate pair sharing a keyword, created at least an hour apart | as `near_duplicate` | `supersede_a`, `supersede_b`, `keep_both`, `merge` |
@@ -426,7 +435,7 @@ Emits candidates, most urgent first, **without changing any node, edge or source
 | `keyword_fragmentation` | a keyword carried by one active node while a spelling variant (case, `-` / `_`, plural) is in use | `keyword`, `similar_keyword`, uses of both | `keep`, `supersede` |
 | `isolated_low_value` | an active node with no edge, never read, older than `maintenance.isolated_min_age_days` | `age_days` | `keep`, `retire`, `stale` |
 
-Pair candidates list the **older node first** (`a`), so `supersede_a` ("a is replaced by b") is the usual outcome of a supersession. Candidate ids are deterministic (kind + node ids): the same finding keeps its id across scans. The work is bounded: near-duplicates compare the newest `maintenance.scan_max_nodes` active nodes pairwise and keep at most `maintenance.scan_neighbors` partners per node; at most `maintenance.scan_cap` candidates are kept and `--limit` (default 20) of them returned.
+Pair candidates list the **older node first** (`a`), so `supersede_a` ("a is replaced by b") is the usual outcome of a supersession. The divergence check is a deterministic word-list heuristic (English and Italian, no model) tuned to miss rather than over-flag: a negation scores 0.5, each split pair of opposites 0.5, different numbers 0.25 (so numbers alone stay below the default 0.5); a conflict with no polarity words ("Auth uses sessions" vs "Auth uses JWT") stays a `near_duplicate` / `possible_supersession`. A pair already joined by a `CONTRADICTS` edge is reported only as `contradiction`. Candidate ids are deterministic (kind + node ids): the same finding keeps its id across scans. The work is bounded: near-duplicates compare the newest `maintenance.scan_max_nodes` active nodes pairwise and keep at most `maintenance.scan_neighbors` partners per node; at most `maintenance.scan_cap` candidates are kept and `--limit` (default 20) of them returned.
 
 ### resolve
 
@@ -442,8 +451,9 @@ Applies one decision, in one transaction with its audit row. A candidate id targ
 | `supersede_a`, `supersede_b` | pair candidates: `a` superseded by `b`, or `b` by `a` |
 | `merge --by <id>` | after inserting the merged note `<id>`: every candidate node is superseded by it |
 | `refresh` | `source_changed` only: store the fingerprints the scan observed on the node's links (the memory was revalidated) |
+| `contradicts --by <id>` | record an unsettled conflict: a `CONTRADICTS` edge between `--node` and `<id>` (both active or stale, distinct), no state change. On a pair candidate, no `--node` / `--by` pairs its two nodes. The next scan reports the pair as `contradiction` until it is settled or dismissed |
 
-Without `--node`, `stale` / `retire` / `restore` / `supersede` need a single-node candidate. The result lists the touched nodes with their new state. Saving again the exact content of a retired node (`insert` deduplicates on content) restores it.
+Without `--node`, `stale` / `retire` / `restore` / `supersede` need a single-node candidate (`supersede` and `contradicts` also take a pair candidate plus `--by` one of its nodes). The result lists the touched nodes with their new state. Saving again the exact content of a retired node (`insert` deduplicates on content) restores it.
 
 ### apply-safe
 
@@ -510,7 +520,7 @@ Everything an agent needs to decide, at the start of a turn, whether any graft h
 | `action` | When | Priority |
 | -------- | ---- | -------- |
 | `apply-safe` | `maintain status` recommends it | high |
-| `resolve` | pending candidates other than sources | high with a contradiction among them, else normal |
+| `resolve` | pending candidates other than sources | high with a `contradiction` / `possible_contradiction` among them, else normal |
 | `refresh-sources` | `source_changed` / `source_removed` candidates | normal |
 | `bootstrap` | a git project never bootstrapped (normal), or a bootstrapped one with pending topics (low) | normal / low |
 | `scan` | `maintain status` recommends it | low |

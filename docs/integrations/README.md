@@ -61,7 +61,8 @@ writes is a zero-touch lifecycle: once set up, the user never has to run a graft
 - repair a note contradicted by the code on the spot (`graft maintain resolve
   --node <old> --action supersede --by <new>`);
 - save durable knowledge after substantial work, with `--source file:` when it
-  comes from a file;
+  comes from a file, and check the insert's `similar` list: supersede a note the new
+  one corrects, record an unsettled conflict with `--action contradicts`;
 - never ask the user about graft in the normal path: surface it only when it is
   broken, data loss is suspected, or an irreversible action cannot be decided
   from context.

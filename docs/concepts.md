@@ -73,7 +73,7 @@ There are four edge types:
 | `KEYWORD` | Insert pipeline | Two nodes share a keyword (e.g. both tagged `spring-boot`) |
 | `SEMANTIC` | Insert pipeline | Two nodes are semantically similar (cosine above threshold) |
 | `SUPERSEDES` | `insert --supersedes` | New node replaces an older one |
-| `CONTRADICTS` | NLI pipeline (planned) | New node contradicts an existing one |
+| `CONTRADICTS` | `maintain resolve --action contradicts` (the agent, typically from insert's `similar` list or a `possible_contradiction` candidate) | Two notes conflict and it is not settled yet which is right; `maintain scan` reports the pair as a `contradiction` until it is |
 
 KEYWORD and SEMANTIC edges are **bidirectional at traversal time**: when you call `graft explore`, edges are walked in both directions regardless of which node was inserted first.
 
@@ -155,4 +155,3 @@ GPU acceleration is opt-in: set `hardware_accel: true` in `config.yaml` and buil
 
 - Fused-gate mode (`verify_use_fused_gate: true`) is not yet documented here — add an explanation of how the weighted fusion score replaces the boolean STRONG/WEAK rules.
 - Cross-encoder confidence is not yet documented — add once the CE is wired (roadmap item).
-- The NLI / CONTRADICTS pipeline is planned but not yet implemented — document once available.

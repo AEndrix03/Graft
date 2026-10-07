@@ -25,6 +25,7 @@
 
 static const char *const kind_names[MG_MAINT_N_KINDS] = {
   "contradiction",
+  "possible_contradiction",
   "source_removed",
   "source_changed",
   "possible_supersession",
@@ -397,6 +398,29 @@ static mg_err_t is_dismissed_unlocked(sqlite3 *db, const char *id, const char *e
   return (rc == SQLITE_ROW || rc == SQLITE_DONE) ? MG_OK : MG_ERR_STORAGE;
 }
 
+static mg_err_t has_contradicts_unlocked(sqlite3 *db, const mg_node_id_t a,
+                                         const mg_node_id_t b, int *out) {
+  sqlite3_stmt *stmt = NULL;
+  int rc;
+  *out = 0;
+  if (prep(db, "SELECT 1 FROM edges WHERE kind = 2 AND "
+               "((src = ?1 AND dst = ?2) OR (src = ?2 AND dst = ?1)) LIMIT 1;", &stmt) != MG_OK) {
+    return MG_ERR_STORAGE;
+  }
+  sqlite3_bind_blob(stmt, 1, a, MG_NODE_ID_BYTES, SQLITE_STATIC);
+  sqlite3_bind_blob(stmt, 2, b, MG_NODE_ID_BYTES, SQLITE_STATIC);
+  rc = sqlite3_step(stmt);
+  *out = rc == SQLITE_ROW;
+  sqlite3_finalize(stmt);
+  return (rc == SQLITE_ROW || rc == SQLITE_DONE) ? MG_OK : MG_ERR_STORAGE;
+}
+
+mg_err_t mg_storage_maint_has_contradicts(mg_storage_t *s, const mg_node_id_t a,
+                                          const mg_node_id_t b, int *out) {
+  if (!a || !b || !out) return MG_ERR_INVALID_ARG;
+  MAINT_LOCKED(s, has_contradicts_unlocked(mg_storage_sqlite(s), a, b, out));
+}
+
 mg_err_t mg_storage_maint_is_dismissed(mg_storage_t *s, const char *candidate_id,
                                        const char *evidence, int *out) {
   if (!candidate_id || !evidence || !out) return MG_ERR_INVALID_ARG;
@@ -732,6 +756,23 @@ static mg_err_t transition(sqlite3 *db, const mg_maint_change_t *c, int64_t now)
       err = run(stmt);
       return err == MG_OK ? set_state(db, c->node, MG_NODE_SUPERSEDED) : err;
     }
+
+    case MG_MAINT_LINK_CONTRADICTS: {
+      sqlite3_stmt *stmt = NULL;
+      if (memcmp(c->node, c->by, MG_NODE_ID_BYTES) == 0) return MG_ERR_INVALID_ARG;
+      if (state != MG_NODE_ACTIVE && state != MG_NODE_STALE) return MG_ERR_INVALID_ARG;
+      err = node_state(db, c->by, &by_state);
+      if (err != MG_OK) return err;
+      if (by_state != MG_NODE_ACTIVE && by_state != MG_NODE_STALE) return MG_ERR_INVALID_ARG;
+      /* weight 1.0: consolidate drops edges with weight <= 0 */
+      if (prep(db, "INSERT OR REPLACE INTO edges(src, dst, kind, keyword_id, weight) "
+                   "VALUES(?, ?, 2, NULL, 1.0);", &stmt) != MG_OK) {
+        return MG_ERR_STORAGE;
+      }
+      sqlite3_bind_blob(stmt, 1, c->node, MG_NODE_ID_BYTES, SQLITE_STATIC);
+      sqlite3_bind_blob(stmt, 2, c->by, MG_NODE_ID_BYTES, SQLITE_STATIC);
+      return run(stmt);
+    }
   }
   return MG_ERR_INVALID_ARG;
 }
@@ -747,7 +788,10 @@ static mg_err_t apply_unlocked(sqlite3 *db, const mg_maint_change_t *changes, si
   err = MG_OK;
   for (i = 0; err == MG_OK && i < n_changes; ++i) {
     err = transition(db, &changes[i], ts);
-    if (err == MG_OK) err = drop_candidates_naming(db, changes[i].node);
+    /* a link changes no state: the nodes' other candidates still stand */
+    if (err == MG_OK && changes[i].to != MG_MAINT_LINK_CONTRADICTS) {
+      err = drop_candidates_naming(db, changes[i].node);
+    }
   }
   if (err == MG_OK && dismiss_id) {
     sqlite3_stmt *stmt = NULL;

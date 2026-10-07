@@ -183,8 +183,11 @@ Body (`application/json`):
 Response:
 
 ```json
-{ "status": 0, "result": { "id_hex": "019e0a44...", "duplicate": false, "state": "active", "n_kw_edges": 3, "n_sem_edges": 2 } }
+{ "status": 0, "result": { "id_hex": "019e0a44...", "duplicate": false, "state": "active", "n_kw_edges": 3, "n_sem_edges": 2,
+  "similar": [ { "id_hex": "019d...", "title": "...", "state": "active", "similarity": 0.9749 } ] } }
 ```
+
+`similar` (new nodes only, absent on a duplicate) lists up to `edges.similar_report_max` existing active / stale notes whose cosine to the new title is >= `edges.similar_report_min`, most similar first: the caller supersedes the ones the new note corrects and records an unsettled conflict with `maintain resolve --action contradicts` (see [insert](../insert/README.md)).
 
 When `supersedes` is provided and resolves to an existing node:
 

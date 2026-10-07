@@ -47,6 +47,8 @@ edges:
   edge_keyword_topk:   5
   edge_semantic_topk:  20
   mmr_lambda:          0.7
+  similar_report_min:  0.8
+  similar_report_max:  3
 
 explore:
   default_beam:   4
@@ -62,6 +64,7 @@ maintenance:
   isolated_min_age_days: 30
   retention_days:        30
   trigger_inserts:       50
+  contradiction_min:     0.5
 
 http:
   enabled:           false
@@ -103,7 +106,7 @@ http:
 | --- | ------- | ------------ |
 | `cross_encoder_enabled` | `false` | Turn on the cross-encoder reranker (currently a stub — see roadmap). |
 | `cross_encoder_model_path` | `./models/bge-reranker-v2-m3.gguf` | Path to the reranker GGUF. Only consulted when `cross_encoder_enabled: true`. |
-| `nli_enabled` | `false` | Reserved for the future contradiction-detection layer. No-op today. |
+| `nli_enabled` | `false` | Reserved, no-op today. Contradictions are found by insert's `similar` list and `maintain scan` (see [maintenance](../maintenance/README.md#contradictions)). |
 
 #### `cache` (the `query` gating thresholds)
 
@@ -134,6 +137,8 @@ Read [`retrieval/`](../retrieval/) for the full gating formula.
 | `edge_keyword_topk`  | `5`    | Top-k per keyword when building keyword edges. |
 | `edge_semantic_topk` | `20`   | Pool size for MMR-driven semantic edge selection. |
 | `mmr_lambda`         | `0.7`  | MMR balance: 1.0 = pure relevance, 0.0 = pure diversity. |
+| `similar_report_min` | `0.8`  | `insert` lists existing active / stale notes at this cosine or above to the new title as `similar`, for the agent to supersede or mark `contradicts`. |
+| `similar_report_max` | `3`    | At most this many `similar` notes (capped at 10). `0` turns the list off (it is returned empty). |
 
 #### `explore`
 
@@ -157,6 +162,7 @@ Knobs of `graft maintain` (see [maintenance](../maintenance/#autonomous-maintena
 | `isolated_min_age_days` | `30`   | Age after which an isolated, never-read node is an `isolated_low_value` candidate. |
 | `retention_days`        | `30`   | How long a retired node stays restorable before `apply-safe` deletes it. `0` purges on the next run. |
 | `trigger_inserts`       | `50`   | Inserts since the last `apply-safe` / `scan` after which `status` recommends running it again. |
+| `contradiction_min`     | `0.5`  | Divergence score (negation 0.5, each split pair of opposite terms 0.5, different numbers 0.25, capped at 1) at which a near-duplicate pair becomes a `possible_contradiction`. `0` turns the heuristic off: such pairs stay `near_duplicate` / `possible_supersession`. |
 
 #### `http`
 

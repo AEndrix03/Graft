@@ -54,6 +54,8 @@ typedef struct {
   int   edge_keyword_topk;
   int   edge_semantic_topk;
   float mmr_lambda;
+  float edge_similar_report_min;  /* insert lists existing notes at this cosine or above as `similar` */
+  int   edge_similar_report_max;  /* at most this many; 0 turns the list off */
 
   /* explore */
   int   explore_default_beam;
@@ -69,6 +71,7 @@ typedef struct {
   int   maint_isolated_min_age_days;  /* isolated, never-accessed nodes older than this are candidates */
   int   maint_retention_days;         /* retired nodes are purged by apply-safe after this */
   int   maint_trigger_inserts;        /* status recommends apply-safe / scan after this many inserts */
+  float maint_contradiction_min;      /* divergence that turns a near-duplicate into possible_contradiction; 0 = off */
 
   /* http (REST + viewer; off by default) */
   bool   http_enabled;

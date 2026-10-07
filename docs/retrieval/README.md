@@ -268,7 +268,7 @@ Re-measure after a few hundred more inserts. Threshold tuning is empirical.
 ## What's missing and how to improve it
 
 - **Cross-encoder reranker wiring.** The stub returns `-1`; the gating already handles the disabled case correctly, but enabling a real CE would noticeably improve `s_ce` resolution on the close cases.
-- **NLI contradiction detection.** `nli_enabled` exists in config; the implementation is not yet wired. The goal: when an insert is too similar to an existing node but the polarity is opposite (e.g. "X must do Y" vs "X must NOT do Y"), add a `MG_EDGE_CONTRADICTS` edge so the agent surfaces both sides.
+- **Surface `CONTRADICTS` edges in results.** Contradictions are recorded by the agent (`maintain resolve --action contradicts`, see [maintenance](../maintenance/README.md#contradictions)) and resolved through `maintain scan`, but `query` / `retrieve` / `explore` do not flag a hit that has an unsettled `CONTRADICTS` partner yet. Returning the partner next to the hit would let the agent see both sides before quoting one.
 - **Adaptive thresholds.** Today the user edits `config.yaml`. A `graft consolidate --tune` mode that proposes new thresholds based on the recent percentiles would close the loop.
 - **`retrieve` per-list weighting.** RRF is unweighted across the three lists. For corpora dominated by long bodies, downweighting `R_bm25_b` would reduce noise.
 - **`query` early exit on very-strong vector hits.** The current loop touches up to 10 candidates even when `s_vec > 0.95` on the first. A small short-circuit would shave a few ms on the warm hot path.

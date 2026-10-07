@@ -219,7 +219,11 @@ candidate selection (they're still reachable via `/v1/nodes/{id}`).
     "duplicate": false,
     "state": "active",
     "n_kw_edges":  3,
-    "n_sem_edges": 2
+    "n_sem_edges": 2,
+    "similar": [
+      { "id_hex": "019d...", "title": "Retries are enabled by default for outgoing HTTP calls",
+        "state": "active", "similarity": 0.9749 }
+    ]
   }
 }
 ```
@@ -229,6 +233,12 @@ returned `id_hex` is the existing one, no new node was created. `state` is
 that node's lifecycle state: a `retired` match is restored (`active`), a
 `superseded` one is left as is and the response adds `superseded_by`, the
 id of the node that replaced it (see [insert](insert/README.md)).
+
+`similar` (new nodes only, absent on a duplicate): up to
+`edges.similar_report_max` existing active / stale notes with cosine >=
+`edges.similar_report_min` to the new title, most similar first. The caller
+supersedes the ones the new note corrects and records an unsettled conflict
+with `maintain resolve --action contradicts` (see [insert](insert/README.md)).
 
 ### `GET /v1/nodes/{id_hex}`
 

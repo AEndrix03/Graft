@@ -285,6 +285,16 @@ edges:
   # Also reused inside /v1/explore beam selection. 0.7 is a good neutral.
   mmr_lambda: 0.7
 
+  # [quality] insert returns, as `similar`, the existing active/stale notes at
+  # this cosine or above to the new title, so the agent can supersede the one
+  # the new note corrects or record an unsettled conflict (`maintain resolve
+  # --action contradicts`). [range] 0.7..0.95. Lower = more notes to check.
+  similar_report_min: 0.8
+
+  # [quality] Max notes in insert's `similar` list. [range] 0..10 (capped at
+  # 10). 0 = off (the list comes back empty).
+  similar_report_max: 3
+
 
 # -----------------------------------------------------------------------------
 # explore — keyword-conditioned beam search over the graph (/v1/explore)
@@ -351,6 +361,15 @@ maintenance:
   # [trigger] `graft maintain status` recommends apply-safe / scan after this
   # many inserts since the last run.
   trigger_inserts: 50
+
+  # [quality] Divergence score at which a near-duplicate pair is reported as a
+  # possible_contradiction instead. Deterministic EN/IT word lists, no model:
+  # a negation on one side only = 0.5, each pair of opposite terms split
+  # across the two (enabled/disabled, always/never, sync/async, ...) = 0.5,
+  # different numbers = 0.25; capped at 1. [range] 0.25..1.0. 0.25 also
+  # flags pairs that only differ in numbers. 0 = off (such pairs stay
+  # near_duplicate / possible_supersession).
+  contradiction_min: 0.5
 
 
 # -----------------------------------------------------------------------------

@@ -119,10 +119,11 @@ static void test_read_maint(void) {
   mpack_write_cstr(&w, "inserts_since_scan");       mpack_write_int(&w, 7);
   mpack_write_cstr(&w, "pending");
   mpack_build_map(&w);
-  mpack_write_cstr(&w, "total"); mpack_write_int(&w, 4);
+  mpack_write_cstr(&w, "total"); mpack_write_int(&w, 6);
   mpack_write_cstr(&w, "by_kind");
   mpack_build_map(&w);
   mpack_write_cstr(&w, "contradiction");  mpack_write_int(&w, 1);
+  mpack_write_cstr(&w, "possible_contradiction"); mpack_write_int(&w, 2);
   mpack_write_cstr(&w, "source_removed"); mpack_write_int(&w, 1);
   mpack_write_cstr(&w, "source_changed"); mpack_write_int(&w, 2);
   mpack_complete_map(&w);
@@ -141,7 +142,7 @@ static void test_read_maint(void) {
   mg_status_read_maint(mpack_tree_root(&tree), &s);
   CHECK(s.have_maint == 1, "have_maint");
   CHECK(s.inserts_since_apply_safe == 51 && s.inserts_since_scan == 7, "insert counters");
-  CHECK(s.pending_total == 4 && s.contradictions == 1, "pending");
+  CHECK(s.pending_total == 6 && s.contradictions == 3, "pending, possible contradictions counted");
   CHECK(s.src_changed == 2 && s.src_removed == 1, "source kinds");
   CHECK(s.rec_apply_safe == 1 && s.rec_scan == 0, "recommended");
   mpack_tree_destroy(&tree);

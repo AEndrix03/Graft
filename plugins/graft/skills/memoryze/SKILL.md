@@ -94,8 +94,14 @@ graft insert \
 
 When a node is derived from a file (code, docs, config), pass `--source file:<path>` (repeatable, path relative to the cwd or absolute): graft records the file and its fingerprint, and `graft sources diff` later flags the node when that file changes. Use `--source conversation` for knowledge that only exists in the chat. Re-inserting identical content with a new `--source` just attaches it to the existing node.
 
+Each new node's result carries `similar`: existing notes close to it (`id_hex`, `title`, `state`, `similarity`). Check them right after the insert, while the conversation is still in front of you:
+- the new node corrects an old one → `graft maintain resolve --node <old> --action supersede --by <new> --note "<why>"`;
+- they conflict and you cannot tell which is right → `graft maintain resolve --node <new> --action contradicts --by <old> --note "<why>"` (records the conflict, changes no state);
+- only related → nothing.
+
 After all inserts, **report back to the user**:
 - The IDs (`id_hex`) created and which were duplicates of existing nodes.
+- What you did with `similar`: the old notes superseded, the conflicts recorded with `contradicts` (the user may know which side is right).
 - Suggest a follow-up `/recall` to verify the saved nodes are findable with the user's likely future queries.
 
 ## Refusals
@@ -127,6 +133,8 @@ Saved to profile=<name>:
   ✓ <id_hex_short> — <title>
   ✓ <id_hex_short> — <title>
   • <id_hex_short> — <title>      (duplicate, not re-saved)
+  ↳ supersedes <id_hex_short> — <old title>
+  ⚠ conflicts with <id_hex_short> — <old title>   (recorded as contradicts)
 
 Try: graft query "<one of the titles>"
 ```

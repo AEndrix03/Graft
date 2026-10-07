@@ -50,6 +50,12 @@ FETCH_OLD = ("Node.js has no global fetch, install node-fetch",
              "Older Node versions need the node-fetch package for HTTP requests.")
 FETCH_NEW = ("Node.js 18 ships a global fetch based on undici",
              "From Node 18 fetch is global and built on undici; node-fetch is not needed.")
+RETRY_ON = ("Retries are enabled by default for outgoing HTTP calls",
+            "The HTTP client retries failed requests automatically.")
+RETRY_OFF = ("Retries are disabled by default for outgoing HTTP calls",
+             "The HTTP client does not retry failed requests unless configured.")
+UNRELATED = ("Watercolour paper should be stretched before painting",
+             "Soak the sheet and tape it to a board so it dries flat.")
 TEMP = ("Temporary note: the staging database is read-only during the migration",
         "Writes to the staging database fail while the schema migration runs.")
 
@@ -89,6 +95,37 @@ class Suite:
     def explore_ids(self, text: str, keyword: str) -> list[str]:
         out = self.cli("explore", text, "--keyword", keyword)
         return [n["id_hex"] for n in out["nodes"]]
+
+    def candidate(self, scan: dict, kind: str, node: str) -> dict | None:
+        for c in scan["candidates"]:
+            if c["kind"] == kind and any(n["id_hex"] == node for n in c["nodes"]):
+                return c
+        return None
+
+    def contradictions(self) -> None:
+        """#22: insert reports close notes; scan flags a diverging pair;
+        `contradicts` records it without changing any state."""
+        on = self.insert(RETRY_ON, "http")
+        r = self.cli("insert", "--title", RETRY_OFF[0], "--body", RETRY_OFF[1], "--keyword", "http")
+        off = r["id_hex"]
+        self.check(any(s["id_hex"] == on for s in r.get("similar", [])),
+                   "insert: a near note is listed as similar")
+        r = self.cli("insert", "--title", UNRELATED[0], "--body", UNRELATED[1])
+        self.check(r.get("similar") == [], "insert: an unrelated note lists nothing similar")
+
+        scan = self.cli("maintain", "scan", "--no-sources", "--limit", "100")
+        c = self.candidate(scan, "possible_contradiction", on)
+        self.check(c is not None and any(n["id_hex"] == off for n in c["nodes"]),
+                   "scan: the diverging pair is a possible_contradiction")
+        if c is None:
+            return
+        self.cli("maintain", "resolve", c["id"], "--action", "contradicts")
+        self.check(self.cli("query", RETRY_ON[0]).get("state") == "active",
+                   "contradicts: both notes stay active")
+        scan = self.cli("maintain", "scan", "--no-sources", "--limit", "100")
+        self.check(self.candidate(scan, "contradiction", on) is not None
+                   and self.candidate(scan, "possible_contradiction", on) is None,
+                   "contradicts: the pair comes back as a contradiction")
 
     def check(self, ok: bool, what: str) -> None:
         print(("ok   " if ok else "FAIL ") + what)
@@ -171,6 +208,8 @@ class Suite:
                    "expired: absent from retrieve")
         self.check(temp not in json.dumps(self.cli("query", TEMP[0])),
                    "expired: absent from query")
+
+        self.contradictions()
 
         print(f"\n{len(self.failures)} failure(s)")
         return 1 if self.failures else 0

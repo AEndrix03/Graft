@@ -870,8 +870,96 @@ static void test_duplicate_insert_states(void) {
   cleanup_db(path);
 }
 
+/* Issue #22: a near-duplicate pair that diverges becomes
+ * possible_contradiction; `contradicts` records the conflict without
+ * touching any state, and the pair then comes back as a contradiction. */
+static void test_possible_contradiction(void) {
+  const char *path = "test_maintain_contra.db";
+  mg_storage_t *s = open_db(path);
+  mg_ctx_t ctx;
+  mg_config_t cfg;
+  mg_node_id_t g, h, p, q, x, y;
+  char hg[33], cid[MG_MAINT_ID_HEX + 1];
+  int64_t now = now_ms();
+  int st, has_contra = 0, has_div = 0;
+  mpack_node_t r, cand;
+  mg_config_defaults(&cfg);
+  init_ctx(&ctx, s, &cfg);
+
+  /* g/h: same vector, opposite claims */
+  add_node(s, g, "Retries are enabled by default", "for outgoing HTTP calls", "g", 1, 0.0f,
+           now - HOUR_MS, NULL, 0, NULL, 0);
+  add_node(s, h, "Retries are disabled by default", "for outgoing HTTP calls", "h", 1, 0.0f,
+           now, NULL, 0, NULL, 0);
+  /* p/q: same vector, a paraphrase (positive control: still a near_duplicate) */
+  add_node(s, p, "Logs rotate daily", "the logger keeps one file per day", "p", 3, 0.0f,
+           now, NULL, 0, NULL, 0);
+  add_node(s, q, "Log files are rotated every day", "one file per day", "q", 3, 0.0f,
+           now, NULL, 0, NULL, 0);
+  /* x/y: a negation on one side, used for the error paths */
+  add_node(s, x, "The cache is shared by workers", "x", "x", 5, 0.0f, now, NULL, 0, NULL, 0);
+  add_node(s, y, "The cache is not shared by workers", "y", "y", 5, 0.0f, now, NULL, 0, NULL, 0);
+  hex(g, hg);
+
+  r = scan(&ctx, &st);
+  CHECK(st == 0, "scan ok");
+  CHECK(find_candidate(r, "possible_contradiction", g, cid, &cand), "possible_contradiction g/h");
+  CHECK(!find_candidate(r, "near_duplicate", g, NULL, NULL), "g/h not also a near_duplicate");
+  CHECK(find_candidate(r, "near_duplicate", p, NULL, NULL), "paraphrase stays a near_duplicate");
+  CHECK(!find_candidate(r, "possible_contradiction", p, NULL, NULL), "paraphrase not a contradiction");
+  CHECK(find_candidate(r, "possible_contradiction", x, NULL, NULL), "one-sided negation flagged");
+  {
+    mpack_node_t div = mpack_node_map_cstr_optional(
+        mpack_node_map_cstr_optional(cand, "signals"), "divergence");
+    mpack_node_t opp = mpack_node_map_cstr_optional(div, "opposites");
+    mpack_node_t acts = mpack_node_map_cstr_optional(cand, "suggested_actions");
+    has_div = mpack_node_type(opp) == mpack_type_array && mpack_node_array_length(opp) == 1 &&
+              str_eq(mpack_node_array_at(opp, 0), "enabled/disabled");
+    for (size_t i = 0; i < mpack_node_array_length(acts); ++i) {
+      if (str_eq(mpack_node_array_at(acts, i), "contradicts")) has_contra = 1;
+    }
+  }
+  CHECK(has_div, "divergence signals name the opposite terms");
+  CHECK(has_contra, "contradicts is a suggested action");
+
+  /* invalid: no partner, a node with itself */
+  call(&ctx, "maintain_resolve", &st, "action", "contradicts", "node", hg, NULL);
+  CHECK(st != 0, "contradicts without by rejected");
+  call(&ctx, "maintain_resolve", &st, "action", "contradicts", "node", hg, "by", hg, NULL);
+  CHECK(st != 0, "contradicts with itself rejected");
+
+  /* on the pair candidate: no node / by needed, no state changes */
+  r = call(&ctx, "maintain_resolve", &st, "candidate_id", cid, "action", "contradicts", NULL);
+  CHECK(st == 0, "contradicts on the candidate");
+  CHECK(mpack_node_array_length(mpack_node_map_cstr_optional(r, "nodes")) == 2,
+        "result lists both nodes");
+  CHECK(node_state(s, g) == MG_NODE_ACTIVE && node_state(s, h) == MG_NODE_ACTIVE,
+        "contradicts changes no state");
+
+  r = scan(&ctx, &st);
+  CHECK(find_candidate(r, "contradiction", g, NULL, &cand), "the pair is now a contradiction");
+  CHECK(!find_candidate(r, "possible_contradiction", g, NULL, NULL) &&
+        !find_candidate(r, "near_duplicate", g, NULL, NULL),
+        "the linked pair is not reported twice");
+  CHECK(find_candidate(r, "possible_contradiction", x, NULL, NULL),
+        "other candidates survive the link");
+
+  /* maintenance.contradiction_min 0 turns the heuristic off */
+  cfg.maint_contradiction_min = 0.0f;
+  r = scan(&ctx, &st);
+  CHECK(find_candidate(r, "near_duplicate", x, NULL, NULL) &&
+        !find_candidate(r, "possible_contradiction", x, NULL, NULL),
+        "heuristic off: the pair is a plain near_duplicate");
+
+  if (g_resp) { mpack_tree_destroy(&g_tree); free(g_resp); g_resp = NULL; }
+  mg_config_free(&cfg);
+  mg_storage_close(s);
+  cleanup_db(path);
+}
+
 int main(void) {
   test_pairs_and_resolve();
+  test_possible_contradiction();
   test_merge_action();
   test_retire_restore_purge();
   test_apply_safe_and_status();
