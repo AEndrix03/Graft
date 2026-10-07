@@ -554,6 +554,7 @@ int main(int argc, char **argv) {
     if (!strcmp(cmd, "upgrade")) {
         return mg_upgrade_cmd(argc, argv);
     }
+    mg_upgrade_auto();
     /* `view` opens the browser at the daemon's HTTP layer, auto-building
      * the viewer SPA (npm install + npm run build) on first run. */
     if (!strcmp(cmd, "view")) return mg_view_cmd(argc, argv);

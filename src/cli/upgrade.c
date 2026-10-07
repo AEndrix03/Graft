@@ -1,10 +1,12 @@
 #include "upgrade.h"
+#include "profile.h"
 
 #include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <time.h>
 
 #ifdef _WIN32
 #  define WIN32_LEAN_AND_MEAN
@@ -13,6 +15,8 @@
 #  define MG_PATH_SEP '\\'
 #  define mg_mkdir(p) _mkdir(p)
 #else
+#  include <fcntl.h>
+#  include <sys/wait.h>
 #  include <unistd.h>
 #  define MG_PATH_SEP '/'
 #  define mg_mkdir(p) mkdir((p), 0700)
@@ -262,7 +266,7 @@ static const char *platform_asset(void) {
 #endif
 }
 
-static int install_root(char *out, size_t cap) {
+static int install_root(char *out, size_t cap, int quiet) {
     char exe[1024], dir[1024];
     if (own_exe_path(exe, sizeof(exe)) != 0) return -1;
     snprintf(dir, sizeof(dir), "%s", exe);
@@ -270,7 +274,7 @@ static int install_root(char *out, size_t cap) {
     const char *base = strrchr(dir, MG_PATH_SEP);
     base = base ? base + 1 : dir;
     if (strcmp(base, "bin") != 0) {
-        fprintf(stderr, "upgrade works only from an installed layout (<root>%cbin%cgraft)\n",
+        if (!quiet) fprintf(stderr, "upgrade works only from an installed layout (<root>%cbin%cgraft)\n",
                 MG_PATH_SEP, MG_PATH_SEP);
         return -1;
     }
@@ -307,6 +311,61 @@ static int extract_archive(const char *archive, const char *dst) {
     return run_cmd(cmd);
 }
 
+#ifdef _WIN32
+/* Starts `cmdline` without waiting for it, stdout/stderr truncated into `log`
+ * (NUL when NULL). It gets a hidden console of its own rather than
+ * DETACHED_PROCESS, so the curl / powershell children it runs inherit that
+ * console instead of each flashing a window. Breakaway lets it outlive a
+ * caller's kill-on-close job, when the job allows it. */
+static int spawn_hidden(char *cmdline, const char *log) {
+    SECURITY_ATTRIBUTES sa = { sizeof(sa), NULL, TRUE };
+    HANDLE out = CreateFileA(log ? log : "NUL", GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE,
+                             &sa, log ? CREATE_ALWAYS : OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+    HANDLE in = CreateFileA("NUL", GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE,
+                            &sa, OPEN_EXISTING, 0, NULL);
+    BOOL ok = FALSE;
+    if (out != INVALID_HANDLE_VALUE && in != INVALID_HANDLE_VALUE) {
+        STARTUPINFOA si;
+        PROCESS_INFORMATION pi;
+        memset(&si, 0, sizeof(si));
+        si.cb = sizeof(si);
+        si.dwFlags = STARTF_USESTDHANDLES;
+        si.hStdInput = in;
+        si.hStdOutput = out;
+        si.hStdError = out;
+        DWORD flags = CREATE_NO_WINDOW | CREATE_NEW_PROCESS_GROUP;
+        ok = CreateProcessA(NULL, cmdline, NULL, NULL, TRUE, flags | CREATE_BREAKAWAY_FROM_JOB,
+                            NULL, NULL, &si, &pi);
+        if (!ok) ok = CreateProcessA(NULL, cmdline, NULL, NULL, TRUE, flags, NULL, NULL, &si, &pi);
+        if (ok) {
+            CloseHandle(pi.hThread);
+            CloseHandle(pi.hProcess);
+        }
+    }
+    if (out != INVALID_HANDLE_VALUE) CloseHandle(out);
+    if (in != INVALID_HANDLE_VALUE) CloseHandle(in);
+    return ok ? 0 : -1;
+}
+#endif
+
+/* The Windows zip wraps everything in a top-level `graft-<platform>/`
+ * directory, the tarballs do not: use whichever level holds `bin`. */
+static int payload_root(const char *payload, const char *asset, char *out, size_t cap) {
+    char probe[1024], name[256];
+    if (path_join(probe, sizeof(probe), payload, "bin") == 0 && dir_exists(probe))
+        return snprintf(out, cap, "%s", payload) < (int)cap ? 0 : -1;
+    snprintf(name, sizeof(name), "%s", asset);
+    char *ext = strstr(name, ".tar.gz");
+    if (!ext) ext = strstr(name, ".zip");
+    if (ext) *ext = '\0';
+    if (path_join(out, cap, payload, name) != 0 ||
+        path_join(probe, sizeof(probe), out, "bin") != 0 || !dir_exists(probe)) return -1;
+    return 0;
+}
+
+/* Files are swapped in through a rename, never overwritten in place: a
+ * running graftd (or the graft that spawned an auto-update) keeps its image
+ * open, and neither Windows nor Linux lets that file be rewritten. */
 static int apply_payload(const char *payload, const char *root, const char *tmp) {
     char qpayload[1024], qroot[1024], cmd[4096];
     if (shell_quote(payload, qpayload, sizeof(qpayload)) != 0 ||
@@ -317,19 +376,39 @@ static int apply_payload(const char *payload, const char *root, const char *tmp)
     char text[4096];
     snprintf(text, sizeof(text),
              "$ErrorActionPreference='Stop'\n"
+             "$src='%s'; $dst='%s'\n"
              "Wait-Process -Id %lu -ErrorAction SilentlyContinue\n"
-             "Copy-Item -Recurse -Force -Path '%s\\*' -Destination '%s'\n"
+             "Get-ChildItem -Recurse -File -Path $dst -Filter '*.graft-old' -ErrorAction SilentlyContinue |"
+             " Remove-Item -Force -ErrorAction SilentlyContinue\n"
+             "Get-ChildItem -Recurse -File -Path $src | ForEach-Object {\n"
+             "  $target = Join-Path $dst $_.FullName.Substring($src.Length).TrimStart('\\')\n"
+             "  New-Item -ItemType Directory -Force -Path (Split-Path $target) | Out-Null\n"
+             "  if (Test-Path $target) {\n"
+             "    $old = \"$target.$([guid]::NewGuid().ToString('N')).graft-old\"\n"
+             "    Move-Item -Force -Path $target -Destination $old\n"
+             "  }\n"
+             "  Copy-Item -Force -Path $_.FullName -Destination $target\n"
+             "}\n"
              "Remove-Item -Recurse -Force '%s'\n",
-             (unsigned long)GetCurrentProcessId(), payload, root, tmp);
+             payload, root, (unsigned long)GetCurrentProcessId(), tmp);
     if (write_text(script, text) != 0) return -1;
-    snprintf(cmd, sizeof(cmd),
-             "powershell -NoProfile -Command \"Start-Process powershell -WindowStyle Hidden -ArgumentList '-NoProfile -ExecutionPolicy Bypass -File ''%s'''\"",
-             script);
-    if (run_cmd(cmd) != 0) return -1;
+    /* `-File` takes only a double-quoted path: a single-quoted one makes
+     * powershell exit without running anything. */
+    snprintf(cmd, sizeof(cmd), "powershell -NoProfile -ExecutionPolicy Bypass -File \"%s\"", script);
+    char home[1024], log[1024];
+    int has_log = mg_profile_home(home, sizeof(home)) == 0 &&
+                  path_join(log, sizeof(log), home, "upgrade-apply.log") == 0;
+    if (spawn_hidden(cmd, has_log ? log : NULL) != 0) return -1;
     printf("Upgrade staged. Files will be replaced after this graft process exits.\n");
     return 0;
 #else
-    snprintf(cmd, sizeof(cmd), "cp -R %s/. %s/", qpayload, qroot);
+    (void)tmp;
+    snprintf(cmd, sizeof(cmd),
+             "cd %s && find . -type f | while IFS= read -r f; do "
+             "mkdir -p %s/\"$(dirname \"$f\")\" && "
+             "cp -p \"$f\" %s/\"$f.graft-new\" && "
+             "mv -f %s/\"$f.graft-new\" %s/\"$f\" || exit 1; done",
+             qpayload, qroot, qroot, qroot, qroot);
     return run_cmd(cmd);
 #endif
 }
@@ -412,7 +491,7 @@ int mg_upgrade_cmd(int argc, char **argv) {
     if (path_join(archive, sizeof(archive), tmp, asset) != 0 ||
         path_join(sums, sizeof(sums), tmp, "SHA256SUMS") != 0 ||
         path_join(payload, sizeof(payload), tmp, "payload") != 0 ||
-        install_root(root, sizeof(root)) != 0) {
+        install_root(root, sizeof(root), 0) != 0) {
         fprintf(stderr, "upgrade: failed to resolve paths\n");
         return 1;
     }
@@ -431,7 +510,12 @@ int mg_upgrade_cmd(int argc, char **argv) {
         fprintf(stderr, "upgrade: failed to extract %s\n", asset);
         return 1;
     }
-    if (apply_payload(payload, root, tmp) != 0) {
+    char files[1024];
+    if (payload_root(payload, asset, files, sizeof(files)) != 0) {
+        fprintf(stderr, "upgrade: %s has no bin directory\n", asset);
+        return 1;
+    }
+    if (apply_payload(files, root, tmp) != 0) {
         fprintf(stderr, "upgrade: failed to apply payload to %s\n", root);
         return 1;
     }
@@ -439,4 +523,87 @@ int mg_upgrade_cmd(int argc, char **argv) {
     printf("Upgraded graft %s -> %s.\n", GRAFT_VERSION, tag);
 #endif
     return 0;
+}
+
+/* ---- background auto-update ---- */
+
+#define MG_AUTO_UPDATE_INTERVAL_S (24 * 60 * 60)
+
+static int env_off(const char *name) {
+    const char *v = getenv(name);
+    return v && (!strcmp(v, "0") || !strcmp(v, "off") || !strcmp(v, "false") || !strcmp(v, "no"));
+}
+
+/* Scoop and Homebrew own their install trees: upgrading behind their back
+ * would desync the package manager's bookkeeping. */
+static int managed_install(const char *root) {
+    static const char *const marks[] = {
+        "\\scoop\\apps\\", "/scoop/apps/", "/Cellar/", "/homebrew/", "/linuxbrew/", NULL
+    };
+    for (int i = 0; marks[i]; i++)
+        if (strstr(root, marks[i])) return 1;
+    return 0;
+}
+
+/* Claims the check for the next 24h by rewriting the stamp *before* the
+ * upgrader runs, so concurrent graft invocations do not all spawn one. */
+static int claim_check(const char *stamp) {
+    long long now = (long long)time(NULL), last = 0;
+    FILE *f = fopen(stamp, "rb");
+    if (f) {
+        if (fscanf(f, "%lld", &last) != 1) last = 0;
+        fclose(f);
+    }
+    if (last > 0 && now >= last && now - last < MG_AUTO_UPDATE_INTERVAL_S) return 0;
+    char text[32];
+    snprintf(text, sizeof(text), "%lld\n", now);
+    return write_text(stamp, text) == 0;
+}
+
+/* Runs `<exe> upgrade --yes` fully detached; `log` keeps the last attempt. */
+static void spawn_upgrader(const char *exe, const char *log) {
+#ifdef _WIN32
+    char cmdline[1200];
+    snprintf(cmdline, sizeof(cmdline), "\"%s\" upgrade --yes", exe);
+    (void)spawn_hidden(cmdline, log);
+#else
+    pid_t pid = fork();
+    if (pid < 0) return;
+    if (pid > 0) {
+        (void)waitpid(pid, NULL, 0);
+        return;
+    }
+    /* Double fork: the upgrader is reparented to init and never becomes a
+     * zombie of (or blocks) the command the user actually ran. */
+    if (setsid() < 0 || fork() != 0) _exit(0);
+    int in = open("/dev/null", O_RDONLY);
+    int out = open(log, O_WRONLY | O_CREAT | O_TRUNC, 0600);
+    if (in < 0 || out < 0) _exit(1);
+    dup2(in, 0);
+    dup2(out, 1);
+    dup2(out, 2);
+    execl(exe, exe, "upgrade", "--yes", (char *)NULL);
+    _exit(1);
+#endif
+}
+
+void mg_upgrade_auto(void) {
+    if (env_off("GRAFT_AUTO_UPDATE")) return;
+    const char *ci = getenv("CI");
+    if (ci && *ci && !env_off("CI")) return;
+    int v[3];
+    if (strchr(GRAFT_VERSION, '-') || parse_semver(GRAFT_VERSION, v) != 0) return;
+
+    char exe[1024], root[1024];
+    if (own_exe_path(exe, sizeof(exe)) != 0 ||
+        install_root(root, sizeof(root), 1) != 0 || managed_install(root)) return;
+
+    char home[1024], stamp[1024], log[1024];
+    if (mg_profile_home(home, sizeof(home)) != 0 ||
+        path_join(stamp, sizeof(stamp), home, "auto-update.stamp") != 0 ||
+        path_join(log, sizeof(log), home, "auto-update.log") != 0) return;
+    if (!claim_check(stamp)) return;
+    fflush(stdout);
+    fflush(stderr);
+    spawn_upgrader(exe, log);
 }

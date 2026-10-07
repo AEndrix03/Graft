@@ -618,6 +618,21 @@ the archive hash, and updates the installed graft runtime.
 `upgrade` only works from the standard install layout (`<root>/bin/graft`) and
 does not overwrite user profiles, DBs, models, or `~/.graft/config.yaml`.
 
+### Automatic updates
+
+Every other `graft` command checks for a new release at most once every 24 hours
+and, when one exists, runs `graft upgrade --yes` in a detached background
+process. The command you ran is never slowed down or interrupted, and nothing is
+printed: the new version takes effect from the next run (a running `graftd`
+keeps the old one until it restarts). The last attempt is logged to
+`$GRAFT_HOME/auto-update.log`, and the time of the last check is kept in
+`$GRAFT_HOME/auto-update.stamp`.
+
+Automatic updates are skipped for dev builds, when `CI` is set, outside the
+standard `<root>/bin/graft` layout, and for Scoop and Homebrew installs (update
+those through the package manager). Set `GRAFT_AUTO_UPDATE=0` (or `off`,
+`false`, `no`) to turn them off.
+
 Environment overrides for forks/tests:
 
 | Variable | Effect |
@@ -655,6 +670,7 @@ Read by the CLI:
 | `GRAFT_USAGE_LOG` | `$GRAFT_HOME/usage.jsonl` | Override the usage log path. |
 | `GRAFT_HOOKS` | _(on)_ | `0` / `off` / `false` / `no`: `graft hook` prints nothing (turns off the Claude Code plugin hooks). |
 | `GRAFT_HOOK_PROMPT` | _(on)_ | Same, for `graft hook prompt` only. |
+| `GRAFT_AUTO_UPDATE` | _(on)_ | `0` / `off` / `false` / `no`: no background update check (see [upgrade](#upgrade)). |
 
 The full list lives in [`configuration/`](../configuration/).
 

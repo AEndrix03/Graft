@@ -10,6 +10,7 @@ makes it, under `## [Unreleased]
 
 ### Added
 
+- Automatic updates: at most once a day, any `graft` command spawns a detached `graft upgrade --yes` in the background, so new releases install themselves without slowing down the command that was run. Skipped for dev builds, CI, Scoop / Homebrew installs and installs outside `<root>/bin`; `GRAFT_AUTO_UPDATE=0` turns it off. The last attempt is logged to `$GRAFT_HOME/auto-update.log` ([#25](https://github.com/AEndrix03/Graft/issues/25)).
 - `bench/corpus-ext/`: 45 more project notes (Orbit and a second fictional codebase, "Ledgerline") with independently written held-out and dev questions, loaded with `bench/run.py --extend`, so retrieval changes can be measured on team-specific knowledge without moving the base numbers. `bench/fts_lexical.py` scores the BM25 lists of `retrieve` on their own, with no daemon or model ([#24](https://github.com/AEndrix03/Graft/issues/24)).
 
 ### Changed
@@ -20,6 +21,7 @@ makes it, under `## [Unreleased]
 
 ### Fixed
 
+- `graft upgrade` on Windows unpacked the release zip one directory too deep (`<root>\graft-windows-x86_64\bin`), so the installed binaries were never replaced. It also no longer fails when `graftd` (or another `graft`) is running: files are swapped in through a rename instead of being overwritten in place, on every platform ([#25](https://github.com/AEndrix03/Graft/issues/25)).
 - A full-text query made of many short tokens (`a b c d e`) silently lost its last tokens: the buffer for the scoped FTS expression was sized too small and the builder stopped writing instead of growing it. The bound is now exact ([#21](https://github.com/AEndrix03/Graft/issues/21)).
 - A note marked `stale` could come back as a `STRONG` hit looking exactly like a live one, and the Claude Code prompt hook injected it without a word. `query` (and its `--explain` candidates), `retrieve` and `explore` now report each result's `state`, over the CLI, HTTP and MCP alike; the prompt hook (and the optional `query_inject.js` hook) labels a stale note and tells the agent to verify it before relying on it. Stale notes stay searchable, as documented ([#17](https://github.com/AEndrix03/Graft/issues/17)).
 - Inserting the exact content of a superseded note no longer looks like an ordinary successful duplicate. The insert response now carries the node's `state`, and for a superseded match also `superseded_by`, the note that replaced it; the old note stays superseded (restoring it would break its lineage). A retired match is still restored and reported `active` ([#20](https://github.com/AEndrix03/Graft/issues/20)).
