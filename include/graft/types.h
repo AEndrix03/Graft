@@ -31,6 +31,16 @@ typedef enum {
   MG_NODE_RETIRED    = 3
 } mg_node_state_t;
 
+/* Lowercase wire name of a node state, as results and `get` report it. */
+static inline const char *mg_node_state_name(mg_node_state_t s) {
+  switch (s) {
+    case MG_NODE_STALE:      return "stale";
+    case MG_NODE_SUPERSEDED: return "superseded";
+    case MG_NODE_RETIRED:    return "retired";
+    default:                 return "active";
+  }
+}
+
 typedef struct {
   mg_node_id_t   id;
   mg_hash_t      content_hash;

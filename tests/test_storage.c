@@ -284,6 +284,12 @@ int main(void) {
     return 1;
   }
 
+  /* Read paths filter expired rows but never delete them: physical cleanup
+   * belongs to consolidate, so a query stays read-only. */
+  int64_t nodes_before_reads = -1, nodes_after_reads = -1;
+  CHECK(mg_storage_count(s, MG_STORAGE_COUNT_NODES, &nodes_before_reads) == MG_OK,
+        "count nodes before reads");
+
   err = mg_storage_vector_topk(s, emb, 8, scores, &count);
   if (err != MG_OK) {
     fprintf(stderr, "expired vector topk failed: %s\n", mg_strerror(err));
@@ -297,13 +303,21 @@ int main(void) {
       return 1;
     }
   }
+  err = mg_storage_neighbors(s, title_hit.id, MG_EDGE_SEMANTIC, NULL, 0, neighbors, 4, &n_neighbors);
+  CHECK(err == MG_OK, "neighbors after expired insert ok");
+  err = mg_storage_fts_search(s, "expired", 4, true, true, scores, &count);
+  CHECK(err == MG_OK && count == 0, "expired fts hidden");
+  CHECK(mg_storage_count(s, MG_STORAGE_COUNT_NODES, &nodes_after_reads) == MG_OK,
+        "count nodes after reads");
+  CHECK(nodes_before_reads >= 0 && nodes_after_reads == nodes_before_reads,
+        "read paths must not prune expired nodes");
   err = mg_storage_get_node(s, expired_vec.id, &got);
-  if (err != MG_ERR_NOT_FOUND) {
-    if (err == MG_OK) mg_node_free(&got);
-    fprintf(stderr, "expired vector node was not pruned: %s\n", mg_strerror(err));
+  if (err != MG_OK) {
+    fprintf(stderr, "expired vector node was pruned by a read: %s\n", mg_strerror(err));
     mg_storage_close(s);
     return 1;
   }
+  mg_node_free(&got);
 
   mg_node_t expired_fts;
   memset(&expired_fts, 0, sizeof(expired_fts));
@@ -354,6 +368,30 @@ int main(void) {
             (long long)deleted, mg_strerror(err));
     mg_storage_close(s);
     return 1;
+  }
+
+  /* --- 6b. scoped FTS keeps every token of a many-short-token query --- */
+  {
+    mg_node_t letters;
+    memset(&letters, 0, sizeof(letters));
+    mg_uuidv7(letters.id);
+    mg_blake3((const uint8_t *)"letters", strlen("letters"), letters.content_hash);
+    letters.title = (char *)"q r s t u v w x";
+    letters.body = (char *)"letters body";
+    letters.created_at = 7;
+    letters.last_access = 7;
+    letters.state = MG_NODE_ACTIVE;
+    CHECK(mg_storage_insert_node_with_edges(s, &letters, emb, NULL, 0, NULL, 0, NULL) == MG_OK,
+          "insert letters");
+    CHECK(mg_storage_fts_search(s, "q r s t u v w x", 4, true, false, scores, &count) == MG_OK &&
+          count == 1 && same_id(scores[0].id, letters.id), "all short tokens match the title");
+    /* only the last token matches: a truncated expression would find nothing */
+    CHECK(mg_storage_fts_search(s, "aa bb cc dd ee ff gg hh x", 4, true, false, scores, &count) == MG_OK &&
+          count == 1 && same_id(scores[0].id, letters.id), "no short token is dropped from the expression");
+    /* tokens are OR-ed: a word the note lacks does not hide it */
+    CHECK(mg_storage_fts_search(s, "q r zzz", 4, true, false, scores, &count) == MG_OK &&
+          count == 1 && same_id(scores[0].id, letters.id), "a missing token does not empty the list");
+    printf("ok fts short tokens\n");
   }
 
   /* --- 7. count() --- */

@@ -80,6 +80,7 @@ static void test_defaults(void) {
 
   expect_int(cfg.retrieve_top_k      == 25, "default retrieve_top_k");
   expect_int(cfg.rrf_k_const         == 60, "default rrf_k_const");
+  expect_float(cfg.lexical_weight, 0.1f, 0.001f, "default lexical_weight");
   expect_int(cfg.query_fallback_top_k == 5, "default query_fallback_top_k");
 
   expect_int(!cfg.rerank_enabled,    "default rerank_enabled=false");
@@ -94,6 +95,8 @@ static void test_defaults(void) {
   expect_int(cfg.edge_keyword_topk  ==  5, "default edge_keyword_topk");
   expect_int(cfg.edge_semantic_topk == 20, "default edge_semantic_topk");
   expect_float(cfg.mmr_lambda, 0.7f, 0.001f, "default mmr_lambda");
+  expect_float(cfg.edge_similar_report_min, 0.8f, 0.001f, "default edge_similar_report_min");
+  expect_int(cfg.edge_similar_report_max == 3, "default edge_similar_report_max");
 
   expect_int(cfg.explore_default_beam  == 4, "default explore_default_beam");
   expect_int(cfg.explore_default_depth == 3, "default explore_default_depth");
@@ -107,6 +110,7 @@ static void test_defaults(void) {
   expect_int(cfg.maint_isolated_min_age_days ==   30, "default maint_isolated_min_age_days");
   expect_int(cfg.maint_retention_days        ==   30, "default maint_retention_days");
   expect_int(cfg.maint_trigger_inserts       ==   50, "default maint_trigger_inserts");
+  expect_float(cfg.maint_contradiction_min, 0.5f, 0.001f, "default maint_contradiction_min");
 
   expect_int(!cfg.http_enabled, "default http_enabled=false");
   expect_int(cfg.http_bind && strcmp(cfg.http_bind, "127.0.0.1") == 0, "default http_bind");
@@ -163,6 +167,7 @@ static void test_overrides(void) {
     "retrieval:\n"
     "  top_k: 30\n"
     "  rrf_k_const: 50\n"
+    "  lexical_weight: 0.25\n"
     "  query_fallback_top_k: 10\n"
     "rerank:\n"
     "  enabled: true\n"
@@ -177,6 +182,8 @@ static void test_overrides(void) {
     "  edge_keyword_topk: 8\n"
     "  edge_semantic_topk: 25\n"
     "  mmr_lambda: 0.80\n"
+    "  similar_report_min: 0.9\n"
+    "  similar_report_max: 0\n"
     "explore:\n"
     "  default_beam: 6\n"
     "  default_depth: 7\n"
@@ -190,6 +197,7 @@ static void test_overrides(void) {
     "  isolated_min_age_days: 60\n"
     "  retention_days: 7\n"
     "  trigger_inserts: 25\n"
+    "  contradiction_min: 0\n"
     "http:\n"
     "  enabled: true\n"
     "  bind: \"0.0.0.0\"\n"
@@ -240,6 +248,7 @@ static void test_overrides(void) {
   expect_float(cfg.min_lex_overlap,    0.08f, 0.001f, "min_lex_overlap override");
   expect_int(cfg.retrieve_top_k      == 30, "retrieve_top_k override");
   expect_int(cfg.rrf_k_const         == 50, "rrf_k_const override");
+  expect_float(cfg.lexical_weight, 0.25f, 0.001f, "lexical_weight override");
   expect_int(cfg.query_fallback_top_k == 10, "query_fallback_top_k override");
   expect_int(cfg.rerank_enabled,      "rerank_enabled override");
   expect_int(cfg.rerank_top_k == 15,  "rerank_top_k override");
@@ -252,6 +261,8 @@ static void test_overrides(void) {
   expect_int(cfg.edge_keyword_topk  ==  8, "edge_keyword_topk override");
   expect_int(cfg.edge_semantic_topk == 25, "edge_semantic_topk override");
   expect_float(cfg.mmr_lambda, 0.80f, 0.001f, "mmr_lambda override");
+  expect_float(cfg.edge_similar_report_min, 0.9f, 0.001f, "edge_similar_report_min override");
+  expect_int(cfg.edge_similar_report_max == 0, "edge_similar_report_max override");
   expect_int(cfg.explore_default_beam  == 6, "explore_default_beam override");
   expect_int(cfg.explore_default_depth == 7, "explore_default_depth override");
   expect_float(cfg.explore_decay_gamma, 0.90f, 0.001f, "explore_decay_gamma override");
@@ -263,6 +274,7 @@ static void test_overrides(void) {
   expect_int(cfg.maint_isolated_min_age_days ==  60, "maint_isolated_min_age_days override");
   expect_int(cfg.maint_retention_days        ==   7, "maint_retention_days override");
   expect_int(cfg.maint_trigger_inserts       ==  25, "maint_trigger_inserts override");
+  expect_float(cfg.maint_contradiction_min, 0.0f, 0.001f, "maint_contradiction_min override");
   expect_int(cfg.http_enabled, "http_enabled override");
   expect_int(strcmp(cfg.http_bind, "0.0.0.0") == 0, "http_bind override");
   expect_int(cfg.http_port == 8080,              "http_port override");

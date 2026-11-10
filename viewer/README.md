@@ -76,7 +76,7 @@ Calls `/v1/search?top_k=N`. Returns the N best results by RRF score (vec + BM25 
 - Renders only edges where **both endpoints are highlighted**. Semantic edges are still capped at top-2-per-source within the subgraph.
 - Shows the **prev/next nav** + **score box** below the search bar:
   - `‹ N / Total ›` — keyboard shortcuts `←` / `→`.
-  - `RRF XX.XX% · 0.0NNN` — percent is **absolute** against the theoretical RRF max `3/61 ≈ 0.0492`. So `100%` means "rank-1 in all three lists" (a strong match), not just "best of this batch."
+  - `RRF XX.XX% · 0.0NNN` — percent is **absolute** against the theoretical RRF max `(1 + 2 × 0.1)/61 ≈ 0.0197` (vector list weight 1, each BM25 list `retrieval.lexical_weight` = 0.1). So `100%` means "rank-1 in all three lists" (a strong match), not just "best of this batch."
 
 Click on a result → navigates within the result list. Click on a dimmed node → exits Retrieve mode, single-node selection.
 

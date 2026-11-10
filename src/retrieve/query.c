@@ -70,6 +70,7 @@ static void write_signals_map(mpack_writer_t *w,
 typedef struct {
     mg_node_id_t id;
     char *title;
+    mg_node_state_t state;
     int vec_rank;
     mg_verify_signals_t sig;
 } query_candidate_t;
@@ -86,7 +87,7 @@ static void explain_free(query_explain_t *x) {
 }
 
 static void explain_add(query_explain_t *x, const mg_node_id_t id, const char *title,
-                        int vec_rank, const mg_verify_signals_t *sig) {
+                        mg_node_state_t state, int vec_rank, const mg_verify_signals_t *sig) {
     if (!x->enabled || x->n >= (int)(sizeof(x->items) / sizeof(x->items[0]))) return;
     query_candidate_t *c = &x->items[x->n++];
     memcpy(c->id, id, MG_NODE_ID_BYTES);
@@ -96,6 +97,7 @@ static void explain_add(query_explain_t *x, const mg_node_id_t id, const char *t
         if (len) memcpy(c->title, title, len);
         c->title[len] = '\0';
     }
+    c->state = state;
     c->vec_rank = vec_rank;
     c->sig = *sig;
 }
@@ -113,6 +115,7 @@ static void write_candidates(mpack_writer_t *w, const query_explain_t *x) {
         mpack_build_map(w);
         mpack_write_cstr(w, "id_hex");   mpack_write_cstr(w, id_hex);
         mpack_write_cstr(w, "title");    mpack_write_cstr(w, c->title ? c->title : "");
+        mpack_write_cstr(w, "state");    mpack_write_cstr(w, mg_node_state_name(c->state));
         mpack_write_cstr(w, "vec_rank"); mpack_write_int(w, c->vec_rank);
         mpack_write_cstr(w, "hit");      mpack_write_cstr(w, hit_label(c->sig.hit_level));
         mpack_write_cstr(w, "signals");
@@ -284,7 +287,7 @@ mg_err_t mg_op_query(mg_ctx_t *ctx, mpack_node_t args, mpack_writer_t *result) {
             free(text);
             return e;
         }
-        explain_add(&explain, candidates[i].id, cand.title, i + 1, &sig);
+        explain_add(&explain, candidates[i].id, cand.title, cand.state, i + 1, &sig);
 
         float rank = query_verification_rank(&sig);
         if (sig.hit_level == MG_HIT_STRONG || sig.hit_level == MG_HIT_WEAK) {
@@ -323,6 +326,11 @@ mg_err_t mg_op_query(mg_ctx_t *ctx, mpack_node_t args, mpack_writer_t *result) {
 
         mpack_write_cstr(result, "title");
         mpack_write_cstr(result, best_node.title ? best_node.title : "");
+
+        /* STALE notes stay searchable for context, but a caller must be
+         * able to tell them from ACTIVE ones before relying on them. */
+        mpack_write_cstr(result, "state");
+        mpack_write_cstr(result, mg_node_state_name(best_node.state));
 
         mpack_write_cstr(result, "body");
         if (best_sig.hit_level == MG_HIT_STRONG) {

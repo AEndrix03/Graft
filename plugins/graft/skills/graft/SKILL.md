@@ -91,6 +91,10 @@ So: read the node, then check it against what is in front of you (the code, the
 config, the error). If it holds, use it and say where it came from. If it does
 not, see *Fixing stale evidence* below.
 
+Every result also carries `state`. `"stale"` means someone already marked the note
+doubtful: it is returned for context, even as a `STRONG` hit, but never use it
+without verifying it first; when you confirm or correct it, `restore` or supersede it.
+
 ## Asking well
 
 Query graft the way you query a search engine, not the way you talk to a person.
@@ -158,7 +162,22 @@ graft insert --title "short searchable title" \
 
 The title is the retrieval anchor: phrase it the way you would *search* for it
 later, not the way you solved it. `insert` is idempotent - the same
-title+body+keywords returns the existing id with `"duplicate": true`.
+title+body+keywords returns the existing id with `"duplicate": true`. Check its
+`"state"`: `"superseded"` means that exact content was already replaced, and
+`"superseded_by"` names the note that holds the current version.
+
+A new note's result also carries `"similar"`: existing notes close to it (by
+default up to 3 at cosine >= 0.8, each with `id_hex`, `title`, `state`,
+`similarity`). Read the titles now, while you still have the context
+(`graft get` when the title is not enough):
+
+| The new note... | Do |
+| --------------- | -- |
+| corrects an old one | `graft maintain resolve --node <old> --action supersede --by <new>` |
+| conflicts with one, and you cannot tell yet which is right | `graft maintain resolve --node <new> --action contradicts --by <old> --note "<why>"`: records the conflict, changes no state; `maintain scan` keeps reporting it as a `contradiction` until settled |
+| is only related | nothing |
+
+An empty or absent `similar` needs nothing.
 
 When a note is derived from a file, add `--source file:<path>` (repeatable): graft
 stores the file's project-relative path and fingerprint. `graft sources diff` then
@@ -187,6 +206,8 @@ thing is the worst state the graph can be in. The superseded note drops out of
 search but stays in the audit log and can be restored. If the note is merely
 suspicious and you cannot verify it, mark it instead:
 `graft maintain resolve --node <hex_id> --action stale --note "<what you could not confirm>"`.
+Two notes that disagree and neither can be confirmed yet: keep the conflict on record
+with `graft maintain resolve --node <a> --action contradicts --by <b> --note "<why>"`.
 Use `graft delete` only for what must vanish for good (a secret saved by mistake).
 
 ## End-of-turn recap

@@ -188,18 +188,48 @@ static void write_id_hex(const mg_node_id_t id, char out[33]) {
   out[32] = '\0';
 }
 
+#define MG_INSERT_SIMILAR_CAP 10
+
+/* Existing notes close to the new one (issue #22), for the agent writing it
+ * to check right away: a correction should supersede them, a conflict it
+ * cannot settle yet is recorded with `maintain resolve --action contradicts`.
+ * Only ACTIVE / STALE notes are candidates (vector_topk's filter); the node
+ * an explicit `supersedes` already replaces is left out. */
+static size_t find_similar(mg_storage_t *s, const mg_config_t *cfg, const mg_embedding_t q,
+                           const mg_node_id_t *skip, mg_node_score_t *out) {
+  mg_node_score_t top[MG_INSERT_SIMILAR_CAP + 1];
+  int n_top = 0, max = cfg->edge_similar_report_max;
+  size_t n = 0;
+  if (max <= 0) return 0;
+  if (max > MG_INSERT_SIMILAR_CAP) max = MG_INSERT_SIMILAR_CAP;
+  if (mg_storage_vector_topk(s, q, max + 1, top, &n_top) != MG_OK) return 0;
+  for (int i = 0; i < n_top && n < (size_t)max; ++i) {
+    if (top[i].score < cfg->edge_similar_report_min) break;   /* sorted descending */
+    if (skip && memcmp(top[i].id, *skip, MG_NODE_ID_BYTES) == 0) continue;
+    out[n++] = top[i];
+  }
+  return n;
+}
+
 static void write_insert_result(
   mpack_writer_t *result,
+  mg_storage_t *s,
   const mg_node_id_t id,
   size_t n_kw_edges,
   size_t n_sem_edges,
   bool duplicate,
-  size_t n_sources
+  size_t n_sources,
+  mg_node_state_t state,
+  const mg_node_id_t superseded_by,
+  const mg_node_score_t *similar,   /* NULL on a duplicate: no list at all */
+  size_t n_similar
 ) {
   char id_hex[33];
   write_id_hex(id, id_hex);
 
-  mpack_start_map(result, n_sources > 0 ? 6 : 5);
+  mpack_start_map(result, 6u + (n_sources > 0 ? 1u : 0u)
+                          + (state == MG_NODE_SUPERSEDED ? 1u : 0u)
+                          + (similar ? 1u : 0u));
   mpack_write_cstr(result, "id");
   mpack_write_bin(result, (const char *)id, MG_NODE_ID_BYTES);
   mpack_write_cstr(result, "id_hex");
@@ -210,28 +240,72 @@ static void write_insert_result(
   mpack_write_u64(result, (uint64_t)n_sem_edges);
   mpack_write_cstr(result, "duplicate");
   mpack_write_bool(result, duplicate);
+  /* A duplicate answers with the existing node, which may not be live:
+   * the state says whether a search can still reach it. */
+  mpack_write_cstr(result, "state");
+  mpack_write_cstr(result, mg_node_state_name(state));
+  if (state == MG_NODE_SUPERSEDED) {
+    if (superseded_by) {
+      char by_hex[33];
+      write_id_hex(superseded_by, by_hex);
+      mpack_write_cstr(result, "superseded_by");
+      mpack_write_cstr(result, by_hex);
+    } else {
+      mpack_write_cstr(result, "superseded_by");
+      mpack_write_nil(result);
+    }
+  }
   if (n_sources > 0) {
     /* also on a duplicate: the sources were attached to the existing node */
     mpack_write_cstr(result, "sources_attached");
     mpack_write_u64(result, (uint64_t)n_sources);
   }
+  if (similar) {
+    mpack_write_cstr(result, "similar");
+    mpack_start_array(result, (uint32_t)n_similar);
+    for (size_t i = 0u; i < n_similar; ++i) {
+      mg_node_t node = {0};
+      char hex[33];
+      int found = mg_storage_get_node(s, similar[i].id, &node) == MG_OK;
+      write_id_hex(similar[i].id, hex);
+      mpack_start_map(result, 4);
+      mpack_write_cstr(result, "id_hex");     mpack_write_cstr(result, hex);
+      mpack_write_cstr(result, "title");      mpack_write_cstr(result, found && node.title ? node.title : "");
+      mpack_write_cstr(result, "state");
+      mpack_write_cstr(result, mg_node_state_name(found ? (mg_node_state_t)node.state : MG_NODE_ACTIVE));
+      mpack_write_cstr(result, "similarity");
+      mpack_write_double(result, (double)(long long)(similar[i].score * 10000.0f + 0.5f) / 10000.0);
+      mpack_finish_map(result);
+      if (found) mg_node_free(&node);
+    }
+    mpack_finish_array(result);
+  }
   mpack_finish_map(result);
 }
 
-/* Saving the exact content of a retired node again means it is wanted
- * after all: bring it back (audited like a `maintain resolve ... restore`)
- * instead of answering with an id no search can reach. */
-static mg_err_t restore_if_retired(mg_storage_t *s, const mg_node_id_t id, int64_t now) {
+/* Saving the exact content of an existing node again. A retired node is
+ * wanted after all: bring it back (audited like a `maintain resolve ...
+ * restore`) instead of answering with an id no search can reach. A
+ * superseded one stays superseded, since restoring it would break its
+ * lineage: the caller gets its state and successor and decides. */
+static mg_err_t settle_duplicate(mg_storage_t *s, const mg_node_id_t id, int64_t now,
+                                 mg_node_state_t *state, mg_node_id_t superseded_by,
+                                 bool *has_superseded_by) {
   mg_node_t node;
   mg_maint_change_t change;
   mg_maint_log_t log;
   char hex[33];
-  int retired;
   mg_err_t err = mg_storage_get_node(s, id, &node);
   if (err != MG_OK) return err;
-  retired = node.state == MG_NODE_RETIRED;
+  *state = node.state;
+  *has_superseded_by = false;
   mg_node_free(&node);
-  if (!retired) return MG_OK;
+  if (*state == MG_NODE_SUPERSEDED) {
+    err = mg_storage_superseded_by(s, id, superseded_by);
+    if (err == MG_OK) *has_superseded_by = true;
+    return err == MG_ERR_NOT_FOUND ? MG_OK : err;
+  }
+  if (*state != MG_NODE_RETIRED) return MG_OK;
   memset(&change, 0, sizeof(change));
   change.to = MG_MAINT_TO_ACTIVE;
   memcpy(change.node, id, MG_NODE_ID_BYTES);
@@ -242,7 +316,9 @@ static mg_err_t restore_if_retired(mg_storage_t *s, const mg_node_id_t id, int64
   log.action = "restore";
   log.nodes = hex;
   log.detail = "same content inserted again";
-  return mg_storage_maint_apply(s, &change, 1, NULL, NULL, NULL, NULL, &log);
+  err = mg_storage_maint_apply(s, &change, 1, NULL, NULL, NULL, NULL, &log);
+  if (err == MG_OK) *state = MG_NODE_ACTIVE;
+  return err;
 }
 
 mg_err_t mg_op_insert(mg_ctx_t *ctx, mpack_node_t args, mpack_writer_t *result) {
@@ -258,6 +334,8 @@ mg_err_t mg_op_insert(mg_ctx_t *ctx, mpack_node_t args, mpack_writer_t *result) 
   int64_t expires_at = 0;
   mg_node_id_t supersedes_id;
   bool has_supersedes = false;
+  mg_node_score_t similar[MG_INSERT_SIMILAR_CAP];
+  size_t n_similar = 0u;
 
   mg_err_t err = copy_msgpack_string(args, "title", &title);
   if (err != MG_OK) {
@@ -338,6 +416,9 @@ mg_err_t mg_op_insert(mg_ctx_t *ctx, mpack_node_t args, mpack_writer_t *result) 
   size_t n_kw_edges = 0u;
   size_t n_sem_edges = 0u;
   mg_node_id_t existing_id;
+  mg_node_id_t dup_by;
+  mg_node_state_t dup_state = MG_NODE_ACTIVE;
+  bool has_dup_by = false;
   mg_node_t node;
   memset(&node, 0, sizeof(node));
 
@@ -355,10 +436,11 @@ mg_err_t mg_op_insert(mg_ctx_t *ctx, mpack_node_t args, mpack_writer_t *result) 
       err = mg_storage_attach_sources(ctx->storage, existing_id, sources, n_sources);
     }
     if (err == MG_OK) {
-      err = restore_if_retired(ctx->storage, existing_id, now);
+      err = settle_duplicate(ctx->storage, existing_id, now, &dup_state, dup_by, &has_dup_by);
     }
     if (err == MG_OK) {
-      write_insert_result(result, existing_id, 0u, 0u, true, n_sources);
+      write_insert_result(result, ctx->storage, existing_id, 0u, 0u, true, n_sources, dup_state,
+                          has_dup_by ? dup_by : NULL, NULL, 0u);
     }
     goto done;
   }
@@ -405,6 +487,9 @@ mg_err_t mg_op_insert(mg_ctx_t *ctx, mpack_node_t args, mpack_writer_t *result) 
   if (err != MG_OK) {
     goto done;
   }
+  /* before the insert, so the new node cannot list itself */
+  n_similar = find_similar(ctx->storage, ctx->config, q,
+                           has_supersedes ? (const mg_node_id_t *)&supersedes_id : NULL, similar);
 
   node.title = title;
   node.body = body;
@@ -419,7 +504,8 @@ mg_err_t mg_op_insert(mg_ctx_t *ctx, mpack_node_t args, mpack_writer_t *result) 
                                             has_supersedes ? (const mg_node_id_t *)&supersedes_id : NULL,
                                             sources, n_sources);
   if (err == MG_OK) {
-    write_insert_result(result, node.id, n_kw_edges, n_sem_edges, false, n_sources);
+    write_insert_result(result, ctx->storage, node.id, n_kw_edges, n_sem_edges, false, n_sources,
+                        MG_NODE_ACTIVE, NULL, similar, n_similar);
   } else if (err == MG_ERR_DUPLICATE &&
              mg_storage_node_id_by_hash(ctx->storage, content_hash, existing_id) == MG_OK) {
     /* A concurrent insert of the same content committed between our hash
@@ -429,7 +515,11 @@ mg_err_t mg_op_insert(mg_ctx_t *ctx, mpack_node_t args, mpack_writer_t *result) 
         ? mg_storage_attach_sources(ctx->storage, existing_id, sources, n_sources)
         : MG_OK;
     if (err == MG_OK) {
-      write_insert_result(result, existing_id, 0u, 0u, true, n_sources);
+      err = settle_duplicate(ctx->storage, existing_id, now, &dup_state, dup_by, &has_dup_by);
+    }
+    if (err == MG_OK) {
+      write_insert_result(result, ctx->storage, existing_id, 0u, 0u, true, n_sources, dup_state,
+                          has_dup_by ? dup_by : NULL, NULL, 0u);
     }
   }
 

@@ -93,6 +93,7 @@ pipeline (trigram Jaccard + cosine + optional cross-encoder).
     "hit": "STRONG",
     "id_hex": "019e09a95e7a...",
     "title": "Spring Boot @Valid cascade on nested DTOs ...",
+    "state": "active",
     "body":  "Without @Valid on the nested field, ...",
     "signals": {
       "s_vec": 0.91, "s_lex": 0.42, "s_jaccard": 0.38, "s_ce": null
@@ -101,7 +102,9 @@ pipeline (trigram Jaccard + cosine + optional cross-encoder).
 }
 ```
 
-`body` is `null` on `WEAK` hits.
+`body` is `null` on `WEAK` hits. `state` is `active` or `stale`: a stale
+note is still searchable but doubtful, so verify it before relying on it.
+Search and explore results carry the same field.
 
 **Response — MISS:**
 
@@ -111,7 +114,7 @@ pipeline (trigram Jaccard + cosine + optional cross-encoder).
   "result": {
     "hit": "MISS",
     "fallback_retrieve": {
-      "results": [ { "id_hex": "...", "title": "...", "score": 0.014 } ]
+      "results": [ { "id_hex": "...", "title": "...", "state": "active", "score": 0.014 } ]
     },
     "signals": { "s_vec": 0.21, ... }
   }
@@ -130,7 +133,7 @@ Hybrid retrieval. Returns nodes ranked by RRF score over three lists
   "status": 0,
   "result": {
     "results": [
-      { "id_hex": "...", "title": "...", "score": 0.0314,
+      { "id_hex": "...", "title": "...", "state": "active", "score": 0.0314,
         "keywords": ["spring-boot", "validation"] }
     ],
     "distinct_keywords": [ "spring-boot", "validation", ... ]
@@ -138,8 +141,10 @@ Hybrid retrieval. Returns nodes ranked by RRF score over three lists
 }
 ```
 
-`score` is the raw RRF (`Σ 1/(k+rank_i)` with `k=60`); the theoretical max
-is `3/61 ≈ 0.0492` for a doc that's rank 1 in all three lists.
+`score` is the raw weighted RRF (`Σ w_i/(k+rank_i)` with `k=60`, `w` = 1 for
+the vector list and `retrieval.lexical_weight` = 0.1 for each BM25 list); the
+theoretical max is `(1 + 2 × 0.1)/61 ≈ 0.0197` for a doc that's rank 1 in all
+three lists.
 
 ### `GET /v1/explore?text=...&depth=3&beam=4&keywords=a,b,c`
 
@@ -151,7 +156,7 @@ to the seed selection.
   "status": 0,
   "result": {
     "nodes": [
-      { "id_hex": "...", "title": "...", "score": 0.66, "cosine": 0.66, "depth_reached": 0 }
+      { "id_hex": "...", "title": "...", "state": "active", "score": 0.66, "cosine": 0.66, "depth_reached": 0 }
     ],
     "edges": [
       { "src_hex": "...", "dst_hex": "...", "kind": "semantic", "weight": 0.84 }
@@ -212,14 +217,28 @@ candidate selection (they're still reachable via `/v1/nodes/{id}`).
   "result": {
     "id_hex": "019e0a4466...",
     "duplicate": false,
+    "state": "active",
     "n_kw_edges":  3,
-    "n_sem_edges": 2
+    "n_sem_edges": 2,
+    "similar": [
+      { "id_hex": "019d...", "title": "Retries are enabled by default for outgoing HTTP calls",
+        "state": "active", "similarity": 0.9749 }
+    ]
   }
 }
 ```
 
 `duplicate: true` when the content hash matched an existing node — the
-returned `id_hex` is the existing one, no new node was created.
+returned `id_hex` is the existing one, no new node was created. `state` is
+that node's lifecycle state: a `retired` match is restored (`active`), a
+`superseded` one is left as is and the response adds `superseded_by`, the
+id of the node that replaced it (see [insert](insert/README.md)).
+
+`similar` (new nodes only, absent on a duplicate): up to
+`edges.similar_report_max` existing active / stale notes with cosine >=
+`edges.similar_report_min` to the new title, most similar first. The caller
+supersedes the ones the new note corrects and records an unsettled conflict
+with `maintain resolve --action contradicts` (see [insert](insert/README.md)).
 
 ### `GET /v1/nodes/{id_hex}`
 

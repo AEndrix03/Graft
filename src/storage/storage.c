@@ -899,6 +899,29 @@ static mg_err_t storage_node_id_by_hash_unlocked(mg_storage_t *s, const mg_hash_
   return rc == SQLITE_DONE ? MG_ERR_NOT_FOUND : MG_ERR_STORAGE;
 }
 
+/* The node whose SUPERSEDES edge points at `id`. Ids are UUIDv7, so the
+ * highest src is the newest successor when several replaced the node. */
+static mg_err_t storage_superseded_by_unlocked(mg_storage_t *s, const mg_node_id_t id, mg_node_id_t out) {
+  sqlite3_stmt *stmt = NULL;
+  int rc;
+  if (!s || !id || !out) {
+    return MG_ERR_INVALID_ARG;
+  }
+  if (prepare(s->db, "SELECT src FROM edges WHERE dst=? AND kind=? ORDER BY src DESC LIMIT 1;", &stmt) != MG_OK) {
+    return MG_ERR_STORAGE;
+  }
+  sqlite3_bind_blob(stmt, 1, id, MG_NODE_ID_BYTES, SQLITE_STATIC);
+  sqlite3_bind_int(stmt, 2, (int)MG_EDGE_SUPERSEDES);
+  rc = sqlite3_step(stmt);
+  if (rc == SQLITE_ROW) {
+    memcpy(out, sqlite3_column_blob(stmt, 0), MG_NODE_ID_BYTES);
+    sqlite3_finalize(stmt);
+    return MG_OK;
+  }
+  sqlite3_finalize(stmt);
+  return rc == SQLITE_DONE ? MG_ERR_NOT_FOUND : MG_ERR_STORAGE;
+}
+
 static mg_err_t storage_touch_access_unlocked(mg_storage_t *s, const mg_node_id_t id) {
   sqlite3_stmt *stmt = NULL;
   mg_err_t err;
@@ -975,7 +998,9 @@ static mg_err_t topk_scan(mg_storage_t *s, const mg_embedding_t query, int k, mg
   sqlite3_stmt *stmt = NULL;
   /* Only ACTIVE / STALE nodes are searchable: superseded and retired ones
    * (states 2, 3) and expired ones are excluded. Expiration is
-   * stored as Unix milliseconds; strftime('%s') is seconds, so scale it. */
+   * stored as Unix milliseconds; strftime('%s') is seconds, so scale it.
+   * Read paths only filter expired rows: deleting them is consolidate's job,
+   * so a query never needs a write transaction. */
   const char *sql_all = "SELECT v.id,v.embedding FROM node_vec v "
                         "JOIN nodes n ON n.id=v.id "
                         "WHERE n.state IN (0,1) "
@@ -995,7 +1020,6 @@ static mg_err_t topk_scan(mg_storage_t *s, const mg_embedding_t query, int k, mg
   if (k == 0) {
     return MG_OK;
   }
-  (void)mg_storage_prune_expired(s, NULL);
   if (prepare(s->db, use_kw ? sql_kw : sql_all, &stmt) != MG_OK) {
     return MG_ERR_STORAGE;
   }
@@ -1035,58 +1059,56 @@ static mg_err_t storage_vector_topk_by_keyword_unlocked(mg_storage_t *s, const m
  * ASCII whitespace and wrap each token as `<col>:"<token>"`, doubling any
  * internal `"` per FTS5 quoting rules. Quoted phrases lose all special
  * meaning to FTS5, so `(`, `)`, `:`, and column-name keywords pass through
- * harmlessly as literal text to match. */
+ * harmlessly as literal text to match.
+ *
+ * Tokens are joined with OR and BM25 ranks rows by how much of the query
+ * they match. Implicit AND left the list empty for almost every
+ * natural-language question, since some word of it is always missing from
+ * the note (bench/results/2026-10-05-fts-match). */
 static char *build_scoped_fts_query(const char *col, const char *query_text) {
   size_t in_len = strlen(query_text);
-  /* Worst-case output size: every char becomes a doubled quote inside a
-   * quoted phrase, plus `<col>:"` prefix and `"` suffix and a trailing
-   * space per token. Bound loosely as (in_len + col_len + 4) * 2. */
   size_t col_len = strlen(col);
-  size_t cap = (in_len + col_len + 4) * 2 + 1;
+  size_t n_tok = 0;
+  size_t i = 0;
+  while (i < in_len) {
+    while (i < in_len && isspace((unsigned char)query_text[i])) i++;
+    if (i >= in_len) break;
+    n_tok++;
+    while (i < in_len && !isspace((unsigned char)query_text[i])) i++;
+  }
+  if (n_tok == 0) {
+    return NULL;
+  }
+  /* Exact bound: every byte may double (a quote), plus per token the
+   * `<col>:"` prefix, the closing `"` and a ` OR ` separator. A looser
+   * bound used to drop the tail of a query made of many short tokens. */
+  size_t cap = 2 * in_len + n_tok * (col_len + 7) + 1;
   char *out = (char *)malloc(cap);
   if (!out) {
     return NULL;
   }
   size_t op = 0;
-  size_t i = 0;
-  int wrote_any = 0;
+  i = 0;
   while (i < in_len) {
-    /* skip whitespace */
     while (i < in_len && isspace((unsigned char)query_text[i])) i++;
     if (i >= in_len) break;
-    /* find token end */
     size_t tok_start = i;
     while (i < in_len && !isspace((unsigned char)query_text[i])) i++;
-    size_t tok_len = i - tok_start;
-    if (tok_len == 0) continue;
-    if (wrote_any) {
-      if (op + 1 < cap) out[op++] = ' ';
+    if (op > 0) {
+      memcpy(out + op, " OR ", 4);
+      op += 4;
     }
     /* <col>:"<token with " doubled>" */
-    if (op + col_len + 2 >= cap) break;
     memcpy(out + op, col, col_len); op += col_len;
     out[op++] = ':';
     out[op++] = '"';
-    for (size_t j = 0; j < tok_len; j++) {
-      char c = query_text[tok_start + j];
-      if (c == '"') {
-        if (op + 2 >= cap) { op = cap - 1; break; }
-        out[op++] = '"';
-        out[op++] = '"';
-      } else {
-        if (op + 1 >= cap) { op = cap - 1; break; }
-        out[op++] = c;
-      }
+    for (size_t j = tok_start; j < i; j++) {
+      if (query_text[j] == '"') out[op++] = '"';
+      out[op++] = query_text[j];
     }
-    if (op + 1 >= cap) { op = cap - 1; }
     out[op++] = '"';
-    wrote_any = 1;
   }
   out[op] = '\0';
-  if (!wrote_any) {
-    free(out);
-    return NULL;
-  }
   return out;
 }
 
@@ -1121,8 +1143,6 @@ static mg_err_t storage_fts_search_unlocked(mg_storage_t *s, const char *query_t
     rank_expr = "bm25(node_fts, 0.0, 1.0)";
   }
 
-  (void)mg_storage_prune_expired(s, NULL);
-
   char sql[384];
   snprintf(sql, sizeof(sql),
            "SELECT nodes.id, -%s FROM node_fts "
@@ -1155,7 +1175,6 @@ static mg_err_t storage_neighbors_unlocked(mg_storage_t *s, const mg_node_id_t s
     return MG_ERR_INVALID_ARG;
   }
   *out_count = 0;
-  (void)mg_storage_prune_expired(s, NULL);
   if (prepare(s->db,
       "SELECT src,dst,kind,COALESCE(keyword_id,0),weight FROM ("
       "  SELECT e.src,e.dst,e.kind,e.keyword_id,e.weight FROM edges e "
@@ -2042,6 +2061,10 @@ mg_err_t mg_storage_get_node(mg_storage_t *s, const mg_node_id_t id, mg_node_t *
 
 mg_err_t mg_storage_node_id_by_hash(mg_storage_t *s, const mg_hash_t h, mg_node_id_t out) {
   STORAGE_LOCKED(s, storage_node_id_by_hash_unlocked(s, h, out));
+}
+
+mg_err_t mg_storage_superseded_by(mg_storage_t *s, const mg_node_id_t id, mg_node_id_t out) {
+  STORAGE_LOCKED(s, storage_superseded_by_unlocked(s, id, out));
 }
 
 mg_err_t mg_storage_touch_access(mg_storage_t *s, const mg_node_id_t id) {

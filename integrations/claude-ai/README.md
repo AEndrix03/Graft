@@ -64,7 +64,7 @@ Quick smoke: ask Claude "use graft_stats" — should return node/edge/keyword co
 
 Add a Project-level instruction:
 
-> You have access to a long-term memory graph via the `graft_*` tools. **ALWAYS** call `graft_query` BEFORE solving non-trivial problems. **AFTER** solving a novel problem, call `graft_classify` then `graft_insert` to save the answer. To remove obsolete or wrong nodes, use `graft_delete`. To "modify" a node, fetch (`graft_get`), delete it, then re-insert with corrected fields — the system rebuilds embeddings and edges automatically.
+> You have access to a long-term memory graph via the `graft_*` tools. **ALWAYS** call `graft_query` BEFORE solving non-trivial problems. **AFTER** solving a novel problem, call `graft_classify` then `graft_insert` to save the answer. To correct a node, `graft_insert` the corrected version, then `graft_maintain_resolve` with `node=<old>`, `action="supersede"`, `by=<new>`: the old node leaves search but stays in the audit log and can be restored. Mark a doubtful node `action="stale"` and one that is no longer useful `action="retire"`. `graft_delete` is a permanent hard delete: only for content that must disappear, such as a secret saved by mistake.
 
 ## Troubleshooting
 

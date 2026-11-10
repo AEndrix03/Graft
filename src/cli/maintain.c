@@ -38,7 +38,7 @@ static int maintain_usage(void) {
         "                         [--note TEXT] [--actor NAME]\n"
         "  graft maintain log [--limit N] [--node ID]\n"
         "actions: keep keep_both stale retire restore supersede supersede_a supersede_b\n"
-        "         merge refresh\n");
+        "         merge refresh contradicts\n");
     return 2;
 }
 

@@ -98,13 +98,14 @@ STRONG / WEAK:
     "hit":   "STRONG",
     "id_hex":"019e09a95e7a...",
     "title": "...",
+    "state": "active",
     "body":  "...",
     "signals": { "s_vec": 0.91, "s_lex": 0.42, "s_jaccard": 0.38, "s_ce": null }
   }
 }
 ```
 
-`body` is `null` on WEAK.
+`body` is `null` on WEAK. `state` is `active` or `stale` (doubtful: verify before relying on it); search and explore results carry it too.
 
 MISS:
 
@@ -130,14 +131,14 @@ Hybrid retrieval via RRF over `(R_vec, R_bm25_title, R_bm25_body)`:
   "status": 0,
   "result": {
     "results": [
-      { "id_hex": "...", "title": "...", "score": 0.0314, "keywords": ["spring-boot"] }
+      { "id_hex": "...", "title": "...", "state": "active", "score": 0.0314, "keywords": ["spring-boot"] }
     ],
     "distinct_keywords": [ "spring-boot", "validation", ... ]
   }
 }
 ```
 
-`score` is raw RRF (`Σ 1 / (60 + rank_i)`); max ≈ `0.0492` for rank-1 in all three lists.
+`score` is raw weighted RRF (`Σ w_i / (60 + rank_i)`, `w` = 1 for the vector list and `retrieval.lexical_weight` = 0.1 for each BM25 list); max ≈ `0.0197` for rank-1 in all three lists.
 
 ### `GET /v1/explore?text=...&depth=3&beam=4&keywords=a,b,c`
 
@@ -147,7 +148,7 @@ Beam search. Optional comma-separated keyword filter applied to the seed selecti
 {
   "status": 0,
   "result": {
-    "nodes": [{ "id_hex": "...", "title": "...", "score": 0.66, "cosine": 0.66, "depth_reached": 0 }],
+    "nodes": [{ "id_hex": "...", "title": "...", "state": "active", "score": 0.66, "cosine": 0.66, "depth_reached": 0 }],
     "edges": [{ "src_hex": "...", "dst_hex": "...", "kind": "semantic", "weight": 0.84 }]
   }
 }
@@ -182,8 +183,11 @@ Body (`application/json`):
 Response:
 
 ```json
-{ "status": 0, "result": { "id_hex": "019e0a44...", "duplicate": false, "n_kw_edges": 3, "n_sem_edges": 2 } }
+{ "status": 0, "result": { "id_hex": "019e0a44...", "duplicate": false, "state": "active", "n_kw_edges": 3, "n_sem_edges": 2,
+  "similar": [ { "id_hex": "019d...", "title": "...", "state": "active", "similarity": 0.9749 } ] } }
 ```
+
+`similar` (new nodes only, absent on a duplicate) lists up to `edges.similar_report_max` existing active / stale notes whose cosine to the new title is >= `edges.similar_report_min`, most similar first: the caller supersedes the ones the new note corrects and records an unsettled conflict with `maintain resolve --action contradicts` (see [insert](../insert/README.md)).
 
 When `supersedes` is provided and resolves to an existing node:
 

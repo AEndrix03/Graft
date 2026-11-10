@@ -11,6 +11,30 @@ to `## [x.y.z] - YYYY-MM-DD` and becomes the body of the GitHub Release.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-11
+
+Graft now catches contradictions as they are written, keeps itself up to date, and its keyword-aware search uses the lexical signal again.
+
+### Added
+
+- Contradiction detection, with the agent as the judge. A new note's `insert` response carries `similar`: the existing active or stale notes at cosine >= `edges.similar_report_min` (default `0.8`) to its title, at most `edges.similar_report_max` (default 3, capped at 10, `0` turns it off), most similar first, with `id_hex`, `title`, `state` and `similarity`, so the agent that wrote it supersedes the note it corrects or records the conflict right away. The new `maintain resolve --action contradicts` records an unsettled conflict as a `CONTRADICTS` edge between `--node` and `--by` (or a pair candidate's two nodes) without changing any state, audited like every action; the pair then comes back as a `contradiction` candidate until it is settled or dismissed. `maintain scan` reports a new `possible_contradiction` kind (right after `contradiction`) for near-duplicate pairs whose texts diverge: a deterministic English / Italian word-list heuristic, no model, scores a negation on one side only and opposite terms split across the two (`enabled`/`disabled`, `always`/`never`, `sync`/`async`, `sempre`/`mai`, ...) at 0.5 each and different numbers at 0.25, reported in the new `divergence` signal; pairs at or above `maintenance.contradiction_min` (default `0.5`, `0` turns it off) get `supersede_a`, `supersede_b`, `stale`, `contradicts` and `keep_both`. Nothing destructive happens on its own: Graft finds, the agent decides. The skills and the MCP server's instructions tell the agent how to act on both ([#22](https://github.com/AEndrix03/Graft/issues/22)).
+- Automatic updates: at most once a day, any `graft` command spawns a detached `graft upgrade --yes` in the background, so new releases install themselves without slowing down the command that was run. Skipped for dev builds, CI, Scoop / Homebrew installs and installs outside `<root>/bin`; `GRAFT_AUTO_UPDATE=0` turns it off. The last attempt is logged to `$GRAFT_HOME/auto-update.log` ([#25](https://github.com/AEndrix03/Graft/issues/25)).
+- `bench/corpus-ext/`: 45 more project notes (Orbit and a second fictional codebase, "Ledgerline") with independently written held-out and dev questions, loaded with `bench/run.py --extend`, so retrieval changes can be measured on team-specific knowledge without moving the base numbers. `bench/fts_lexical.py` scores the BM25 lists of `retrieve` on their own, with no daemon or model ([#24](https://github.com/AEndrix03/Graft/issues/24)).
+
+### Changed
+
+- `retrieve` uses its lexical signal again. The title and body BM25 lists now match any word of the question instead of all of them (with every word required they came back empty for almost every natural-language question, so `retrieve` was vector-only), and they vote in the rank fusion with the new `retrieval.lexical_weight` (default `0.1`; the vector list weighs 1; `0` turns them off). Chosen on the extended dev set; on the extended held-out set retrieve MRR goes from 0.832 to 0.848, project questions rank better 18 times and worse 7, general questions are unchanged. `query` is not affected. Raw RRF scores are on a new scale (max ≈ 0.0197 instead of 0.0492), and the viewer's percentage follows it ([#21](https://github.com/AEndrix03/Graft/issues/21), [#24](https://github.com/AEndrix03/Graft/issues/24)).
+- The MCP server's instructions, the `graft_delete` description, the ChatGPT / Claude.ai prompt snippets and the `learn` skill no longer recommend "delete, then re-insert" to fix a note. A correction is now an insert followed by `graft_maintain_resolve` `supersede`; doubtful notes go `stale`, useless ones `retire`, all audited and reversible. `graft_delete` is described as the permanent, unaudited hard delete it is, for content that must vanish such as a leaked secret ([#18](https://github.com/AEndrix03/Graft/issues/18)).
+- `query`, `retrieve` and `explore` are read-only again: they still hide expired notes but no longer delete them on the way, so a search never opens a write transaction on the shared database. Expired notes are removed by `graft consolidate` / `graft maintain apply-safe` ([#19](https://github.com/AEndrix03/Graft/issues/19)).
+
+### Fixed
+
+- `graft --help`, `graft help` and `graft <command> --help` (or `-h`) print the usage to stdout and exit 0, instead of failing with "unknown option". The rule that `/graft-init` writes now spells out the `graft insert` syntax (`--title`, `--body`, one `--keyword` each, chosen with `graft classify`, `--source`), so an agent that skips the `graft` / `memoryze` skills for a one-line save no longer guesses positional arguments and loses the note; re-run `/graft-init` to refresh an existing rule ([#27](https://github.com/AEndrix03/Graft/issues/27)).
+- `graft upgrade` on Windows unpacked the release zip one directory too deep (`<root>\graft-windows-x86_64\bin`), so the installed binaries were never replaced. It also no longer fails when `graftd` (or another `graft`) is running: files are swapped in through a rename instead of being overwritten in place, on every platform ([#25](https://github.com/AEndrix03/Graft/issues/25)).
+- A full-text query made of many short tokens (`a b c d e`) silently lost its last tokens: the buffer for the scoped FTS expression was sized too small and the builder stopped writing instead of growing it. The bound is now exact ([#21](https://github.com/AEndrix03/Graft/issues/21)).
+- A note marked `stale` could come back as a `STRONG` hit looking exactly like a live one, and the Claude Code prompt hook injected it without a word. `query` (and its `--explain` candidates), `retrieve` and `explore` now report each result's `state`, over the CLI, HTTP and MCP alike; the prompt hook (and the optional `query_inject.js` hook) labels a stale note and tells the agent to verify it before relying on it. Stale notes stay searchable, as documented ([#17](https://github.com/AEndrix03/Graft/issues/17)).
+- Inserting the exact content of a superseded note no longer looks like an ordinary successful duplicate. The insert response now carries the node's `state`, and for a superseded match also `superseded_by`, the note that replaced it; the old note stays superseded (restoring it would break its lineage). A retired match is still restored and reported `active` ([#20](https://github.com/AEndrix03/Graft/issues/20)).
+
 ## [0.2.0] - 2026-10-04
 
 Graft now looks after itself: the agent bootstraps a project's memory, keeps it in sync with the files it came from, and maintains it without asking you. Install from the Claude Code or Codex marketplace, and eight bugs found in review are fixed.
@@ -143,7 +167,8 @@ Each adapter ships **skills** (when to search, when to save) and, where the harn
 - Glossary in `docs/concepts.md`, use cases in `docs/use-cases.md`.
 - Contributor guide in `CONTRIBUTING.md` with commit-msg policy (Conventional Commits, English ASCII subject ≤ 70 chars).
 
-[Unreleased]: https://github.com/AEndrix03/Graft/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/AEndrix03/Graft/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/AEndrix03/Graft/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/AEndrix03/Graft/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/AEndrix03/Graft/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/AEndrix03/Graft/releases/tag/v0.1.0

@@ -8,6 +8,8 @@ Two reproducible benchmarks of what graft promises:
   with and without it, measured on correctness, time and tokens.
 
 `charts.py` turns the newest results into the charts in the project README.
+`fts_lexical.py` scores the BM25 lists of `retrieve` on their own, without a
+daemon or a model ([why AND stays](./results/2026-10-05-fts-match/README.md)).
 
 ## Latest results
 
@@ -38,6 +40,8 @@ python bench/run.py                       # held-out set, the graft on PATH
 python bench/run.py --set dev             # the author's set, optimistic
 python bench/agent.py                     # needs the claude CLI, billed to that account
 python bench/charts.py                    # writes assets/bench-*.svg
+python bench/fts_lexical.py               # the lexical branch alone, no daemon
+python bench/run.py --extend bench/corpus-ext   # plus 45 project notes and their questions
 ```
 
 `run.py` and `agent.py` start their **own** `graftd` with a temporary
@@ -58,6 +62,18 @@ first: `third_party/llama.cpp/build/bin` and `C:\msys64\mingw64\bin`.
 | [`project_nodes.jsonl`](./corpus/project_nodes.jsonl) | 15 notes about a fictional company monorepo, "Orbit": conventions, decisions and local gotchas no model can know from training |
 | [`heldout.jsonl`](./corpus/heldout.jsonl) | 120 questions written independently, by an agent that saw only the notes and never the dev set or the thresholds |
 | [`queries.jsonl`](./corpus/queries.jsonl) | the dev set: 140 questions written by the author of the thresholds |
+
+[`corpus-ext/`](./corpus-ext/) is an optional extension, loaded with `--extend`,
+for what the base set covers thinly: team-specific knowledge. It adds 45 project
+notes (20 more about Orbit, 25 about "Ledgerline", a fictional payments
+platform whose vocabulary overlaps Orbit's) and, for each set, project
+questions in English and Italian plus project-flavoured negatives. The
+held-out file (120 questions) was written by an agent that saw only the notes;
+the dev file by a different agent under the same rule, then stripped of the 34
+questions too similar to a held-out one (word Jaccard > 0.5), leaving 86. The
+two still share scenarios, since each note has only a few natural symptoms.
+Extended runs are tagged `+corpus-ext` in the result file names, so they never
+mix with the base numbers quoted above.
 
 Query kinds:
 

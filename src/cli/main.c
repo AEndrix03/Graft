@@ -88,8 +88,8 @@ static long long mg_now_ms(void) {
 #define MG_CLI_MAX_KEYWORDS 64
 #define MG_CLI_MAX_SOURCES  64
 
-static int usage(void) {
-    fprintf(stderr,
+static void print_usage(FILE *out) {
+    fprintf(out,
         "usage:\n"
         "  graft insert --title T --body B [--keyword K | --tag K]...\n"
         "                  [--author NAME] [--expires-at UNIX_MS]\n"
@@ -117,9 +117,18 @@ static int usage(void) {
         "  graft profile <list|current|add|remove|set|import|export> ...\n"
         "  graft setup [claudecode|codex|opencode]   (default: every agent found)\n"
         "  graft upgrade [--check] [--yes]\n"
+        "  graft --help | <command> --help\n"
         "  graft --version\n"
         "  graft view [--port 9977]   (opens 3D viewer in browser; needs http.enabled)\n");
+}
+
+static int usage(void) {
+    print_usage(stderr);
     return 2;
+}
+
+static int mg_is_help(const char *arg) {
+    return !strcmp(arg, "--help") || !strcmp(arg, "-h");
 }
 
 /* Format unix-ms as ISO-8601 UTC: 2026-05-09T01:23:45Z. Buffer must be ≥ 21B. */
@@ -541,6 +550,20 @@ int main(int argc, char **argv) {
         return 0;
     }
 
+    /* `graft --help`, `graft help` and `graft <command> --help` print the
+     * usage to stdout and succeed. Agents and humans reach for --help first;
+     * answering it with "unknown option" left them guessing the flags. */
+    if (mg_is_help(cmd) || !strcmp(cmd, "help")) {
+        print_usage(stdout);
+        return 0;
+    }
+    for (int i = 2; i < argc; i++) {
+        if (mg_is_help(argv[i])) {
+            print_usage(stdout);
+            return 0;
+        }
+    }
+
     /* `analytics` and `profile` are CLI-only — they never touch the daemon. */
     if (!strcmp(cmd, "analytics")) {
         return mg_usage_analytics(argc, argv);
@@ -554,6 +577,7 @@ int main(int argc, char **argv) {
     if (!strcmp(cmd, "upgrade")) {
         return mg_upgrade_cmd(argc, argv);
     }
+    mg_upgrade_auto();
     /* `view` opens the browser at the daemon's HTTP layer, auto-building
      * the viewer SPA (npm install + npm run build) on first run. */
     if (!strcmp(cmd, "view")) return mg_view_cmd(argc, argv);

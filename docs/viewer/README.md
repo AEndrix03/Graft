@@ -88,7 +88,7 @@ Calls `/v1/search?top_k=N`. The viewer:
   4. `#ffb84d`
   5. `#ffe0b3` (pale peach) — least relevant
 - Renders only edges where **both endpoints are highlighted**. Semantic edges are still capped at top-2-per-source within the subgraph.
-- Shows prev / next nav + score box: `‹ N / Total ›` (`←` / `→` shortcuts), then `RRF XX.XX% · 0.0NNN`. The percent is absolute against the theoretical RRF max `3/61 ≈ 0.0492`. So `100%` means "rank-1 in all three lists".
+- Shows prev / next nav + score box: `‹ N / Total ›` (`←` / `→` shortcuts), then `RRF XX.XX% · 0.0NNN`. The percent is absolute against the theoretical RRF max `(1 + 2 × 0.1)/61 ≈ 0.0197` at the default `retrieval.lexical_weight`. So `100%` means "rank-1 in all three lists".
 
 Click on a result → navigates within the list. Click on a dimmed node → exits Retrieve mode, single-node selection.
 

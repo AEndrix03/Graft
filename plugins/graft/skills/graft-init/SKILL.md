@@ -136,6 +136,11 @@ contradicting notes.
 the fix, the gotcha, the decision and its reason, a reusable procedure (the
 `memoryze` skill), with `--source file:<path>` when it comes from a file. Never
 save secrets, transcripts, or what the code or git history already says.
+Syntax: `graft insert --title T --body B --keyword K [--keyword K2]...
+[--source file:<path>]` - title and body are flags, never positional, one
+`--keyword` per keyword (no commas); 2-5 keywords, taken from
+`graft classify --title T` (it reuses the graph's existing ones - guessed
+keywords cause misses later); `graft <command> --help` prints the usage.
 
 **Stay invisible.** Never ask the user about graft in the normal path; raise it
 only when it is broken, data loss is suspected, or an irreversible action cannot

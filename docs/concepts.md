@@ -14,7 +14,7 @@ A node has:
 - **`keywords`** — one or more tags that link this node into the graph (e.g. `spring-boot`, `validation`, `gotcha`). Keywords create edges between related nodes.
 - **`author`** — who (or which agent) created this node. Defaults to `user@hostname`.
 - **`expires_at`** — optional TTL. After this timestamp, the node is hidden from all queries and cleaned up by `graft consolidate`.
-- **`state`** — `ACTIVE`, `STALE`, or `SUPERSEDED`. Only ACTIVE nodes are returned by queries.
+- **`state`** — `ACTIVE`, `STALE`, `SUPERSEDED` or `RETIRED`. `query`, `retrieve` and `explore` return ACTIVE and STALE nodes (a stale note is doubtful but kept for context) and report each result's `state`, so a stale note is never mistaken for a live one; superseded and retired nodes are left out. See [maintenance](maintenance/README.md).
 
 **Writing good titles is the most important thing.** The title is the retrieval anchor. A good title is the specific, complete sentence that someone would be looking for when they need this memory. A vague title (`"Spring Boot issue"`) produces weak hits; a specific one (`"Spring Boot @Valid does not cascade to nested DTOs without @Valid on the nested field"`) produces STRONG hits even with different query phrasing.
 
@@ -73,7 +73,7 @@ There are four edge types:
 | `KEYWORD` | Insert pipeline | Two nodes share a keyword (e.g. both tagged `spring-boot`) |
 | `SEMANTIC` | Insert pipeline | Two nodes are semantically similar (cosine above threshold) |
 | `SUPERSEDES` | `insert --supersedes` | New node replaces an older one |
-| `CONTRADICTS` | NLI pipeline (planned) | New node contradicts an existing one |
+| `CONTRADICTS` | `maintain resolve --action contradicts` (the agent, typically from insert's `similar` list or a `possible_contradiction` candidate) | Two notes conflict and it is not settled yet which is right; `maintain scan` reports the pair as a `contradiction` until it is |
 
 KEYWORD and SEMANTIC edges are **bidirectional at traversal time**: when you call `graft explore`, edges are walked in both directions regardless of which node was inserted first.
 
@@ -155,4 +155,3 @@ GPU acceleration is opt-in: set `hardware_accel: true` in `config.yaml` and buil
 
 - Fused-gate mode (`verify_use_fused_gate: true`) is not yet documented here — add an explanation of how the weighted fusion score replaces the boolean STRONG/WEAK rules.
 - Cross-encoder confidence is not yet documented — add once the CE is wired (roadmap item).
-- The NLI / CONTRADICTS pipeline is planned but not yet implemented — document once available.

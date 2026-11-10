@@ -24,6 +24,7 @@ prove a node can find itself.
 
 Usage:
   python bench/run.py [--set dev|heldout] [--graft PATH] [--model PATH] [--out DIR]
+                      [--extend DIR ...]
 
 Standard library only.
 """
@@ -271,11 +272,25 @@ def load_jsonl(path: Path) -> list[dict]:
     return [json.loads(l) for l in path.read_text(encoding="utf-8").splitlines() if l.strip()]
 
 
-def load_corpus(corpus: Path, query_set: str) -> tuple[list[dict], list[dict]]:
-    """Every node file, plus the queries of one set, checked against the nodes."""
+def load_corpus(corpus: Path, query_set: str,
+                extend: list[Path] | None = None) -> tuple[list[dict], list[dict]]:
+    """Every node file, plus the queries of one set, checked against the nodes.
+
+    Each `extend` directory adds its own project_nodes.jsonl and the matching
+    question file (heldout.jsonl / queries.jsonl) on top of the base corpus.
+    Extension queries are never turned into exact-title queries."""
     nodes = load_jsonl(corpus / "nodes.jsonl")
     if (corpus / "project_nodes.jsonl").exists():
         nodes += load_jsonl(corpus / "project_nodes.jsonl")
+    ext_nodes: list[dict] = []
+    ext_queries: list[dict] = []
+    for d in extend or []:
+        if (d / "project_nodes.jsonl").exists():
+            ext_nodes += load_jsonl(d / "project_nodes.jsonl")
+        qfile = d / ("queries.jsonl" if query_set == "dev" else "heldout.jsonl")
+        if qfile.exists():
+            ext_queries += load_jsonl(qfile)
+    nodes += ext_nodes
     keys = [n["key"] for n in nodes]
     if len(keys) != len(set(keys)):
         sys.exit("duplicate node keys in the corpus")
@@ -286,6 +301,7 @@ def load_corpus(corpus: Path, query_set: str) -> tuple[list[dict], list[dict]]:
                    for n in nodes] + queries
     else:
         queries = load_jsonl(corpus / "heldout.jsonl")
+    queries += ext_queries
     unknown = {q["expect"] for q in queries if q["expect"] and q["expect"] not in set(keys)}
     if unknown:
         sys.exit(f"queries reference unknown node keys: {sorted(unknown)}")
@@ -319,6 +335,9 @@ def main() -> None:
     ap.add_argument("--model", help="BGE-M3 GGUF (default: $GRAFT_HOME/models/bge-m3.gguf)")
     ap.add_argument("--top-k", type=int, default=5)
     ap.add_argument("--corpus", default=str(HERE / "corpus"))
+    ap.add_argument("--extend", action="append", default=[], metavar="DIR",
+                    help="extension corpus dir (project_nodes.jsonl + heldout/queries.jsonl); "
+                         "repeatable")
     ap.add_argument("--out", default=str(HERE / "results"))
     ap.add_argument("--keep", action="store_true", help="keep the temporary GRAFT_HOME")
     args = ap.parse_args()
@@ -328,7 +347,8 @@ def main() -> None:
     model = Path(args.model).resolve() if args.model else default_model()
     if not model.exists():
         sys.exit(f"model not found: {model} (pass --model)")
-    nodes, queries = load_corpus(Path(args.corpus), args.query_set)
+    nodes, queries = load_corpus(Path(args.corpus), args.query_set,
+                                 [Path(d) for d in args.extend])
 
     version = graft_version(graft)
     started = dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds")
@@ -379,7 +399,8 @@ def main() -> None:
         "cpu": platform.processor() or None,
         "cpu_count": os.cpu_count(),
         "settings": "built-in defaults (installer-style config with paths only)",
-        "corpus": {"nodes": len(nodes), "queries": len(queries)},
+        "corpus": {"nodes": len(nodes), "queries": len(queries),
+                   "extend": [Path(d).name for d in args.extend]},
         "top_k": args.top_k,
         "summary": summarize(rows, args.top_k),
         "latency_ms": latency,
@@ -387,7 +408,8 @@ def main() -> None:
     }
     out_dir = Path(args.out)
     out_dir.mkdir(parents=True, exist_ok=True)
-    stem = f"{started[:10]}-{platform.system().lower()}-{version}-{args.query_set}"
+    ext = "".join(f"+{Path(d).name}" for d in args.extend)
+    stem = f"{started[:10]}-{platform.system().lower()}-{version}{ext}-{args.query_set}"
     (out_dir / f"{stem}.json").write_text(json.dumps(report, indent=2, ensure_ascii=False) + "\n",
                                          encoding="utf-8")
     md = markdown(report)

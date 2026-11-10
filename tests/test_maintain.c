@@ -338,6 +338,7 @@ static void test_pairs_and_resolve(void) {
 
   /* supersede_a: the older one is superseded by the newer, with a SUPERSEDES edge */
   CHECK(find_candidate(r, "possible_supersession", c, cid, NULL), "supersession still pending");
+  CHECK(in_vector_search(s, c, 3), "c searchable before it is superseded");
   r = call(&ctx, "maintain_resolve", &st, "candidate_id", cid, "action", "supersede_a", NULL);
   CHECK(st == 0, "supersede_a ok");
   CHECK(node_state(s, c) == MG_NODE_SUPERSEDED && node_state(s, d) == MG_NODE_ACTIVE, "c superseded by d");
@@ -426,7 +427,7 @@ static void test_retire_restore_purge(void) {
   mg_storage_t *s = open_db(path);
   mg_ctx_t ctx;
   mg_config_t cfg;
-  mg_node_id_t a, b;
+  mg_node_id_t a, b, live;
   char ha[33];
   int64_t now = now_ms();
   int st;
@@ -436,11 +437,13 @@ static void test_retire_restore_purge(void) {
   init_ctx(&ctx, s, &cfg);
 
   add_node(s, a, "terraform state lives in s3", "bucket xyz", "a", 4, 0.0f, now, &k, 1, NULL, 0);
+  add_node(s, live, "terraform plan runs in ci", "plan", "live", 6, 0.0f, now, &k, 1, NULL, 0);
   {
-    /* b links to a so neighbors() has something to hide */
+    /* b links to a, which gets retired, and to `live`, which must stay
+     * reachable: an empty neighbour list cannot pass the check below */
     mg_node_t n;
     mg_embedding_t emb;
-    mg_edge_t edge;
+    mg_edge_t edges[2];
     memset(&n, 0, sizeof(n));
     mg_uuidv7(n.id);
     mg_blake3((const uint8_t *)"b", 1, n.content_hash);
@@ -449,17 +452,26 @@ static void test_retire_restore_purge(void) {
     n.created_at = now;
     n.last_access = now;
     block_emb(emb, 5, 0.0f);
-    memset(&edge, 0, sizeof(edge));
-    memcpy(edge.src, n.id, MG_NODE_ID_BYTES);
-    memcpy(edge.dst, a, MG_NODE_ID_BYTES);
-    edge.kind = MG_EDGE_KEYWORD;
-    edge.keyword_id = k;
-    edge.weight = 0.7f;
-    CHECK(mg_storage_insert_node_with_edges(s, &n, emb, &k, 1, &edge, 1, NULL) == MG_OK, "insert b");
+    memset(edges, 0, sizeof(edges));
+    for (int i = 0; i < 2; ++i) {
+      memcpy(edges[i].src, n.id, MG_NODE_ID_BYTES);
+      memcpy(edges[i].dst, i == 0 ? a : live, MG_NODE_ID_BYTES);
+      edges[i].kind = MG_EDGE_KEYWORD;
+      edges[i].keyword_id = k;
+      edges[i].weight = 0.7f;
+    }
+    CHECK(mg_storage_insert_node_with_edges(s, &n, emb, &k, 1, edges, 2, NULL) == MG_OK, "insert b");
     memcpy(b, n.id, MG_NODE_ID_BYTES);
   }
   hex(a, ha);
   CHECK(in_vector_search(s, a, 4) && in_fts(s, a, "terraform"), "visible before retire");
+  {
+    mg_edge_t out[8];
+    int n = 0, seen = 0;
+    CHECK(mg_storage_neighbors(s, b, -1, NULL, 0, out, 8, &n) == MG_OK, "neighbors before retire");
+    for (int i = 0; i < n; ++i) seen |= memcmp(out[i].dst, a, MG_NODE_ID_BYTES) == 0;
+    CHECK(seen, "a is a neighbour of b before retire");
+  }
 
   r = call(&ctx, "maintain_resolve", &st, "node", ha, "action", "retire", "note", "obsolete", NULL);
   CHECK(st == 0, "retire ok");
@@ -468,10 +480,14 @@ static void test_retire_restore_purge(void) {
   CHECK(!in_fts(s, a, "terraform state"), "retired leaves full-text search");
   {
     mg_edge_t out[8];
-    int n = 0, seen = 0;
+    int n = 0, seen = 0, seen_live = 0;
     CHECK(mg_storage_neighbors(s, b, -1, NULL, 0, out, 8, &n) == MG_OK, "neighbors ok");
-    for (int i = 0; i < n; ++i) seen |= memcmp(out[i].dst, a, MG_NODE_ID_BYTES) == 0;
+    for (int i = 0; i < n; ++i) {
+      seen |= memcmp(out[i].dst, a, MG_NODE_ID_BYTES) == 0;
+      seen_live |= memcmp(out[i].dst, live, MG_NODE_ID_BYTES) == 0;
+    }
     CHECK(!seen, "retired leaves graph traversal");
+    CHECK(seen_live, "the live neighbour stays in graph traversal");
   }
   /* get still answers by id, and says it is retired */
   r = call(&ctx, "get", &st, "id_hex", ha, NULL);
@@ -749,13 +765,207 @@ static void test_sources(void) {
   cleanup_db(path);
 }
 
+/* A node stored under the hash `insert` computes for title + body and no
+ * keywords, so inserting the same text through the op hits it. */
+static void add_insertable(mg_storage_t *s, mg_node_id_t id, const char *title, const char *body,
+                           int block, const mg_node_id_t *supersedes) {
+  mg_node_t n;
+  mg_embedding_t e;
+  char buf[256];
+  size_t tl = strlen(title), bl = strlen(body);
+  memset(&n, 0, sizeof(n));
+  mg_uuidv7(n.id);
+  memcpy(buf, title, tl);
+  buf[tl] = '\0';
+  memcpy(buf + tl + 1, body, bl);
+  buf[tl + 1 + bl] = '\0';
+  mg_blake3((const uint8_t *)buf, tl + bl + 2, n.content_hash);
+  n.title = (char *)title;
+  n.body = (char *)body;
+  n.created_at = now_ms();
+  n.last_access = n.created_at;
+  block_emb(e, block, 0.0f);
+  if (mg_storage_insert_node_with_edges(s, &n, e, NULL, 0, NULL, 0, supersedes) != MG_OK) {
+    fprintf(stderr, "insert %s failed\n", title);
+    exit(1);
+  }
+  memcpy(id, n.id, MG_NODE_ID_BYTES);
+}
+
+static mpack_node_t insert_text(mg_ctx_t *ctx, const char *title, const char *body, int *status) {
+  char *args = NULL;
+  size_t len = 0;
+  mpack_writer_t w;
+  mpack_node_t r;
+  mpack_writer_init_growable(&w, &args, &len);
+  mpack_start_map(&w, 3);
+  mpack_write_cstr(&w, "title");    mpack_write_cstr(&w, title);
+  mpack_write_cstr(&w, "body");     mpack_write_cstr(&w, body);
+  mpack_write_cstr(&w, "keywords"); mpack_start_array(&w, 0); mpack_finish_array(&w);
+  mpack_finish_map(&w);
+  mpack_writer_destroy(&w);
+  r = dispatch(ctx, "insert", args, len, status);
+  free(args);
+  return r;
+}
+
+/* Issue #20: an exact duplicate reports the lifecycle of the node it hits;
+ * a superseded node is never passed off as a live one, nor restored. */
+static void test_duplicate_insert_states(void) {
+  const char *path = "test_maintain_dup.db";
+  mg_storage_t *s = open_db(path);
+  mg_ctx_t ctx;
+  mg_config_t cfg;
+  mg_node_id_t active, stale, retired, old, newer;
+  char h[33], hnewer[33];
+  int st;
+  mpack_node_t r;
+  mg_config_defaults(&cfg);
+  init_ctx(&ctx, s, &cfg);
+  /* never dereferenced: a duplicate answers before anything is embedded */
+  ctx.embed = (mg_embed_ctx_t *)&cfg;
+
+  add_insertable(s, active, "active note", "a", 1, NULL);
+  add_insertable(s, stale, "stale note", "s", 2, NULL);
+  add_insertable(s, retired, "retired note", "r", 3, NULL);
+  add_insertable(s, old, "old note", "o", 4, NULL);
+  add_insertable(s, newer, "new note", "n", 5, (const mg_node_id_t *)&old);
+  hex(newer, hnewer);
+
+  hex(stale, h);
+  call(&ctx, "maintain_resolve", &st, "node", h, "action", "stale", NULL);
+  CHECK(st == 0, "mark stale");
+  hex(retired, h);
+  call(&ctx, "maintain_resolve", &st, "node", h, "action", "retire", NULL);
+  CHECK(st == 0, "retire");
+
+  r = insert_text(&ctx, "active note", "a", &st);
+  hex(active, h);
+  CHECK(st == 0 && mpack_node_bool(mpack_node_map_cstr_optional(r, "duplicate")), "active dup");
+  CHECK(str_eq(mpack_node_map_cstr_optional(r, "id_hex"), h), "active dup id");
+  CHECK(str_eq(mpack_node_map_cstr_optional(r, "state"), "active"), "active dup state");
+  CHECK(mpack_node_is_missing(mpack_node_map_cstr_optional(r, "superseded_by")),
+        "no successor on an active dup");
+
+  r = insert_text(&ctx, "stale note", "s", &st);
+  CHECK(st == 0 && str_eq(mpack_node_map_cstr_optional(r, "state"), "stale"), "stale dup state");
+  CHECK(node_state(s, stale) == MG_NODE_STALE, "stale dup left stale");
+
+  r = insert_text(&ctx, "retired note", "r", &st);
+  CHECK(st == 0 && str_eq(mpack_node_map_cstr_optional(r, "state"), "active"), "retired dup restored");
+  CHECK(node_state(s, retired) == MG_NODE_ACTIVE, "retired dup back to active");
+
+  r = insert_text(&ctx, "old note", "o", &st);
+  hex(old, h);
+  CHECK(st == 0 && mpack_node_bool(mpack_node_map_cstr_optional(r, "duplicate")), "superseded dup");
+  CHECK(str_eq(mpack_node_map_cstr_optional(r, "id_hex"), h), "superseded dup id");
+  CHECK(str_eq(mpack_node_map_cstr_optional(r, "state"), "superseded"), "superseded dup state");
+  CHECK(str_eq(mpack_node_map_cstr_optional(r, "superseded_by"), hnewer), "superseded dup successor");
+  CHECK(node_state(s, old) == MG_NODE_SUPERSEDED, "superseded dup not restored");
+  CHECK(!in_vector_search(s, old, 4), "superseded dup still out of search");
+
+  if (g_resp) { mpack_tree_destroy(&g_tree); free(g_resp); g_resp = NULL; }
+  mg_config_free(&cfg);
+  mg_storage_close(s);
+  cleanup_db(path);
+}
+
+/* Issue #22: a near-duplicate pair that diverges becomes
+ * possible_contradiction; `contradicts` records the conflict without
+ * touching any state, and the pair then comes back as a contradiction. */
+static void test_possible_contradiction(void) {
+  const char *path = "test_maintain_contra.db";
+  mg_storage_t *s = open_db(path);
+  mg_ctx_t ctx;
+  mg_config_t cfg;
+  mg_node_id_t g, h, p, q, x, y;
+  char hg[33], cid[MG_MAINT_ID_HEX + 1];
+  int64_t now = now_ms();
+  int st, has_contra = 0, has_div = 0;
+  mpack_node_t r, cand;
+  mg_config_defaults(&cfg);
+  init_ctx(&ctx, s, &cfg);
+
+  /* g/h: same vector, opposite claims */
+  add_node(s, g, "Retries are enabled by default", "for outgoing HTTP calls", "g", 1, 0.0f,
+           now - HOUR_MS, NULL, 0, NULL, 0);
+  add_node(s, h, "Retries are disabled by default", "for outgoing HTTP calls", "h", 1, 0.0f,
+           now, NULL, 0, NULL, 0);
+  /* p/q: same vector, a paraphrase (positive control: still a near_duplicate) */
+  add_node(s, p, "Logs rotate daily", "the logger keeps one file per day", "p", 3, 0.0f,
+           now, NULL, 0, NULL, 0);
+  add_node(s, q, "Log files are rotated every day", "one file per day", "q", 3, 0.0f,
+           now, NULL, 0, NULL, 0);
+  /* x/y: a negation on one side, used for the error paths */
+  add_node(s, x, "The cache is shared by workers", "x", "x", 5, 0.0f, now, NULL, 0, NULL, 0);
+  add_node(s, y, "The cache is not shared by workers", "y", "y", 5, 0.0f, now, NULL, 0, NULL, 0);
+  hex(g, hg);
+
+  r = scan(&ctx, &st);
+  CHECK(st == 0, "scan ok");
+  CHECK(find_candidate(r, "possible_contradiction", g, cid, &cand), "possible_contradiction g/h");
+  CHECK(!find_candidate(r, "near_duplicate", g, NULL, NULL), "g/h not also a near_duplicate");
+  CHECK(find_candidate(r, "near_duplicate", p, NULL, NULL), "paraphrase stays a near_duplicate");
+  CHECK(!find_candidate(r, "possible_contradiction", p, NULL, NULL), "paraphrase not a contradiction");
+  CHECK(find_candidate(r, "possible_contradiction", x, NULL, NULL), "one-sided negation flagged");
+  {
+    mpack_node_t div = mpack_node_map_cstr_optional(
+        mpack_node_map_cstr_optional(cand, "signals"), "divergence");
+    mpack_node_t opp = mpack_node_map_cstr_optional(div, "opposites");
+    mpack_node_t acts = mpack_node_map_cstr_optional(cand, "suggested_actions");
+    has_div = mpack_node_type(opp) == mpack_type_array && mpack_node_array_length(opp) == 1 &&
+              str_eq(mpack_node_array_at(opp, 0), "enabled/disabled");
+    for (size_t i = 0; i < mpack_node_array_length(acts); ++i) {
+      if (str_eq(mpack_node_array_at(acts, i), "contradicts")) has_contra = 1;
+    }
+  }
+  CHECK(has_div, "divergence signals name the opposite terms");
+  CHECK(has_contra, "contradicts is a suggested action");
+
+  /* invalid: no partner, a node with itself */
+  call(&ctx, "maintain_resolve", &st, "action", "contradicts", "node", hg, NULL);
+  CHECK(st != 0, "contradicts without by rejected");
+  call(&ctx, "maintain_resolve", &st, "action", "contradicts", "node", hg, "by", hg, NULL);
+  CHECK(st != 0, "contradicts with itself rejected");
+
+  /* on the pair candidate: no node / by needed, no state changes */
+  r = call(&ctx, "maintain_resolve", &st, "candidate_id", cid, "action", "contradicts", NULL);
+  CHECK(st == 0, "contradicts on the candidate");
+  CHECK(mpack_node_array_length(mpack_node_map_cstr_optional(r, "nodes")) == 2,
+        "result lists both nodes");
+  CHECK(node_state(s, g) == MG_NODE_ACTIVE && node_state(s, h) == MG_NODE_ACTIVE,
+        "contradicts changes no state");
+
+  r = scan(&ctx, &st);
+  CHECK(find_candidate(r, "contradiction", g, NULL, &cand), "the pair is now a contradiction");
+  CHECK(!find_candidate(r, "possible_contradiction", g, NULL, NULL) &&
+        !find_candidate(r, "near_duplicate", g, NULL, NULL),
+        "the linked pair is not reported twice");
+  CHECK(find_candidate(r, "possible_contradiction", x, NULL, NULL),
+        "other candidates survive the link");
+
+  /* maintenance.contradiction_min 0 turns the heuristic off */
+  cfg.maint_contradiction_min = 0.0f;
+  r = scan(&ctx, &st);
+  CHECK(find_candidate(r, "near_duplicate", x, NULL, NULL) &&
+        !find_candidate(r, "possible_contradiction", x, NULL, NULL),
+        "heuristic off: the pair is a plain near_duplicate");
+
+  if (g_resp) { mpack_tree_destroy(&g_tree); free(g_resp); g_resp = NULL; }
+  mg_config_free(&cfg);
+  mg_storage_close(s);
+  cleanup_db(path);
+}
+
 int main(void) {
   test_pairs_and_resolve();
+  test_possible_contradiction();
   test_merge_action();
   test_retire_restore_purge();
   test_apply_safe_and_status();
   test_low_value_and_keywords();
   test_sources();
+  test_duplicate_insert_states();
   if (g_fail) {
     fprintf(stderr, "test_maintain: %d failure(s)\n", g_fail);
     return 1;

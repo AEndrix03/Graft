@@ -501,6 +501,8 @@ mg_err_t mg_op_explore(mg_ctx_t *ctx, mpack_node_t args, mpack_writer_t *result)
         mpack_write_cstr(result, hex);
         mpack_write_cstr(result, "title");
         mpack_write_cstr(result, node.title ? node.title : "");
+        mpack_write_cstr(result, "state");
+        mpack_write_cstr(result, mg_node_state_name(node.state));
         mpack_write_cstr(result, "score");
         mpack_write_float(result, visited[i].score);
         mpack_write_cstr(result, "cosine");

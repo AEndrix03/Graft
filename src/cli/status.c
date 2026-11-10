@@ -120,7 +120,9 @@ void mg_status_read_maint(mpack_node_t result, mg_status_signals_t *s) {
     s->pending_total = int_at(pending, "total");
     by_kind = mpack_node_type(pending) == mpack_type_map
                   ? mpack_node_map_cstr_optional(pending, "by_kind") : pending;
-    s->contradictions = int_at(by_kind, "contradiction");
+    /* a conflict between two notes is the most urgent thing to settle,
+     * whether an agent or the scan heuristic flagged it */
+    s->contradictions = int_at(by_kind, "contradiction") + int_at(by_kind, "possible_contradiction");
     s->src_changed = int_at(by_kind, "source_changed");
     s->src_removed = int_at(by_kind, "source_removed");
     rec = mpack_node_map_cstr_optional(result, "recommended");

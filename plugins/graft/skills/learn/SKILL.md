@@ -188,6 +188,7 @@ Once approved, execute the plan in batches. For each approved node:
 2. `graft classify --title "<final title>"` for last-mile keyword check.
 3. `graft insert --title S --body D --keyword K1 --keyword K2 …`
 4. If `result.duplicate=true`, count it but don't error.
+5. A new node's result carries `similar` (existing notes close to it). Don't stop on each one: note the pairs and adjudicate them after the batch — the new node corrects the old → `graft maintain resolve --node <old> --action supersede --by <new>`; a conflict the sources cannot settle → `graft maintain resolve --node <new> --action contradicts --by <old>`; only related → nothing. Notes of the plan itself showing up in each other's `similar` are usually just related.
 
 **Profile targeting**: prefix each insert with `GRAFT_PROFILE=<name>` if the user specified a target profile.
 
@@ -221,7 +222,7 @@ Try:
   graft explore "auth" --keyword jwt --keyword security
 ```
 
-If insertions failed, list them with the error verbatim — surface the real reason.
+If insertions failed, list them with the error verbatim — surface the real reason. List the conflicts found through `similar` (superseded, or recorded with `contradicts`), so the user can say which side is right.
 
 ## Docs mode — `/learn docs [path]`
 
@@ -287,9 +288,9 @@ With provenance on, `diff` returns `{project, root, summary{sources, unchanged, 
 
 - **unchanged** — skip the file.
 - **new** (discovered, not recorded) — process normally.
-- **changed** — re-read the doc and `graft get` each node it supports. A node that still holds → `graft sources refresh <id>`. A node whose facts changed → `graft delete <id>` then insert the corrected node, re-attaching **every** source the old node had, not only this file. Knowledge the doc gained → new nodes.
+- **changed** — re-read the doc and `graft get` each node it supports. A node that still holds → `graft sources refresh <id>`. A node whose facts changed → insert the corrected node, re-attaching **every** source the old node had, not only this file, then `graft maintain resolve --node <id> --action supersede --by <new-id>`. Knowledge the doc gained → new nodes.
 - **unavailable** — the file could not be read (permissions, a broken link): skip it and name it in the report.
-- **removed** — do not delete on your own; the knowledge may still be true or the file may have moved (a moved doc re-inserts as `duplicate: true` and gains its new source). List the affected node ids in the report and offer delete or re-save with an `unsure` keyword.
+- **removed** — do not retire on your own; the knowledge may still be true or the file may have moved (a moved doc re-inserts as `duplicate: true` and gains its new source). List the affected node ids in the report and offer to `retire` them (knowledge gone) or mark them `stale` (still plausible, unverified) with `graft maintain resolve`.
 
 ### D3 — Distill
 
@@ -307,7 +308,7 @@ Not one summary per file and not a copy of the text: a node holds a fact, a rule
 
 Keywords: 2-4 per node, reconciled with one `graft classify` per document; include the project name as one of them so `explore --keyword <project>` walks the whole repo's knowledge.
 
-Before inserting, run `graft query "<title>"` (and `retrieve --top-k 5` on WEAK). Same knowledge already present → skip, count it. Present but contradicted by the doc, and about this repo → delete + re-insert (the doc is the repo's current truth). A near note on a different subject → insert anyway.
+Before inserting, run `graft query "<title>"` (and `retrieve --top-k 5` on WEAK). Same knowledge already present → skip, count it. Present but contradicted by the doc, and about this repo → insert the corrected node and supersede the old one with `graft maintain resolve --node <old> --action supersede --by <new>` (the doc is the repo's current truth). A near note on a different subject → insert anyway.
 
 ### D4 — Insert and batch
 
@@ -316,7 +317,7 @@ graft insert --title "..." --body "..." --keyword <project> --keyword k2 \
              --source file:docs/insert/README.md [--source file:README.md]
 ```
 
-Pass every document the node was distilled from; graft fingerprints the files and stores the paths relative to the repo root. An identical node from a second doc comes back `duplicate: true` with the new source attached — that is correct, not an error. Serial inserts, `GRAFT_PROFILE=<name>` prefix when a profile was named.
+Pass every document the node was distilled from; graft fingerprints the files and stores the paths relative to the repo root. An identical node from a second doc comes back `duplicate: true` with the new source attached — that is correct, not an error. Serial inserts, `GRAFT_PROFILE=<name>` prefix when a profile was named. Collect each result's `similar` and settle it after the batch, as in Phase 5 step 5; name the recorded conflicts in the report.
 
 Bounded batches: per run at most **25 documents or ~300 KB read, and 50 nodes** (hard cap 200, as above). Stop at a document boundary.
 
@@ -327,7 +328,7 @@ One paragraph, then the continuation:
 ```
 /learn docs — 25 of 41 files ingested (provenance on): 38 nodes created, 4 updated, 3 refreshed,
 9 skipped as already in the graph, 6 files had no reusable knowledge, 0 failures. 2 nodes lose
-their source (docs/old-setup.md removed): 019e0a44..., 019e0a51... — delete or keep?
+their source (docs/old-setup.md removed): 019e0a44..., 019e0a51... — retire or keep?
 Remaining: 16 files, from docs/storage/README.md.
 Continue with: /learn docs from docs/storage/README.md
 ```
@@ -362,7 +363,7 @@ graft sources diff   --root "$ROOT"    # provenance: which files back which node
 `project status` returns `{project, root, profile, state_file, bootstrapped, runs, last_run_at, provenance: {files, nodes} | null, provenance_error?, topics: {covered, pending, skipped}, pending: [{topic, priority, note, updated_at}], covered: [names], skipped: [names]}`; `pending` is sorted high → normal → low.
 
 - **First run** (`bootstrapped: false`, no topics): do B1-B5 in full.
-- **Incremental run** (`bootstrapped: true`): no rescan from scratch. Work, in this order: (1) the task area if any (see B3), (2) `changed` / `removed` sources from `sources diff`, handled exactly like docs-mode D2 (revalidate → `sources refresh`, or delete + re-insert with every old source; never delete on `removed`, report it), (3) `pending` topics by priority. Re-run B1 only to spot what is new: a tracked top-level directory, manifest or doc that no topic's note mentions becomes a new pending topic.
+- **Incremental run** (`bootstrapped: true`): no rescan from scratch. Work, in this order: (1) the task area if any (see B3), (2) `changed` / `removed` sources from `sources diff`, handled exactly like docs-mode D2 (revalidate → `sources refresh`, or insert the correction with every old source and supersede the old node; never retire on `removed`, report it), (3) `pending` topics by priority. Re-run B1 only to spot what is new: a tracked top-level directory, manifest or doc that no topic's note mentions becomes a new pending topic.
 - `project` unknown (usage error): the installed graft predates bootstrap state. Run anyway, keep the topic map in your report only, rely on pre-dedup on re-runs. `provenance: null` with a `provenance_error`, or `sources diff` failing: no provenance, so do as docs mode does (a `Source:` line in the body instead of `--source`).
 
 ### B1 — Discover
@@ -443,8 +444,8 @@ Read the topic's files and ask, for every candidate: *would a future session sea
 House rules: retrieval-shaped titles naming the project (`graft: ...`), bodies under ~1500 chars with the rule, the why and the trap, 2-4 keywords including the project name. Then, per topic:
 
 1. `graft classify --title "<a representative title>"` once, reconcile the topic's keywords with the existing vocabulary (as in Phase 3).
-2. Per node, `graft query "<title>"` (and `retrieve --top-k 5` on WEAK): already known → skip and count; contradicted by the current code, and about this project → delete + re-insert; different subject → insert. **A hit level is not a verdict: read the hit's title and body.** In a young graph, and between notes of the same project, `query` returns STRONG for unrelated facts (in a test, every draft after the first came back STRONG on the first node); skipping on the level alone would stop the bootstrap after one node. Skip only when the hit states the same fact.
-3. Insert with every file the node was distilled from: `graft insert --title ... --body ... --keyword <project> ... --source file:<path> [--source file:<path2>]`. Run it from the root, or pass absolute paths. `duplicate: true` is fine.
+2. Per node, `graft query "<title>"` (and `retrieve --top-k 5` on WEAK): already known → skip and count; contradicted by the current code, and about this project → insert the corrected node, then `graft maintain resolve --node <old> --action supersede --by <new>`; different subject → insert. **A hit level is not a verdict: read the hit's title and body.** In a young graph, and between notes of the same project, `query` returns STRONG for unrelated facts (in a test, every draft after the first came back STRONG on the first node); skipping on the level alone would stop the bootstrap after one node. Skip only when the hit states the same fact.
+3. Insert with every file the node was distilled from: `graft insert --title ... --body ... --keyword <project> ... --source file:<path> [--source file:<path2>]`. Run it from the root, or pass absolute paths. `duplicate: true` is fine. Settle the results' `similar` after the topic, as in Phase 5 step 5.
 4. `graft project mark --topic <t> --state covered` when done; `--state skipped --note "<why>"` when the topic held nothing reusable (say so, do not force nodes).
 
 ### B5 — Close and report

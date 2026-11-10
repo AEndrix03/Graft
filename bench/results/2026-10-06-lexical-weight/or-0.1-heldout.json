@@ -1,0 +1,5522 @@
+{
+  "started_at": "2026-10-05T22:57:28+00:00",
+  "set": "heldout",
+  "graft_version": "0.2.0",
+  "platform": "Windows AMD64",
+  "cpu": "AMD64 Family 23 Model 8 Stepping 2, AuthenticAMD",
+  "cpu_count": 16,
+  "settings": "built-in defaults (installer-style config with paths only)",
+  "corpus": {
+    "nodes": 110,
+    "queries": 240,
+    "extend": [
+      "corpus-ext"
+    ]
+  },
+  "top_k": 5,
+  "summary": {
+    "paraphrase": {
+      "n": 50,
+      "query": {
+        "correct_strong": 44,
+        "correct_weak": 0,
+        "wrong_strong": 3,
+        "wrong_weak": 0,
+        "miss": 3,
+        "strong_hit_rate": 0.88
+      },
+      "retrieve": {
+        "recall@1": 0.8,
+        "recall@5": 0.98,
+        "mrr": 0.8683333333333333
+      }
+    },
+    "crosslang": {
+      "n": 25,
+      "query": {
+        "correct_strong": 23,
+        "correct_weak": 0,
+        "wrong_strong": 2,
+        "wrong_weak": 0,
+        "miss": 0,
+        "strong_hit_rate": 0.92
+      },
+      "retrieve": {
+        "recall@1": 0.96,
+        "recall@5": 1.0,
+        "mrr": 0.98
+      }
+    },
+    "project": {
+      "n": 105,
+      "query": {
+        "correct_strong": 71,
+        "correct_weak": 0,
+        "wrong_strong": 28,
+        "wrong_weak": 0,
+        "miss": 6,
+        "strong_hit_rate": 0.6761904761904762
+      },
+      "retrieve": {
+        "recall@1": 0.7428571428571429,
+        "recall@5": 0.9047619047619048,
+        "mrr": 0.8065079365079365
+      }
+    },
+    "negative": {
+      "n": 60,
+      "query": {
+        "correct_strong": 0,
+        "correct_weak": 0,
+        "wrong_strong": 38,
+        "wrong_weak": 0,
+        "miss": 22,
+        "false_strong_rate": 0.6333333333333333,
+        "correct_miss_rate": 0.36666666666666664
+      }
+    },
+    "all_positive": {
+      "n": 180,
+      "query": {
+        "correct_strong": 138,
+        "correct_weak": 0,
+        "wrong_strong": 33,
+        "wrong_weak": 0,
+        "miss": 9,
+        "strong_hit_rate": 0.7666666666666667
+      },
+      "retrieve": {
+        "recall@1": 0.7888888888888889,
+        "recall@5": 0.9388888888888889,
+        "mrr": 0.8477777777777777
+      }
+    },
+    "strong_precision": 0.6602870813397129,
+    "weak_count": 0
+  },
+  "latency_ms": {
+    "insert": {
+      "n": 110,
+      "p50": 219.0,
+      "p95": 297.0,
+      "max": 328,
+      "wall_p50": 240.04289999948014
+    },
+    "query": {
+      "n": 240,
+      "p50": 204.0,
+      "p95": 328.7999999999997,
+      "max": 437,
+      "wall_p50": 235.09445000036067
+    },
+    "retrieve": {
+      "n": 240,
+      "p50": 328.0,
+      "p95": 516.0,
+      "max": 734,
+      "wall_p50": 347.03820000049745
+    }
+  },
+  "rows": [
+    {
+      "query": "cannot pull with rebase: You have unstaged changes. I just want to update my branch without committing my WIP",
+      "expect": "git-rebase-autostash",
+      "kind": "paraphrase",
+      "hit": "STRONG",
+      "got": "git-rebase-autostash",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.850498,
+        "s_lex": 0.197452,
+        "s_jaccard": 0.197452,
+        "s_ce": null
+      },
+      "retrieved": [
+        "git-rebase-autostash",
+        "rust-borrow-mutable-loop",
+        "k8s-configmap-reload",
+        "ledgerline-kafka-partition-account",
+        "orbit-events-schema-version"
+      ]
+    },
+    {
+      "query": "my entrypoint.sh works on my machine but the linux container says /bin/bash^M: bad interpreter",
+      "expect": "git-crlf-windows",
+      "kind": "paraphrase",
+      "hit": "STRONG",
+      "got": "git-crlf-windows",
+      "outcome": "correct_strong",
+      "rank": 2,
+      "signals": {
+        "s_vec": 0.751545,
+        "s_lex": 0.116129,
+        "s_jaccard": 0.116129,
+        "s_ce": null
+      },
+      "retrieved": [
+        "bash-word-splitting",
+        "git-crlf-windows",
+        "docker-localhost-host",
+        "orbit-migration-index-concurrently",
+        "ledgerline-local-kafka-29092"
+      ]
+    },
+    {
+      "query": "I committed inside a nested repo folder, ran an update, and now my commits are gone??",
+      "expect": "git-submodule-detached",
+      "kind": "paraphrase",
+      "hit": "STRONG",
+      "got": "git-submodule-detached",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.773098,
+        "s_lex": 0.122449,
+        "s_jaccard": 0.122449,
+        "s_ce": null
+      },
+      "retrieved": [
+        "git-submodule-detached",
+        "k8s-configmap-reload",
+        "cmake-stale-cache",
+        "ledgerline-argocd-gitops",
+        "pg-serial-sequence-reset"
+      ]
+    },
+    {
+      "query": "why does docker build reinstall all npm packages every time I change one line of code",
+      "expect": "docker-layer-cache-copy",
+      "kind": "paraphrase",
+      "hit": "STRONG",
+      "got": "docker-layer-cache-copy",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.832248,
+        "s_lex": 0.19708,
+        "s_jaccard": 0.19708,
+        "s_ce": null
+      },
+      "retrieved": [
+        "docker-layer-cache-copy",
+        "orbit-pnpm-only",
+        "npm-ci-lockfile",
+        "orbit-make-image-pip-index",
+        "k8s-configmap-reload"
+      ]
+    },
+    {
+      "query": "app in container gets connection refused on localhost:5432 but postgres is running on my laptop",
+      "expect": "docker-localhost-host",
+      "kind": "paraphrase",
+      "hit": "STRONG",
+      "got": "ledgerline-local-kafka-29092",
+      "outcome": "wrong_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.761634,
+        "s_lex": 0.186667,
+        "s_jaccard": 0.186667,
+        "s_ce": null
+      },
+      "retrieved": [
+        "docker-localhost-host",
+        "orbit-local-postgres-5433",
+        "orbit-test-db-port-5434",
+        "ledgerline-local-kafka-29092",
+        "powershell-execution-policy"
+      ]
+    },
+    {
+      "query": "docker stop always hangs ~10s then kills my node app",
+      "expect": "docker-pid1-signals",
+      "kind": "paraphrase",
+      "hit": "STRONG",
+      "got": "docker-pid1-signals",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.796409,
+        "s_lex": 0.0863309,
+        "s_jaccard": 0.0863309,
+        "s_ce": null
+      },
+      "retrieved": [
+        "docker-pid1-signals",
+        "http-keepalive-502",
+        "docker-layer-cache-copy",
+        "k8s-crashloop-probe",
+        "orbit-make-image-pip-index"
+      ]
+    },
+    {
+      "query": "ALTER TABLE has been hanging for 20 minutes, nothing else seems to be running against the db",
+      "expect": "pg-idle-in-transaction",
+      "kind": "paraphrase",
+      "hit": "MISS",
+      "got": null,
+      "outcome": "miss",
+      "rank": 0,
+      "signals": {
+        "s_vec": 0.701058,
+        "s_lex": 0.0993377,
+        "s_jaccard": 0.0993377,
+        "s_ce": null
+      },
+      "retrieved": [
+        "orbit-migrations-make-target",
+        "ledgerline-read-replica-lag",
+        "http-keepalive-502",
+        "orbit-migration-index-concurrently",
+        "ledgerline-migration-lock-timeout"
+      ]
+    },
+    {
+      "query": "case-insensitive email lookup is doing a seq scan on 5M rows even though email has an index",
+      "expect": "pg-index-not-used-lower",
+      "kind": "paraphrase",
+      "hit": "STRONG",
+      "got": "pg-index-not-used-lower",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.800734,
+        "s_lex": 0.101449,
+        "s_jaccard": 0.101449,
+        "s_ce": null
+      },
+      "retrieved": [
+        "pg-index-not-used-lower",
+        "orbit-email-mailpit-allowlist",
+        "pg-serial-sequence-reset",
+        "ledgerline-kafka-inbox-dedupe",
+        "orbit-migration-index-concurrently"
+      ]
+    },
+    {
+      "query": "after importing a CSV dump every new insert fails with duplicate key value violates unique constraint orders_pkey",
+      "expect": "pg-serial-sequence-reset",
+      "kind": "paraphrase",
+      "hit": "STRONG",
+      "got": "pg-serial-sequence-reset",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.84253,
+        "s_lex": 0.19209,
+        "s_jaccard": 0.19209,
+        "s_ce": null
+      },
+      "retrieved": [
+        "pg-serial-sequence-reset",
+        "docker-layer-cache-copy",
+        "ledgerline-api-idempotency-header",
+        "python-venv-pip-wrong",
+        "orbit-pnpm-only"
+      ]
+    },
+    {
+      "query": "sqlite3.OperationalError: database is locked when a background job writes while the web app reads",
+      "expect": "sqlite-wal-readers",
+      "kind": "paraphrase",
+      "hit": "STRONG",
+      "got": "sqlite-wal-readers",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.825539,
+        "s_lex": 0.205479,
+        "s_jaccard": 0.205479,
+        "s_ce": null
+      },
+      "retrieved": [
+        "sqlite-wal-readers",
+        "orbit-chromatic-ui-review",
+        "log-rotation-disk-full",
+        "powershell-execution-policy",
+        "orbit-tenant-scoped-session"
+      ]
+    },
+    {
+      "query": "our cache cleanup script freezes redis for a few seconds and all requests time out meanwhile",
+      "expect": "redis-keys-blocking",
+      "kind": "paraphrase",
+      "hit": "STRONG",
+      "got": "redis-keys-blocking",
+      "outcome": "correct_strong",
+      "rank": 3,
+      "signals": {
+        "s_vec": 0.789617,
+        "s_lex": 0.125926,
+        "s_jaccard": 0.125926,
+        "s_ce": null
+      },
+      "retrieved": [
+        "python-asyncio-blocking",
+        "orbit-redis-cache-key-tenant",
+        "redis-keys-blocking",
+        "docker-pid1-signals",
+        "powershell-execution-policy"
+      ]
+    },
+    {
+      "query": "python function keeps returning items from previous calls, list grows every time I call it",
+      "expect": "python-mutable-default",
+      "kind": "paraphrase",
+      "hit": "STRONG",
+      "got": "python-mutable-default",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.855834,
+        "s_lex": 0.165468,
+        "s_jaccard": 0.165468,
+        "s_ce": null
+      },
+      "retrieved": [
+        "python-mutable-default",
+        "react-useeffect-loop",
+        "flutter-setstate-disposed",
+        "python-asyncio-blocking",
+        "spring-transactional-self"
+      ]
+    },
+    {
+      "query": "installed a package with venv activated but import still fails with ModuleNotFoundError",
+      "expect": "python-venv-pip-wrong",
+      "kind": "paraphrase",
+      "hit": "STRONG",
+      "got": "python-venv-pip-wrong",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.765786,
+        "s_lex": 0.121622,
+        "s_jaccard": 0.121622,
+        "s_ce": null
+      },
+      "retrieved": [
+        "python-venv-pip-wrong",
+        "node-esm-require",
+        "npm-ci-lockfile",
+        "ledgerline-api-idempotency-header",
+        "orbit-pnpm-only"
+      ]
+    },
+    {
+      "query": "my FastAPI async endpoint stalls all other requests while one of them is fetching a URL",
+      "expect": "python-asyncio-blocking",
+      "kind": "paraphrase",
+      "hit": "STRONG",
+      "got": "python-asyncio-blocking",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.770508,
+        "s_lex": 0.107143,
+        "s_jaccard": 0.107143,
+        "s_ce": null
+      },
+      "retrieved": [
+        "python-asyncio-blocking",
+        "flutter-setstate-disposed",
+        "orbit-api-v1-frozen",
+        "react-strict-double",
+        "spring-lazy-init-exception"
+      ]
+    },
+    {
+      "query": "TypeError: can't compare offset-naive and offset-aware datetimes",
+      "expect": "python-datetime-naive",
+      "kind": "paraphrase",
+      "hit": "STRONG",
+      "got": "python-datetime-naive",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.891225,
+        "s_lex": 0.391304,
+        "s_jaccard": 0.391304,
+        "s_ce": null
+      },
+      "retrieved": [
+        "python-datetime-naive",
+        "ledgerline-settlement-cutoff-london",
+        "ledgerline-unleash-kill-switches",
+        "ledgerline-fx-rate-staleness",
+        "orbit-backfills-not-in-migrations"
+      ]
+    },
+    {
+      "query": "Error [ERR_REQUIRE_ESM]: require() of ES Module not supported after npm update",
+      "expect": "node-esm-require",
+      "kind": "paraphrase",
+      "hit": "STRONG",
+      "got": "node-esm-require",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.926686,
+        "s_lex": 0.327434,
+        "s_jaccard": 0.327434,
+        "s_ce": null
+      },
+      "retrieved": [
+        "node-esm-require",
+        "orbit-pnpm-only",
+        "npm-ci-lockfile",
+        "go-nil-interface",
+        "ledgerline-llctl-explicit-env"
+      ]
+    },
+    {
+      "query": "node server just dies with no stack trace when some async db call throws",
+      "expect": "node-unhandled-rejection",
+      "kind": "paraphrase",
+      "hit": "STRONG",
+      "got": "flutter-setstate-disposed",
+      "outcome": "wrong_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.758717,
+        "s_lex": 0.159091,
+        "s_jaccard": 0.159091,
+        "s_ce": null
+      },
+      "retrieved": [
+        "node-unhandled-rejection",
+        "python-asyncio-blocking",
+        "flutter-setstate-disposed",
+        "spring-transactional-self",
+        "log-rotation-disk-full"
+      ]
+    },
+    {
+      "query": "CI npm step: `npm ci` can only install packages when your package.json and lock are in sync",
+      "expect": "npm-ci-lockfile",
+      "kind": "paraphrase",
+      "hit": "STRONG",
+      "got": "npm-ci-lockfile",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.887007,
+        "s_lex": 0.196721,
+        "s_jaccard": 0.196721,
+        "s_ce": null
+      },
+      "retrieved": [
+        "npm-ci-lockfile",
+        "orbit-pnpm-only",
+        "docker-layer-cache-copy",
+        "python-venv-pip-wrong",
+        "orbit-events-schema-version"
+      ]
+    },
+    {
+      "query": "turned on strict in tsconfig and got 400 errors saying Object is possibly 'undefined', how do I tackle this",
+      "expect": "ts-strict-null",
+      "kind": "paraphrase",
+      "hit": "STRONG",
+      "got": "ts-strict-null",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.845198,
+        "s_lex": 0.207547,
+        "s_jaccard": 0.207547,
+        "s_ce": null
+      },
+      "retrieved": [
+        "ts-strict-null",
+        "ledgerline-unleash-kill-switches",
+        "tls-missing-intermediate",
+        "cors-preflight-credentials",
+        "orbit-staging-rate-limit-loadtest"
+      ]
+    },
+    {
+      "query": "component re-renders forever and network tab shows the same fetch hundreds of times",
+      "expect": "react-useeffect-loop",
+      "kind": "paraphrase",
+      "hit": "MISS",
+      "got": null,
+      "outcome": "miss",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.716108,
+        "s_lex": 0.0883978,
+        "s_jaccard": 0.0883978,
+        "s_ce": null
+      },
+      "retrieved": [
+        "react-useeffect-loop",
+        "pg-serial-sequence-reset",
+        "orbit-staging-rate-limit-loadtest",
+        "ledgerline-recon-reingest",
+        "ledgerline-unleash-kill-switches"
+      ]
+    },
+    {
+      "query": "why is my fetch in useEffect called twice on page load in dev",
+      "expect": "react-strict-double",
+      "kind": "paraphrase",
+      "hit": "STRONG",
+      "got": "react-strict-double",
+      "outcome": "correct_strong",
+      "rank": 4,
+      "signals": {
+        "s_vec": 0.77666,
+        "s_lex": 0.14876,
+        "s_jaccard": 0.14876,
+        "s_ce": null
+      },
+      "retrieved": [
+        "react-useeffect-loop",
+        "flutter-setstate-disposed",
+        "orbit-test-db-port-5434",
+        "react-strict-double",
+        "orbit-staging-rate-limit-loadtest"
+      ]
+    },
+    {
+      "query": "long filename in a sidebar row pushes the layout wider instead of showing ... ellipsis",
+      "expect": "css-flex-min-width",
+      "kind": "paraphrase",
+      "hit": "MISS",
+      "got": null,
+      "outcome": "miss",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.736077,
+        "s_lex": 0.147059,
+        "s_jaccard": 0.147059,
+        "s_ce": null
+      },
+      "retrieved": [
+        "css-flex-min-width",
+        "ledgerline-llctl-explicit-env",
+        "ledgerline-recon-reingest",
+        "orbit-celery-reports-queue",
+        "bash-word-splitting"
+      ]
+    },
+    {
+      "query": "browser console: The value of the 'Access-Control-Allow-Origin' header must not be the wildcard when the request's credentials mode is 'include'",
+      "expect": "cors-preflight-credentials",
+      "kind": "paraphrase",
+      "hit": "STRONG",
+      "got": "cors-preflight-credentials",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.869476,
+        "s_lex": 0.291209,
+        "s_jaccard": 0.291209,
+        "s_ce": null
+      },
+      "retrieved": [
+        "cors-preflight-credentials",
+        "ledgerline-kafka-partition-account",
+        "ledgerline-api-idempotency-header",
+        "tls-missing-intermediate",
+        "pg-serial-sequence-reset"
+      ]
+    },
+    {
+      "query": "random 502 Bad Gateway from the ALB maybe 1 in 1000 requests, app logs show nothing",
+      "expect": "http-keepalive-502",
+      "kind": "paraphrase",
+      "hit": "STRONG",
+      "got": "http-keepalive-502",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.801003,
+        "s_lex": 0.149351,
+        "s_jaccard": 0.149351,
+        "s_ce": null
+      },
+      "retrieved": [
+        "http-keepalive-502",
+        "orbit-staging-rate-limit-loadtest",
+        "docker-pid1-signals",
+        "cors-preflight-credentials",
+        "orbit-structlog-no-pii"
+      ]
+    },
+    {
+      "query": "site loads fine in chrome but curl says SSL certificate problem: unable to get local issuer certificate",
+      "expect": "tls-missing-intermediate",
+      "kind": "paraphrase",
+      "hit": "STRONG",
+      "got": "tls-missing-intermediate",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.899752,
+        "s_lex": 0.37594,
+        "s_jaccard": 0.37594,
+        "s_ce": null
+      },
+      "retrieved": [
+        "tls-missing-intermediate",
+        "ledgerline-kafka-topics-terraform",
+        "ledgerline-local-kafka-29092",
+        "powershell-execution-policy",
+        "ntp-clock-skew-jwt"
+      ]
+    },
+    {
+      "query": "pod keeps restarting, CrashLoopBackOff, app takes about 90s to boot",
+      "expect": "k8s-crashloop-probe",
+      "kind": "paraphrase",
+      "hit": "STRONG",
+      "got": "k8s-crashloop-probe",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.797684,
+        "s_lex": 0.167883,
+        "s_jaccard": 0.167883,
+        "s_ce": null
+      },
+      "retrieved": [
+        "k8s-crashloop-probe",
+        "k8s-oomkilled-limits",
+        "http-keepalive-502",
+        "ledgerline-unleash-kill-switches",
+        "docker-pid1-signals"
+      ]
+    },
+    {
+      "query": "java service killed with exit code 137 but heap usage in metrics is only 60% of the limit",
+      "expect": "k8s-oomkilled-limits",
+      "kind": "paraphrase",
+      "hit": "STRONG",
+      "got": "k8s-oomkilled-limits",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.720671,
+        "s_lex": 0.176056,
+        "s_jaccard": 0.176056,
+        "s_ce": null
+      },
+      "retrieved": [
+        "k8s-oomkilled-limits",
+        "regex-catastrophic",
+        "http-keepalive-502",
+        "k8s-crashloop-probe",
+        "ledgerline-pci-tokenizer-boundary"
+      ]
+    },
+    {
+      "query": "I edited the configmap and applied it but the pods still read the old value from env",
+      "expect": "k8s-configmap-reload",
+      "kind": "paraphrase",
+      "hit": "STRONG",
+      "got": "k8s-configmap-reload",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.83631,
+        "s_lex": 0.110345,
+        "s_jaccard": 0.110345,
+        "s_ce": null
+      },
+      "retrieved": [
+        "k8s-configmap-reload",
+        "ledgerline-llctl-explicit-env",
+        "orbit-events-schema-version",
+        "cmake-stale-cache",
+        "pg-serial-sequence-reset"
+      ]
+    },
+    {
+      "query": "my deploy script has set -e but it continued after a command piped into tee failed",
+      "expect": "bash-set-e-pipe",
+      "kind": "paraphrase",
+      "hit": "STRONG",
+      "got": "bash-set-e-pipe",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.88743,
+        "s_lex": 0.308943,
+        "s_jaccard": 0.308943,
+        "s_ce": null
+      },
+      "retrieved": [
+        "bash-set-e-pipe",
+        "ledgerline-llctl-explicit-env",
+        "cmake-stale-cache",
+        "powershell-execution-policy",
+        "orbit-feature-flags-yaml"
+      ]
+    },
+    {
+      "query": "shell loop over files breaks when a filename has a space, rm says no such file",
+      "expect": "bash-word-splitting",
+      "kind": "paraphrase",
+      "hit": "STRONG",
+      "got": "bash-word-splitting",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.852977,
+        "s_lex": 0.159292,
+        "s_jaccard": 0.159292,
+        "s_ce": null
+      },
+      "retrieved": [
+        "bash-word-splitting",
+        "log-rotation-disk-full",
+        "windows-path-length",
+        "git-crlf-windows",
+        "utf8-bom-json"
+      ]
+    },
+    {
+      "query": "npm build on windows fails with ENOENT on a super deep node_modules path that definitely exists",
+      "expect": "windows-path-length",
+      "kind": "paraphrase",
+      "hit": "STRONG",
+      "got": "windows-path-length",
+      "outcome": "correct_strong",
+      "rank": 3,
+      "signals": {
+        "s_vec": 0.747731,
+        "s_lex": 0.204225,
+        "s_jaccard": 0.204225,
+        "s_ce": null
+      },
+      "retrieved": [
+        "orbit-pnpm-only",
+        "python-venv-pip-wrong",
+        "windows-path-length",
+        "orbit-make-image-pip-index",
+        "orbit-test-db-port-5434"
+      ]
+    },
+    {
+      "query": ".\\setup.ps1 cannot be loaded because running scripts is disabled on this system",
+      "expect": "powershell-execution-policy",
+      "kind": "paraphrase",
+      "hit": "STRONG",
+      "got": "powershell-execution-policy",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.85091,
+        "s_lex": 0.472727,
+        "s_jaccard": 0.472727,
+        "s_ce": null
+      },
+      "retrieved": [
+        "powershell-execution-policy",
+        "python-venv-pip-wrong",
+        "docker-pid1-signals",
+        "git-rebase-autostash",
+        "orbit-pnpm-only"
+      ]
+    },
+    {
+      "query": "changed CC to clang and re-ran cmake but it still builds with gcc",
+      "expect": "cmake-stale-cache",
+      "kind": "paraphrase",
+      "hit": "STRONG",
+      "got": "cmake-stale-cache",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.802469,
+        "s_lex": 0.145038,
+        "s_jaccard": 0.145038,
+        "s_ce": null
+      },
+      "retrieved": [
+        "cmake-stale-cache",
+        "git-crlf-windows",
+        "ledgerline-argocd-gitops",
+        "git-submodule-detached",
+        "npm-ci-lockfile"
+      ]
+    },
+    {
+      "query": "printing a copied char buffer shows garbage after the text when the input is long",
+      "expect": "c-strncpy-nul",
+      "kind": "paraphrase",
+      "hit": "STRONG",
+      "got": "ledgerline-read-replica-lag",
+      "outcome": "wrong_strong",
+      "rank": 2,
+      "signals": {
+        "s_vec": 0.786757,
+        "s_lex": 0.0792683,
+        "s_jaccard": 0.0792683,
+        "s_ce": null
+      },
+      "retrieved": [
+        "ledgerline-read-replica-lag",
+        "c-strncpy-nul",
+        "css-flex-min-width",
+        "regex-catastrophic",
+        "pg-serial-sequence-reset"
+      ]
+    },
+    {
+      "query": "go routines in a for range all print the same last item",
+      "expect": "go-loop-var-capture",
+      "kind": "paraphrase",
+      "hit": "STRONG",
+      "got": "go-loop-var-capture",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.783583,
+        "s_lex": 0.236364,
+        "s_jaccard": 0.236364,
+        "s_ce": null
+      },
+      "retrieved": [
+        "go-loop-var-capture",
+        "ledgerline-llctl-explicit-env",
+        "regex-catastrophic",
+        "python-mutable-default",
+        "ledgerline-read-replica-lag"
+      ]
+    },
+    {
+      "query": "golang: function returns no error but err != nil check is still true, the value prints <nil>",
+      "expect": "go-nil-interface",
+      "kind": "paraphrase",
+      "hit": "STRONG",
+      "got": "go-nil-interface",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.82093,
+        "s_lex": 0.130769,
+        "s_jaccard": 0.130769,
+        "s_ce": null
+      },
+      "retrieved": [
+        "go-nil-interface",
+        "c-strncpy-nul",
+        "go-loop-var-capture",
+        "python-mutable-default",
+        "regex-catastrophic"
+      ]
+    },
+    {
+      "query": "error[E0502]: cannot borrow `v` as mutable because it is also borrowed as immutable, inside a for loop",
+      "expect": "rust-borrow-mutable-loop",
+      "kind": "paraphrase",
+      "hit": "STRONG",
+      "got": "rust-borrow-mutable-loop",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.80824,
+        "s_lex": 0.188811,
+        "s_jaccard": 0.188811,
+        "s_ce": null
+      },
+      "retrieved": [
+        "rust-borrow-mutable-loop",
+        "ledgerline-api-idempotency-header",
+        "java-hashcode-equals",
+        "react-useeffect-loop",
+        "http-keepalive-502"
+      ]
+    },
+    {
+      "query": "map.get(key) returns null in Java even though I put an equal object as key earlier",
+      "expect": "java-hashcode-equals",
+      "kind": "paraphrase",
+      "hit": "STRONG",
+      "got": "java-hashcode-equals",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.837453,
+        "s_lex": 0.12,
+        "s_jaccard": 0.12,
+        "s_ce": null
+      },
+      "retrieved": [
+        "java-hashcode-equals",
+        "pg-serial-sequence-reset",
+        "go-nil-interface",
+        "utf8-bom-json",
+        "ntp-clock-skew-jwt"
+      ]
+    },
+    {
+      "query": "spring: exception thrown but database changes are not rolled back, the method is annotated though",
+      "expect": "spring-transactional-self",
+      "kind": "paraphrase",
+      "hit": "STRONG",
+      "got": "spring-transactional-self",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.803939,
+        "s_lex": 0.184397,
+        "s_jaccard": 0.184397,
+        "s_ce": null
+      },
+      "retrieved": [
+        "spring-transactional-self",
+        "git-rebase-autostash",
+        "sqlite-wal-readers",
+        "pg-serial-sequence-reset",
+        "ledgerline-kafka-partition-account"
+      ]
+    },
+    {
+      "query": "could not initialize proxy - no Session when returning entity from controller",
+      "expect": "spring-lazy-init-exception",
+      "kind": "paraphrase",
+      "hit": "STRONG",
+      "got": "spring-lazy-init-exception",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.790144,
+        "s_lex": 0.17037,
+        "s_jaccard": 0.17037,
+        "s_ce": null
+      },
+      "retrieved": [
+        "spring-lazy-init-exception",
+        "spring-transactional-self",
+        "pg-serial-sequence-reset",
+        "go-nil-interface",
+        "cors-preflight-credentials"
+      ]
+    },
+    {
+      "query": "flutter error: setState() called after dispose() when user navigates back during loading",
+      "expect": "flutter-setstate-disposed",
+      "kind": "paraphrase",
+      "hit": "STRONG",
+      "got": "flutter-setstate-disposed",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.858327,
+        "s_lex": 0.327869,
+        "s_jaccard": 0.327869,
+        "s_ce": null
+      },
+      "retrieved": [
+        "flutter-setstate-disposed",
+        "pg-serial-sequence-reset",
+        "ledgerline-unleash-kill-switches",
+        "orbit-backfills-not-in-migrations",
+        "ledgerline-outbox-relay"
+      ]
+    },
+    {
+      "query": "actions/cache always misses on my new branch even though the other branch saved it",
+      "expect": "gha-cache-branch-scope",
+      "kind": "paraphrase",
+      "hit": "STRONG",
+      "got": "gha-cache-branch-scope",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.82211,
+        "s_lex": 0.186992,
+        "s_jaccard": 0.186992,
+        "s_ce": null
+      },
+      "retrieved": [
+        "gha-cache-branch-scope",
+        "cmake-stale-cache",
+        "spring-transactional-self",
+        "ledgerline-recon-reingest",
+        "pg-serial-sequence-reset"
+      ]
+    },
+    {
+      "query": "external contributor PR: workflow fails because secrets.NPM_TOKEN is empty",
+      "expect": "gha-secrets-forks",
+      "kind": "paraphrase",
+      "hit": "STRONG",
+      "got": "gha-secrets-forks",
+      "outcome": "correct_strong",
+      "rank": 2,
+      "signals": {
+        "s_vec": 0.774691,
+        "s_lex": 0.0909091,
+        "s_jaccard": 0.0909091,
+        "s_ce": null
+      },
+      "retrieved": [
+        "npm-ci-lockfile",
+        "gha-secrets-forks",
+        "orbit-pnpm-only",
+        "ledgerline-pact-provider-verify",
+        "utf8-bom-json"
+      ]
+    },
+    {
+      "query": "on the build VM git clone git@github.com gives Permission denied (publickey), works on my laptop",
+      "expect": "ssh-agent-forwarding",
+      "kind": "paraphrase",
+      "hit": "STRONG",
+      "got": "ssh-agent-forwarding",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.850479,
+        "s_lex": 0.25,
+        "s_jaccard": 0.25,
+        "s_ce": null
+      },
+      "retrieved": [
+        "ssh-agent-forwarding",
+        "git-crlf-windows",
+        "git-submodule-detached",
+        "ledgerline-goprivate-ledgerkit",
+        "orbit-secrets-vault"
+      ]
+    },
+    {
+      "query": "auth sometimes rejects freshly issued tokens with 'token used before issued' on one server only",
+      "expect": "ntp-clock-skew-jwt",
+      "kind": "paraphrase",
+      "hit": "STRONG",
+      "got": "ntp-clock-skew-jwt",
+      "outcome": "correct_strong",
+      "rank": 4,
+      "signals": {
+        "s_vec": 0.786192,
+        "s_lex": 0.166667,
+        "s_jaccard": 0.166667,
+        "s_ce": null
+      },
+      "retrieved": [
+        "ledgerline-pci-tokenizer-boundary",
+        "cors-preflight-credentials",
+        "ledgerline-llctl-explicit-env",
+        "ntp-clock-skew-jwt",
+        "orbit-staging-rate-limit-loadtest"
+      ]
+    },
+    {
+      "query": "JSON.parse: Unexpected token  in JSON at position 0 for a config file a colleague edited on windows",
+      "expect": "utf8-bom-json",
+      "kind": "paraphrase",
+      "hit": "STRONG",
+      "got": "utf8-bom-json",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.899881,
+        "s_lex": 0.421488,
+        "s_jaccard": 0.421488,
+        "s_ce": null
+      },
+      "retrieved": [
+        "utf8-bom-json",
+        "bash-word-splitting",
+        "log-rotation-disk-full",
+        "spring-lazy-init-exception",
+        "ledgerline-unleash-kill-switches"
+      ]
+    },
+    {
+      "query": "invoice total shows 19.999999999 instead of 20.00 and reports are a cent off",
+      "expect": "float-money",
+      "kind": "paraphrase",
+      "hit": "STRONG",
+      "got": "float-money",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.800545,
+        "s_lex": 0.154472,
+        "s_jaccard": 0.154472,
+        "s_ce": null
+      },
+      "retrieved": [
+        "float-money",
+        "ledgerline-kafka-partition-account",
+        "ledgerline-oncall-sev1-payouts",
+        "python-datetime-naive",
+        "orbit-tenant-timezone-reports"
+      ]
+    },
+    {
+      "query": "our input validation endpoint pegs a CPU at 100% for minutes on certain long strings",
+      "expect": "regex-catastrophic",
+      "kind": "paraphrase",
+      "hit": "STRONG",
+      "got": "regex-catastrophic",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.76354,
+        "s_lex": 0.0728477,
+        "s_jaccard": 0.0728477,
+        "s_ce": null
+      },
+      "retrieved": [
+        "regex-catastrophic",
+        "orbit-staging-rate-limit-loadtest",
+        "ledgerline-oncall-sev1-payouts",
+        "c-strncpy-nul",
+        "ledgerline-money-minor-units"
+      ]
+    },
+    {
+      "query": "nightly report job started running at 3am instead of 2am since last weekend",
+      "expect": "cron-utc",
+      "kind": "paraphrase",
+      "hit": "STRONG",
+      "got": "cron-utc",
+      "outcome": "correct_strong",
+      "rank": 4,
+      "signals": {
+        "s_vec": 0.797033,
+        "s_lex": 0.0814815,
+        "s_jaccard": 0.0814815,
+        "s_ce": null
+      },
+      "retrieved": [
+        "orbit-staging-nightly-restore",
+        "ledgerline-uat-weekly-refresh",
+        "ledgerline-settlement-cutoff-london",
+        "cron-utc",
+        "orbit-celery-reports-queue"
+      ]
+    },
+    {
+      "query": "df says 100% used, I deleted the big app.log but space was not freed",
+      "expect": "log-rotation-disk-full",
+      "kind": "paraphrase",
+      "hit": "STRONG",
+      "got": "log-rotation-disk-full",
+      "outcome": "correct_strong",
+      "rank": 2,
+      "signals": {
+        "s_vec": 0.769062,
+        "s_lex": 0.0708661,
+        "s_jaccard": 0.0708661,
+        "s_ce": null
+      },
+      "retrieved": [
+        "ledgerline-money-minor-units",
+        "log-rotation-disk-full",
+        "flutter-setstate-disposed",
+        "docker-layer-cache-copy",
+        "ledgerline-llctl-explicit-env"
+      ]
+    },
+    {
+      "query": "git pull --rebase mi dice che ho modifiche non staged e si rifiuta, come aggiorno il branch senza committare?",
+      "expect": "git-rebase-autostash",
+      "kind": "crosslang",
+      "hit": "STRONG",
+      "got": "git-rebase-autostash",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.880833,
+        "s_lex": 0.166667,
+        "s_jaccard": 0.166667,
+        "s_ce": null
+      },
+      "retrieved": [
+        "git-rebase-autostash",
+        "git-submodule-detached",
+        "gha-cache-branch-scope",
+        "gha-secrets-forks",
+        "ssh-agent-forwarding"
+      ]
+    },
+    {
+      "query": "ho fatto dei commit dentro un sottomodulo e dopo l'update sono spariti, dove sono finiti?",
+      "expect": "git-submodule-detached",
+      "kind": "crosslang",
+      "hit": "STRONG",
+      "got": "git-submodule-detached",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.807327,
+        "s_lex": 0.0844156,
+        "s_jaccard": 0.0844156,
+        "s_ce": null
+      },
+      "retrieved": [
+        "git-submodule-detached",
+        "git-rebase-autostash",
+        "orbit-backfills-not-in-migrations",
+        "docker-layer-cache-copy",
+        "pg-serial-sequence-reset"
+      ]
+    },
+    {
+      "query": "dal container non riesco a collegarmi al database che gira sul mio pc tramite localhost, connection refused",
+      "expect": "docker-localhost-host",
+      "kind": "crosslang",
+      "hit": "STRONG",
+      "got": "docker-localhost-host",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.854542,
+        "s_lex": 0.164286,
+        "s_jaccard": 0.164286,
+        "s_ce": null
+      },
+      "retrieved": [
+        "docker-localhost-host",
+        "ledgerline-local-kafka-29092",
+        "powershell-execution-policy",
+        "orbit-email-mailpit-allowlist",
+        "pg-idle-in-transaction"
+      ]
+    },
+    {
+      "query": "una ALTER TABLE resta bloccata all'infinito su postgres anche se nessuno sembra usare la tabella",
+      "expect": "pg-idle-in-transaction",
+      "kind": "crosslang",
+      "hit": "STRONG",
+      "got": "pg-serial-sequence-reset",
+      "outcome": "wrong_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.754918,
+        "s_lex": 0.117647,
+        "s_jaccard": 0.117647,
+        "s_ce": null
+      },
+      "retrieved": [
+        "pg-idle-in-transaction",
+        "orbit-test-db-port-5434",
+        "pg-serial-sequence-reset",
+        "ledgerline-migration-lock-timeout",
+        "git-rebase-autostash"
+      ]
+    },
+    {
+      "query": "dopo aver importato i dati da csv ogni insert fallisce con duplicate key sulla primary key",
+      "expect": "pg-serial-sequence-reset",
+      "kind": "crosslang",
+      "hit": "STRONG",
+      "got": "pg-serial-sequence-reset",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.854514,
+        "s_lex": 0.139394,
+        "s_jaccard": 0.139394,
+        "s_ce": null
+      },
+      "retrieved": [
+        "pg-serial-sequence-reset",
+        "ledgerline-api-idempotency-header",
+        "ledgerline-ledgerwriter-balanced",
+        "ledgerline-recon-reingest",
+        "java-hashcode-equals"
+      ]
+    },
+    {
+      "query": "lo script che pulisce la cache blocca redis per alcuni secondi e tutte le richieste vanno in timeout",
+      "expect": "redis-keys-blocking",
+      "kind": "crosslang",
+      "hit": "STRONG",
+      "got": "redis-keys-blocking",
+      "outcome": "correct_strong",
+      "rank": 2,
+      "signals": {
+        "s_vec": 0.776697,
+        "s_lex": 0.119718,
+        "s_jaccard": 0.119718,
+        "s_ce": null
+      },
+      "retrieved": [
+        "powershell-execution-policy",
+        "redis-keys-blocking",
+        "orbit-redis-cache-key-tenant",
+        "ledgerline-migration-lock-timeout",
+        "docker-pid1-signals"
+      ]
+    },
+    {
+      "query": "ho attivato il virtualenv e installato il pacchetto ma python continua a dire ModuleNotFoundError",
+      "expect": "python-venv-pip-wrong",
+      "kind": "crosslang",
+      "hit": "STRONG",
+      "got": "python-venv-pip-wrong",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.806035,
+        "s_lex": 0.144737,
+        "s_jaccard": 0.144737,
+        "s_ce": null
+      },
+      "retrieved": [
+        "python-venv-pip-wrong",
+        "orbit-pnpm-only",
+        "ledgerline-api-idempotency-header",
+        "k8s-configmap-reload",
+        "node-esm-require"
+      ]
+    },
+    {
+      "query": "errore can't compare offset-naive and offset-aware datetimes quando confronto due date in python",
+      "expect": "python-datetime-naive",
+      "kind": "crosslang",
+      "hit": "STRONG",
+      "got": "python-datetime-naive",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.864535,
+        "s_lex": 0.366071,
+        "s_jaccard": 0.366071,
+        "s_ce": null
+      },
+      "retrieved": [
+        "python-datetime-naive",
+        "orbit-backfills-not-in-migrations",
+        "ledgerline-unleash-kill-switches",
+        "orbit-structlog-no-pii",
+        "ledgerline-settlement-cutoff-london"
+      ]
+    },
+    {
+      "query": "il processo node termina all'improvviso quando una chiamata async lancia un'eccezione",
+      "expect": "node-unhandled-rejection",
+      "kind": "crosslang",
+      "hit": "STRONG",
+      "got": "node-unhandled-rejection",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.779682,
+        "s_lex": 0.1,
+        "s_jaccard": 0.1,
+        "s_ce": null
+      },
+      "retrieved": [
+        "node-unhandled-rejection",
+        "flutter-setstate-disposed",
+        "python-asyncio-blocking",
+        "c-strncpy-nul",
+        "spring-transactional-self"
+      ]
+    },
+    {
+      "query": "ho abilitato strict nel tsconfig e ora ho centinaia di errori 'possibly undefined', da dove comincio?",
+      "expect": "ts-strict-null",
+      "kind": "crosslang",
+      "hit": "STRONG",
+      "got": "ts-strict-null",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.859034,
+        "s_lex": 0.154321,
+        "s_jaccard": 0.154321,
+        "s_ce": null
+      },
+      "retrieved": [
+        "ts-strict-null",
+        "bash-set-e-pipe",
+        "tls-missing-intermediate",
+        "ledgerline-unleash-kill-switches",
+        "pg-serial-sequence-reset"
+      ]
+    },
+    {
+      "query": "in sviluppo la mia chiamata API dentro useEffect parte due volte, perché?",
+      "expect": "react-strict-double",
+      "kind": "crosslang",
+      "hit": "STRONG",
+      "got": "react-useeffect-loop",
+      "outcome": "wrong_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.833105,
+        "s_lex": 0.0958904,
+        "s_jaccard": 0.0958904,
+        "s_ce": null
+      },
+      "retrieved": [
+        "react-strict-double",
+        "react-useeffect-loop",
+        "orbit-api-v1-frozen",
+        "flutter-setstate-disposed",
+        "ledgerline-llctl-explicit-env"
+      ]
+    },
+    {
+      "query": "il browser blocca la richiesta con credenziali perché il server risponde Access-Control-Allow-Origin asterisco",
+      "expect": "cors-preflight-credentials",
+      "kind": "crosslang",
+      "hit": "STRONG",
+      "got": "cors-preflight-credentials",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.873342,
+        "s_lex": 0.28125,
+        "s_jaccard": 0.28125,
+        "s_ce": null
+      },
+      "retrieved": [
+        "cors-preflight-credentials",
+        "tls-missing-intermediate",
+        "ntp-clock-skew-jwt",
+        "orbit-web-public-env-prefix",
+        "python-asyncio-blocking"
+      ]
+    },
+    {
+      "query": "curl e java danno unable to get local issuer certificate ma nel browser il sito funziona",
+      "expect": "tls-missing-intermediate",
+      "kind": "crosslang",
+      "hit": "STRONG",
+      "got": "tls-missing-intermediate",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.933529,
+        "s_lex": 0.417323,
+        "s_jaccard": 0.417323,
+        "s_ce": null
+      },
+      "retrieved": [
+        "tls-missing-intermediate",
+        "orbit-web-public-env-prefix",
+        "cors-preflight-credentials",
+        "ntp-clock-skew-jwt",
+        "powershell-execution-policy"
+      ]
+    },
+    {
+      "query": "il pod java viene ucciso con OOMKilled anche se l'heap è sotto il limite del container",
+      "expect": "k8s-oomkilled-limits",
+      "kind": "crosslang",
+      "hit": "STRONG",
+      "got": "k8s-oomkilled-limits",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.900277,
+        "s_lex": 0.229008,
+        "s_jaccard": 0.229008,
+        "s_ce": null
+      },
+      "retrieved": [
+        "k8s-oomkilled-limits",
+        "k8s-crashloop-probe",
+        "k8s-configmap-reload",
+        "ledgerline-unleash-kill-switches",
+        "ledgerline-kafka-partition-account"
+      ]
+    },
+    {
+      "query": "lo script bash con set -e continua anche se un comando in una pipe fallisce",
+      "expect": "bash-set-e-pipe",
+      "kind": "crosslang",
+      "hit": "STRONG",
+      "got": "bash-set-e-pipe",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.901,
+        "s_lex": 0.225806,
+        "s_jaccard": 0.225806,
+        "s_ce": null
+      },
+      "retrieved": [
+        "bash-set-e-pipe",
+        "powershell-execution-policy",
+        "git-rebase-autostash",
+        "git-crlf-windows",
+        "ledgerline-migration-lock-timeout"
+      ]
+    },
+    {
+      "query": "la build su windows fallisce con file non trovato su un percorso molto lungo dentro node_modules",
+      "expect": "windows-path-length",
+      "kind": "crosslang",
+      "hit": "STRONG",
+      "got": "windows-path-length",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.840124,
+        "s_lex": 0.13245,
+        "s_jaccard": 0.13245,
+        "s_ce": null
+      },
+      "retrieved": [
+        "windows-path-length",
+        "utf8-bom-json",
+        "orbit-make-image-pip-index",
+        "git-crlf-windows",
+        "bash-word-splitting"
+      ]
+    },
+    {
+      "query": "ho cambiato compilatore ma cmake continua a usare quello vecchio",
+      "expect": "cmake-stale-cache",
+      "kind": "crosslang",
+      "hit": "STRONG",
+      "got": "cmake-stale-cache",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.868514,
+        "s_lex": 0.0882353,
+        "s_jaccard": 0.0882353,
+        "s_ce": null
+      },
+      "retrieved": [
+        "cmake-stale-cache",
+        "k8s-configmap-reload",
+        "bash-set-e-pipe",
+        "orbit-pnpm-only",
+        "utf8-bom-json"
+      ]
+    },
+    {
+      "query": "in go le goroutine lanciate nel ciclo leggono tutte l'ultimo valore della variabile",
+      "expect": "go-loop-var-capture",
+      "kind": "crosslang",
+      "hit": "STRONG",
+      "got": "go-loop-var-capture",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.876648,
+        "s_lex": 0.171642,
+        "s_jaccard": 0.171642,
+        "s_ce": null
+      },
+      "retrieved": [
+        "go-loop-var-capture",
+        "ledgerline-goprivate-ledgerkit",
+        "orbit-celery-beat-single-replica",
+        "go-nil-interface",
+        "ledgerline-unleash-kill-switches"
+      ]
+    },
+    {
+      "query": "rust non compila: cannot borrow as mutable mentre modifico il vettore dentro il for",
+      "expect": "rust-borrow-mutable-loop",
+      "kind": "crosslang",
+      "hit": "STRONG",
+      "got": "rust-borrow-mutable-loop",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.886174,
+        "s_lex": 0.276423,
+        "s_jaccard": 0.276423,
+        "s_ce": null
+      },
+      "retrieved": [
+        "rust-borrow-mutable-loop",
+        "git-rebase-autostash",
+        "pg-serial-sequence-reset",
+        "log-rotation-disk-full",
+        "ledgerline-migration-lock-timeout"
+      ]
+    },
+    {
+      "query": "in spring l'annotazione @Transactional non fa rollback quando chiamo il metodo da un altro metodo della stessa classe",
+      "expect": "spring-transactional-self",
+      "kind": "crosslang",
+      "hit": "STRONG",
+      "got": "spring-transactional-self",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.922896,
+        "s_lex": 0.164557,
+        "s_jaccard": 0.164557,
+        "s_ce": null
+      },
+      "retrieved": [
+        "spring-transactional-self",
+        "ledgerline-outbox-relay",
+        "pg-idle-in-transaction",
+        "react-strict-double",
+        "gha-secrets-forks"
+      ]
+    },
+    {
+      "query": "flutter mi dà setState called after dispose quando l'utente torna indietro prima che finisca il caricamento",
+      "expect": "flutter-setstate-disposed",
+      "kind": "crosslang",
+      "hit": "STRONG",
+      "got": "flutter-setstate-disposed",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.883419,
+        "s_lex": 0.27972,
+        "s_jaccard": 0.27972,
+        "s_ce": null
+      },
+      "retrieved": [
+        "flutter-setstate-disposed",
+        "orbit-backfills-not-in-migrations",
+        "ledgerline-unleash-kill-switches",
+        "ledgerline-llctl-explicit-env",
+        "git-rebase-autostash"
+      ]
+    },
+    {
+      "query": "nelle pull request dei contributor esterni i secrets di github actions risultano vuoti",
+      "expect": "gha-secrets-forks",
+      "kind": "crosslang",
+      "hit": "STRONG",
+      "got": "gha-secrets-forks",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.918055,
+        "s_lex": 0.260163,
+        "s_jaccard": 0.260163,
+        "s_ce": null
+      },
+      "retrieved": [
+        "gha-secrets-forks",
+        "gha-cache-branch-scope",
+        "orbit-secrets-vault",
+        "ledgerline-sops-secrets",
+        "git-rebase-autostash"
+      ]
+    },
+    {
+      "query": "il token jwt viene rifiutato come non ancora valido solo su uno dei server",
+      "expect": "ntp-clock-skew-jwt",
+      "kind": "crosslang",
+      "hit": "STRONG",
+      "got": "ntp-clock-skew-jwt",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.8706,
+        "s_lex": 0.160305,
+        "s_jaccard": 0.160305,
+        "s_ce": null
+      },
+      "retrieved": [
+        "ntp-clock-skew-jwt",
+        "ssh-agent-forwarding",
+        "cors-preflight-credentials",
+        "utf8-bom-json",
+        "tls-missing-intermediate"
+      ]
+    },
+    {
+      "query": "i totali delle fatture sono sbagliati di un centesimo, gli importi sono salvati come float",
+      "expect": "float-money",
+      "kind": "crosslang",
+      "hit": "STRONG",
+      "got": "float-money",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.872179,
+        "s_lex": 0.109489,
+        "s_jaccard": 0.109489,
+        "s_ce": null
+      },
+      "retrieved": [
+        "float-money",
+        "ledgerline-money-minor-units",
+        "ledgerline-kafka-partition-account",
+        "utf8-bom-json",
+        "ledgerline-migration-lock-timeout"
+      ]
+    },
+    {
+      "query": "il job cron gira un'ora in ritardo da quando è cambiata l'ora legale",
+      "expect": "cron-utc",
+      "kind": "crosslang",
+      "hit": "STRONG",
+      "got": "cron-utc",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.871064,
+        "s_lex": 0.072,
+        "s_jaccard": 0.072,
+        "s_ce": null
+      },
+      "retrieved": [
+        "cron-utc",
+        "orbit-celery-beat-single-replica",
+        "orbit-tenant-timezone-reports",
+        "ledgerline-uat-weekly-refresh",
+        "ntp-clock-skew-jwt"
+      ]
+    },
+    {
+      "query": "how do I run db migrations on orbit? alembic upgrade head put tables in the wrong schema",
+      "expect": "orbit-migrations-make-target",
+      "kind": "project",
+      "hit": "STRONG",
+      "got": "orbit-migrations-make-target",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.913249,
+        "s_lex": 0.184397,
+        "s_jaccard": 0.184397,
+        "s_ce": null
+      },
+      "retrieved": [
+        "orbit-migrations-make-target",
+        "orbit-backfills-not-in-migrations",
+        "orbit-migration-index-concurrently",
+        "orbit-events-schema-version",
+        "orbit-structlog-no-pii"
+      ]
+    },
+    {
+      "query": "why can't api just call the billing service over http on orbit, lint is yelling at me",
+      "expect": "orbit-billing-async-only",
+      "kind": "project",
+      "hit": "STRONG",
+      "got": "orbit-billing-async-only",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.833546,
+        "s_lex": 0.282443,
+        "s_jaccard": 0.282443,
+        "s_ce": null
+      },
+      "retrieved": [
+        "orbit-billing-async-only",
+        "orbit-preview-billing-fake-psp",
+        "orbit-billing-event-id-stable",
+        "orbit-email-mailpit-allowlist",
+        "orbit-make-image-pip-index"
+      ]
+    },
+    {
+      "query": "the test tenant I set up on staging yesterday is gone this morning, did someone delete it?",
+      "expect": "orbit-staging-nightly-restore",
+      "kind": "project",
+      "hit": "MISS",
+      "got": null,
+      "outcome": "miss",
+      "rank": 3,
+      "signals": {
+        "s_vec": 0.72605,
+        "s_lex": 0.120253,
+        "s_jaccard": 0.120253,
+        "s_ce": null
+      },
+      "retrieved": [
+        "orbit-redis-cache-key-tenant",
+        "orbit-staging-rate-limit-loadtest",
+        "orbit-staging-nightly-restore",
+        "orbit-tenant-scoped-session",
+        "orbit-test-db-port-5434"
+      ]
+    },
+    {
+      "query": "I flipped a feature flag in the orbit admin panel but nothing changed",
+      "expect": "orbit-feature-flags-yaml",
+      "kind": "project",
+      "hit": "STRONG",
+      "got": "orbit-feature-flags-yaml",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.832789,
+        "s_lex": 0.20339,
+        "s_jaccard": 0.20339,
+        "s_ce": null
+      },
+      "retrieved": [
+        "orbit-feature-flags-yaml",
+        "ledgerline-unleash-kill-switches",
+        "orbit-dlq-replay-cli",
+        "orbit-structlog-no-pii",
+        "orbit-events-schema-version"
+      ]
+    },
+    {
+      "query": "CI contracts-drift job fails saying generated contracts are out of date, what do I run?",
+      "expect": "orbit-contracts-codegen",
+      "kind": "project",
+      "hit": "STRONG",
+      "got": "ledgerline-pact-provider-verify",
+      "outcome": "wrong_strong",
+      "rank": 0,
+      "signals": {
+        "s_vec": 0.751805,
+        "s_lex": 0.0952381,
+        "s_jaccard": 0.0952381,
+        "s_ce": null
+      },
+      "retrieved": [
+        "ledgerline-pact-provider-verify",
+        "npm-ci-lockfile",
+        "orbit-migrations-make-target",
+        "cors-preflight-credentials",
+        "orbit-backfills-not-in-migrations"
+      ]
+    },
+    {
+      "query": "my orbit PR shows the e2e check as skipped and I can't merge",
+      "expect": "orbit-e2e-label",
+      "kind": "project",
+      "hit": "STRONG",
+      "got": "orbit-e2e-label",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.878533,
+        "s_lex": 0.119658,
+        "s_jaccard": 0.119658,
+        "s_ce": null
+      },
+      "retrieved": [
+        "orbit-e2e-label",
+        "orbit-api-v2-cursor-pagination",
+        "orbit-api-v1-frozen",
+        "orbit-structlog-no-pii",
+        "orbit-chromatic-ui-review"
+      ]
+    },
+    {
+      "query": "my PR's preview environment url stopped working after the weekend",
+      "expect": "orbit-preview-env-ttl",
+      "kind": "project",
+      "hit": "STRONG",
+      "got": "orbit-preview-env-ttl",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.79803,
+        "s_lex": 0.185185,
+        "s_jaccard": 0.185185,
+        "s_ce": null
+      },
+      "retrieved": [
+        "orbit-preview-env-ttl",
+        "orbit-web-public-env-prefix",
+        "orbit-preview-billing-fake-psp",
+        "orbit-chromatic-ui-review",
+        "orbit-e2e-label"
+      ]
+    },
+    {
+      "query": "I updated a secret with kubectl edit secret in orbit and a few minutes later it reverted",
+      "expect": "orbit-secrets-vault",
+      "kind": "project",
+      "hit": "STRONG",
+      "got": "ledgerline-argocd-gitops",
+      "outcome": "wrong_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.785716,
+        "s_lex": 0.14557,
+        "s_jaccard": 0.14557,
+        "s_ce": null
+      },
+      "retrieved": [
+        "orbit-secrets-vault",
+        "ledgerline-argocd-gitops",
+        "orbit-search-reindex-alias",
+        "orbit-dlq-replay-cli",
+        "orbit-structlog-no-pii"
+      ]
+    },
+    {
+      "query": "lockfile-guard step failed on my PR complaining about package-lock.json",
+      "expect": "orbit-pnpm-only",
+      "kind": "project",
+      "hit": "STRONG",
+      "got": "npm-ci-lockfile",
+      "outcome": "wrong_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.822776,
+        "s_lex": 0.211009,
+        "s_jaccard": 0.211009,
+        "s_ce": null
+      },
+      "retrieved": [
+        "orbit-pnpm-only",
+        "npm-ci-lockfile",
+        "utf8-bom-json",
+        "ledgerline-pact-provider-verify",
+        "powershell-execution-policy"
+      ]
+    },
+    {
+      "query": "my query returns rows from other tenants locally but returns nothing in prod, orbit core",
+      "expect": "orbit-tenant-scoped-session",
+      "kind": "project",
+      "hit": "STRONG",
+      "got": "orbit-tenant-timezone-reports",
+      "outcome": "wrong_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.778093,
+        "s_lex": 0.151316,
+        "s_jaccard": 0.151316,
+        "s_ce": null
+      },
+      "retrieved": [
+        "orbit-tenant-scoped-session",
+        "orbit-redis-cache-key-tenant",
+        "orbit-tenant-timezone-reports",
+        "orbit-structlog-no-pii",
+        "orbit-backfills-not-in-migrations"
+      ]
+    },
+    {
+      "query": "deploy-prod workflow fails with 'deploy freeze active', it's friday afternoon and I need to ship a fix",
+      "expect": "orbit-deploy-freeze-friday",
+      "kind": "project",
+      "hit": "STRONG",
+      "got": "orbit-deploy-freeze-friday",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.791163,
+        "s_lex": 0.113333,
+        "s_jaccard": 0.113333,
+        "s_ce": null
+      },
+      "retrieved": [
+        "orbit-deploy-freeze-friday",
+        "ledgerline-unleash-kill-switches",
+        "ledgerline-pact-provider-verify",
+        "orbit-feature-flags-yaml",
+        "ledgerline-outbox-relay"
+      ]
+    },
+    {
+      "query": "can I upgrade orbit services to python 3.12? uv sync breaks with no matching distribution",
+      "expect": "orbit-python-311-pin",
+      "kind": "project",
+      "hit": "STRONG",
+      "got": "orbit-python-311-pin",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.798553,
+        "s_lex": 0.146497,
+        "s_jaccard": 0.146497,
+        "s_ce": null
+      },
+      "retrieved": [
+        "orbit-python-311-pin",
+        "orbit-structlog-no-pii",
+        "orbit-migrations-make-target",
+        "orbit-backfills-not-in-migrations",
+        "orbit-feature-flags-yaml"
+      ]
+    },
+    {
+      "query": "after make dev, psql says database orbit does not exist",
+      "expect": "orbit-local-postgres-5433",
+      "kind": "project",
+      "hit": "STRONG",
+      "got": "orbit-migrations-make-target",
+      "outcome": "wrong_strong",
+      "rank": 3,
+      "signals": {
+        "s_vec": 0.793885,
+        "s_lex": 0.205357,
+        "s_jaccard": 0.205357,
+        "s_ce": null
+      },
+      "retrieved": [
+        "orbit-test-db-port-5434",
+        "orbit-migrations-make-target",
+        "orbit-local-postgres-5433",
+        "orbit-make-image-pip-index",
+        "orbit-tenant-scoped-session"
+      ]
+    },
+    {
+      "query": "where do I add a new field to the public api, the v1 serializer change got rejected by CI",
+      "expect": "orbit-api-v1-frozen",
+      "kind": "project",
+      "hit": "STRONG",
+      "got": "orbit-api-v1-frozen",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.765972,
+        "s_lex": 0.151079,
+        "s_jaccard": 0.151079,
+        "s_ce": null
+      },
+      "retrieved": [
+        "orbit-api-v1-frozen",
+        "npm-ci-lockfile",
+        "ledgerline-kafka-partition-account",
+        "spring-lazy-init-exception",
+        "orbit-billing-async-only"
+      ]
+    },
+    {
+      "query": "our export celery task keeps dying with SoftTimeLimitExceeded and retrying",
+      "expect": "orbit-celery-reports-queue",
+      "kind": "project",
+      "hit": "STRONG",
+      "got": "orbit-celery-reports-queue",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.765253,
+        "s_lex": 0.131783,
+        "s_jaccard": 0.131783,
+        "s_ce": null
+      },
+      "retrieved": [
+        "orbit-celery-reports-queue",
+        "orbit-celery-beat-single-replica",
+        "ledgerline-unleash-kill-switches",
+        "ledgerline-recon-reingest",
+        "ledgerline-migration-lock-timeout"
+      ]
+    },
+    {
+      "query": "container can't resolve other service names, nslookup api fails inside docker compose network",
+      "expect": null,
+      "kind": "negative",
+      "hit": "STRONG",
+      "got": "docker-localhost-host",
+      "outcome": "wrong_strong",
+      "rank": 0,
+      "signals": {
+        "s_vec": 0.781206,
+        "s_lex": 0.179688,
+        "s_jaccard": 0.179688,
+        "s_ce": null
+      },
+      "retrieved": [
+        "docker-localhost-host",
+        "orbit-make-image-pip-index",
+        "regex-catastrophic",
+        "docker-layer-cache-copy",
+        "ledgerline-pci-tokenizer-boundary"
+      ]
+    },
+    {
+      "query": "git blame is useless after a big reformat commit, how do I make it skip that commit",
+      "expect": null,
+      "kind": "negative",
+      "hit": "STRONG",
+      "got": "git-rebase-autostash",
+      "outcome": "wrong_strong",
+      "rank": 0,
+      "signals": {
+        "s_vec": 0.796602,
+        "s_lex": 0.128571,
+        "s_jaccard": 0.128571,
+        "s_ce": null
+      },
+      "retrieved": [
+        "git-rebase-autostash",
+        "git-crlf-windows",
+        "git-submodule-detached",
+        "ssh-agent-forwarding",
+        "pg-serial-sequence-reset"
+      ]
+    },
+    {
+      "query": "pg_dump of our 400GB postgres database takes 9 hours, how can I speed it up",
+      "expect": null,
+      "kind": "negative",
+      "hit": "MISS",
+      "got": null,
+      "outcome": "miss",
+      "rank": 0,
+      "signals": {
+        "s_vec": 0.704959,
+        "s_lex": 0.0802469,
+        "s_jaccard": 0.0802469,
+        "s_ce": null
+      },
+      "retrieved": [
+        "ledgerline-read-replica-lag",
+        "ledgerline-recon-reingest",
+        "pg-serial-sequence-reset",
+        "docker-pid1-signals",
+        "orbit-staging-nightly-restore"
+      ]
+    },
+    {
+      "query": "postgres table keeps growing on disk even after deleting most rows, vacuum doesn't shrink it",
+      "expect": null,
+      "kind": "negative",
+      "hit": "MISS",
+      "got": null,
+      "outcome": "miss",
+      "rank": 0,
+      "signals": {
+        "s_vec": 0.713039,
+        "s_lex": 0.123377,
+        "s_jaccard": 0.123377,
+        "s_ce": null
+      },
+      "retrieved": [
+        "log-rotation-disk-full",
+        "pg-serial-sequence-reset",
+        "orbit-test-db-port-5434",
+        "orbit-backfills-not-in-migrations",
+        "pg-index-not-used-lower"
+      ]
+    },
+    {
+      "query": "redis keys are disappearing before their TTL expires under load",
+      "expect": null,
+      "kind": "negative",
+      "hit": "STRONG",
+      "got": "redis-keys-blocking",
+      "outcome": "wrong_strong",
+      "rank": 0,
+      "signals": {
+        "s_vec": 0.761627,
+        "s_lex": 0.137615,
+        "s_jaccard": 0.137615,
+        "s_ce": null
+      },
+      "retrieved": [
+        "redis-keys-blocking",
+        "orbit-redis-cache-key-tenant",
+        "ledgerline-unleash-kill-switches",
+        "java-hashcode-equals",
+        "git-submodule-detached"
+      ]
+    },
+    {
+      "query": "ImportError: cannot import name 'User' from partially initialized module 'models' (most likely due to a circular import)",
+      "expect": null,
+      "kind": "negative",
+      "hit": "MISS",
+      "got": null,
+      "outcome": "miss",
+      "rank": 0,
+      "signals": {
+        "s_vec": 0.732649,
+        "s_lex": 0.0723684,
+        "s_jaccard": 0.0723684,
+        "s_ce": null
+      },
+      "retrieved": [
+        "orbit-make-image-pip-index",
+        "pg-serial-sequence-reset",
+        "orbit-structlog-no-pii",
+        "orbit-backfills-not-in-migrations",
+        "orbit-migration-index-concurrently"
+      ]
+    },
+    {
+      "query": "with asyncio.gather, how do I cancel the remaining tasks as soon as one of them raises",
+      "expect": null,
+      "kind": "negative",
+      "hit": "STRONG",
+      "got": "python-asyncio-blocking",
+      "outcome": "wrong_strong",
+      "rank": 0,
+      "signals": {
+        "s_vec": 0.803825,
+        "s_lex": 0.125926,
+        "s_jaccard": 0.125926,
+        "s_ce": null
+      },
+      "retrieved": [
+        "flutter-setstate-disposed",
+        "orbit-celery-reports-queue",
+        "regex-catastrophic",
+        "python-mutable-default",
+        "orbit-celery-beat-single-replica"
+      ]
+    },
+    {
+      "query": "FATAL ERROR: Reached heap limit Allocation failed - JavaScript heap out of memory during webpack build",
+      "expect": null,
+      "kind": "negative",
+      "hit": "MISS",
+      "got": null,
+      "outcome": "miss",
+      "rank": 0,
+      "signals": {
+        "s_vec": 0.733079,
+        "s_lex": 0.0802469,
+        "s_jaccard": 0.0802469,
+        "s_ce": null
+      },
+      "retrieved": [
+        "k8s-oomkilled-limits",
+        "windows-path-length",
+        "orbit-staging-rate-limit-loadtest",
+        "java-hashcode-equals",
+        "orbit-migration-index-concurrently"
+      ]
+    },
+    {
+      "query": "npm install fails with ERESOLVE unable to resolve dependency tree, conflicting peer dependency react@17",
+      "expect": null,
+      "kind": "negative",
+      "hit": "STRONG",
+      "got": "node-esm-require",
+      "outcome": "wrong_strong",
+      "rank": 0,
+      "signals": {
+        "s_vec": 0.766741,
+        "s_lex": 0.179856,
+        "s_jaccard": 0.179856,
+        "s_ce": null
+      },
+      "retrieved": [
+        "orbit-pnpm-only",
+        "node-esm-require",
+        "npm-ci-lockfile",
+        "docker-layer-cache-copy",
+        "react-useeffect-loop"
+      ]
+    },
+    {
+      "query": "typescript path alias @/utils compiles fine but node says Cannot find module at runtime",
+      "expect": null,
+      "kind": "negative",
+      "hit": "STRONG",
+      "got": "git-submodule-detached",
+      "outcome": "wrong_strong",
+      "rank": 0,
+      "signals": {
+        "s_vec": 0.752198,
+        "s_lex": 0.0679012,
+        "s_jaccard": 0.0679012,
+        "s_ce": null
+      },
+      "retrieved": [
+        "windows-path-length",
+        "ts-strict-null",
+        "ledgerline-kafka-topics-terraform",
+        "python-venv-pip-wrong",
+        "ledgerline-unleash-kill-switches"
+      ]
+    },
+    {
+      "query": "Warning: Each child in a list should have a unique key prop",
+      "expect": null,
+      "kind": "negative",
+      "hit": "MISS",
+      "got": null,
+      "outcome": "miss",
+      "rank": 0,
+      "signals": {
+        "s_vec": 0.725199,
+        "s_lex": 0.0655738,
+        "s_jaccard": 0.0655738,
+        "s_ce": null
+      },
+      "retrieved": [
+        "css-flex-min-width",
+        "ledgerline-read-replica-lag",
+        "ledgerline-kafka-partition-account",
+        "ledgerline-unleash-kill-switches",
+        "float-money"
+      ]
+    },
+    {
+      "query": "position: sticky header doesn't stick when the parent has overflow hidden",
+      "expect": null,
+      "kind": "negative",
+      "hit": "MISS",
+      "got": null,
+      "outcome": "miss",
+      "rank": 0,
+      "signals": {
+        "s_vec": 0.696015,
+        "s_lex": 0.119048,
+        "s_jaccard": 0.119048,
+        "s_ce": null
+      },
+      "retrieved": [
+        "c-strncpy-nul",
+        "css-flex-min-width",
+        "flutter-setstate-disposed",
+        "ledgerline-unleash-kill-switches",
+        "ledgerline-kafka-partition-account"
+      ]
+    },
+    {
+      "query": "Mixed Content: the page was loaded over HTTPS but requested an insecure resource",
+      "expect": null,
+      "kind": "negative",
+      "hit": "MISS",
+      "got": null,
+      "outcome": "miss",
+      "rank": 0,
+      "signals": {
+        "s_vec": 0.719706,
+        "s_lex": 0.102564,
+        "s_jaccard": 0.102564,
+        "s_ce": null
+      },
+      "retrieved": [
+        "tls-missing-intermediate",
+        "cors-preflight-credentials",
+        "orbit-chromatic-ui-review",
+        "ntp-clock-skew-jwt",
+        "java-hashcode-equals"
+      ]
+    },
+    {
+      "query": "kubernetes pod stuck in Pending with 0/3 nodes are available: insufficient cpu",
+      "expect": null,
+      "kind": "negative",
+      "hit": "STRONG",
+      "got": "k8s-configmap-reload",
+      "outcome": "wrong_strong",
+      "rank": 0,
+      "signals": {
+        "s_vec": 0.757155,
+        "s_lex": 0.15,
+        "s_jaccard": 0.15,
+        "s_ce": null
+      },
+      "retrieved": [
+        "orbit-reports-node-toleration",
+        "k8s-configmap-reload",
+        "k8s-oomkilled-limits",
+        "k8s-crashloop-probe",
+        "ledgerline-api-idempotency-header"
+      ]
+    },
+    {
+      "query": "pod in ImagePullBackOff pulling from our private registry, how do I add credentials",
+      "expect": null,
+      "kind": "negative",
+      "hit": "MISS",
+      "got": null,
+      "outcome": "miss",
+      "rank": 0,
+      "signals": {
+        "s_vec": 0.728514,
+        "s_lex": 0.115385,
+        "s_jaccard": 0.115385,
+        "s_ce": null
+      },
+      "retrieved": [
+        "k8s-crashloop-probe",
+        "pg-serial-sequence-reset",
+        "k8s-configmap-reload",
+        "orbit-make-image-pip-index",
+        "gha-secrets-forks"
+      ]
+    },
+    {
+      "query": "bash read loop strips leading spaces and backslashes from each line of the file",
+      "expect": null,
+      "kind": "negative",
+      "hit": "STRONG",
+      "got": "bash-word-splitting",
+      "outcome": "wrong_strong",
+      "rank": 0,
+      "signals": {
+        "s_vec": 0.794293,
+        "s_lex": 0.125,
+        "s_jaccard": 0.125,
+        "s_ce": null
+      },
+      "retrieved": [
+        "bash-word-splitting",
+        "ledgerline-recon-reingest",
+        "go-loop-var-capture",
+        "bash-set-e-pipe",
+        "log-rotation-disk-full"
+      ]
+    },
+    {
+      "query": "go build fails with verifying module: checksum mismatch in go.sum",
+      "expect": null,
+      "kind": "negative",
+      "hit": "STRONG",
+      "got": "ledgerline-pact-provider-verify",
+      "outcome": "wrong_strong",
+      "rank": 0,
+      "signals": {
+        "s_vec": 0.752643,
+        "s_lex": 0.10687,
+        "s_jaccard": 0.10687,
+        "s_ce": null
+      },
+      "retrieved": [
+        "ledgerline-pact-provider-verify",
+        "go-loop-var-capture",
+        "node-esm-require",
+        "go-nil-interface",
+        "ledgerline-goprivate-ledgerkit"
+      ]
+    },
+    {
+      "query": "spring boot ignores application-dev.yml, the dev profile values never load",
+      "expect": null,
+      "kind": "negative",
+      "hit": "STRONG",
+      "got": "log-rotation-disk-full",
+      "outcome": "wrong_strong",
+      "rank": 0,
+      "signals": {
+        "s_vec": 0.75141,
+        "s_lex": 0.184874,
+        "s_jaccard": 0.184874,
+        "s_ce": null
+      },
+      "retrieved": [
+        "orbit-test-db-port-5434",
+        "orbit-feature-flags-yaml",
+        "log-rotation-disk-full",
+        "ledgerline-flyway-timestamp-versions",
+        "k8s-configmap-reload"
+      ]
+    },
+    {
+      "query": "github actions workflow does not trigger when I push a tag",
+      "expect": null,
+      "kind": "negative",
+      "hit": "STRONG",
+      "got": "gha-cache-branch-scope",
+      "outcome": "wrong_strong",
+      "rank": 0,
+      "signals": {
+        "s_vec": 0.797057,
+        "s_lex": 0.201835,
+        "s_jaccard": 0.201835,
+        "s_ce": null
+      },
+      "retrieved": [
+        "gha-cache-branch-scope",
+        "gha-secrets-forks",
+        "spring-transactional-self",
+        "ledgerline-ledgerwriter-balanced",
+        "go-nil-interface"
+      ]
+    },
+    {
+      "query": "how do we rotate JWT signing keys with a JWKS endpoint without logging everybody out",
+      "expect": null,
+      "kind": "negative",
+      "hit": "MISS",
+      "got": null,
+      "outcome": "miss",
+      "rank": 0,
+      "signals": {
+        "s_vec": 0.772063,
+        "s_lex": 0.0616438,
+        "s_jaccard": 0.0616438,
+        "s_ce": null
+      },
+      "retrieved": [
+        "ntp-clock-skew-jwt",
+        "redis-keys-blocking",
+        "tls-missing-intermediate",
+        "ledgerline-migration-lock-timeout",
+        "spring-lazy-init-exception"
+      ]
+    },
+    {
+      "query": "how do I get access to orbit's grafana dashboards as a new hire",
+      "expect": null,
+      "kind": "negative",
+      "hit": "MISS",
+      "got": null,
+      "outcome": "miss",
+      "rank": 0,
+      "signals": {
+        "s_vec": 0.714845,
+        "s_lex": 0.0967742,
+        "s_jaccard": 0.0967742,
+        "s_ce": null
+      },
+      "retrieved": [
+        "orbit-structlog-no-pii",
+        "orbit-tenant-scoped-session",
+        "orbit-api-v1-frozen",
+        "orbit-events-schema-version",
+        "orbit-billing-async-only"
+      ]
+    },
+    {
+      "query": "what's the branch naming convention for orbit feature branches",
+      "expect": null,
+      "kind": "negative",
+      "hit": "STRONG",
+      "got": "gha-cache-branch-scope",
+      "outcome": "wrong_strong",
+      "rank": 0,
+      "signals": {
+        "s_vec": 0.724856,
+        "s_lex": 0.205607,
+        "s_jaccard": 0.205607,
+        "s_ce": null
+      },
+      "retrieved": [
+        "orbit-feature-flags-yaml",
+        "orbit-structlog-no-pii",
+        "orbit-billing-async-only",
+        "gha-cache-branch-scope",
+        "orbit-search-reindex-alias"
+      ]
+    },
+    {
+      "query": "which i18n library does the orbit web app use and where are translation files",
+      "expect": null,
+      "kind": "negative",
+      "hit": "MISS",
+      "got": null,
+      "outcome": "miss",
+      "rank": 0,
+      "signals": {
+        "s_vec": 0.729493,
+        "s_lex": 0.131034,
+        "s_jaccard": 0.131034,
+        "s_ce": null
+      },
+      "retrieved": [
+        "orbit-web-public-env-prefix",
+        "orbit-secrets-vault",
+        "orbit-chromatic-ui-review",
+        "orbit-migrations-make-target",
+        "orbit-python-311-pin"
+      ]
+    },
+    {
+      "query": "how is the orbit elasticsearch search index rebuilt after a mapping change",
+      "expect": null,
+      "kind": "negative",
+      "hit": "STRONG",
+      "got": "orbit-search-reindex-alias",
+      "outcome": "wrong_strong",
+      "rank": 0,
+      "signals": {
+        "s_vec": 0.875769,
+        "s_lex": 0.312977,
+        "s_jaccard": 0.312977,
+        "s_ce": null
+      },
+      "retrieved": [
+        "orbit-search-reindex-alias",
+        "orbit-migration-index-concurrently",
+        "orbit-web-public-env-prefix",
+        "orbit-migrations-make-target",
+        "orbit-make-image-pip-index"
+      ]
+    },
+    {
+      "query": "who is on call for orbit this week and where is the pager schedule",
+      "expect": null,
+      "kind": "negative",
+      "hit": "STRONG",
+      "got": "orbit-structlog-no-pii",
+      "outcome": "wrong_strong",
+      "rank": 0,
+      "signals": {
+        "s_vec": 0.753007,
+        "s_lex": 0.0952381,
+        "s_jaccard": 0.0952381,
+        "s_ce": null
+      },
+      "retrieved": [
+        "orbit-billing-async-only",
+        "orbit-reports-node-toleration",
+        "orbit-preview-env-ttl",
+        "orbit-structlog-no-pii",
+        "orbit-deploy-freeze-friday"
+      ]
+    },
+    {
+      "query": "how do I reverse a singly linked list in place",
+      "expect": null,
+      "kind": "negative",
+      "hit": "MISS",
+      "got": null,
+      "outcome": "miss",
+      "rank": 0,
+      "signals": {
+        "s_vec": 0.718184,
+        "s_lex": 0.0633803,
+        "s_jaccard": 0.0633803,
+        "s_ce": null
+      },
+      "retrieved": [
+        "orbit-api-v2-cursor-pagination",
+        "ledgerline-argocd-gitops",
+        "pg-serial-sequence-reset",
+        "ledgerline-recon-reingest",
+        "pg-idle-in-transaction"
+      ]
+    },
+    {
+      "query": "what is the difference between a process and a thread",
+      "expect": null,
+      "kind": "negative",
+      "hit": "MISS",
+      "got": null,
+      "outcome": "miss",
+      "rank": 0,
+      "signals": {
+        "s_vec": 0.687042,
+        "s_lex": 0.132743,
+        "s_jaccard": 0.132743,
+        "s_ce": null
+      },
+      "retrieved": [
+        "spring-transactional-self",
+        "python-mutable-default",
+        "ledgerline-ledgerwriter-balanced",
+        "ledgerline-outbox-relay",
+        "ledgerline-kafka-partition-account"
+      ]
+    },
+    {
+      "query": "what is the worst-case time complexity of quicksort and why",
+      "expect": null,
+      "kind": "negative",
+      "hit": "MISS",
+      "got": null,
+      "outcome": "miss",
+      "rank": 0,
+      "signals": {
+        "s_vec": 0.686958,
+        "s_lex": 0.0833333,
+        "s_jaccard": 0.0833333,
+        "s_ce": null
+      },
+      "retrieved": [
+        "ts-strict-null",
+        "python-datetime-naive",
+        "k8s-crashloop-probe",
+        "orbit-celery-reports-queue",
+        "regex-catastrophic"
+      ]
+    },
+    {
+      "query": "explain dependency injection with a simple example",
+      "expect": null,
+      "kind": "negative",
+      "hit": "MISS",
+      "got": null,
+      "outcome": "miss",
+      "rank": 0,
+      "signals": {
+        "s_vec": 0.697731,
+        "s_lex": 0.158879,
+        "s_jaccard": 0.158879,
+        "s_ce": null
+      },
+      "retrieved": [
+        "docker-layer-cache-copy",
+        "react-useeffect-loop",
+        "node-esm-require",
+        "regex-catastrophic",
+        "python-venv-pip-wrong"
+      ]
+    },
+    {
+      "query": "how should I structure a REST API for pagination, offset or cursor?",
+      "expect": null,
+      "kind": "negative",
+      "hit": "STRONG",
+      "got": "orbit-api-v2-cursor-pagination",
+      "outcome": "wrong_strong",
+      "rank": 0,
+      "signals": {
+        "s_vec": 0.783845,
+        "s_lex": 0.198529,
+        "s_jaccard": 0.198529,
+        "s_ce": null
+      },
+      "retrieved": [
+        "orbit-api-v2-cursor-pagination",
+        "regex-catastrophic",
+        "orbit-api-v1-frozen",
+        "react-strict-double",
+        "orbit-billing-async-only"
+      ]
+    },
+    {
+      "query": "I added a field to the order.created payload and now every consumer is dumping messages into the DLQ. What did I miss?",
+      "expect": "orbit-events-schema-version",
+      "kind": "project",
+      "lang": "en",
+      "hit": "STRONG",
+      "got": "ledgerline-kafka-inbox-dedupe",
+      "outcome": "wrong_strong",
+      "rank": 0,
+      "signals": {
+        "s_vec": 0.807539,
+        "s_lex": 0.138462,
+        "s_jaccard": 0.138462,
+        "s_ce": null
+      },
+      "retrieved": [
+        "ledgerline-kafka-inbox-dedupe",
+        "ledgerline-outbox-relay",
+        "ledgerline-pact-provider-verify",
+        "ledgerline-ledgerwriter-balanced",
+        "orbit-celery-reports-queue"
+      ]
+    },
+    {
+      "query": "Come registro una nuova versione di un evento con defineEvent? Il job events-compat in CI mi fallisce",
+      "expect": "orbit-events-schema-version",
+      "kind": "project",
+      "lang": "it",
+      "hit": "STRONG",
+      "got": "orbit-events-schema-version",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.75825,
+        "s_lex": 0.128655,
+        "s_jaccard": 0.128655,
+        "s_ce": null
+      },
+      "retrieved": [
+        "orbit-events-schema-version",
+        "npm-ci-lockfile",
+        "orbit-celery-beat-single-replica",
+        "ledgerline-outbox-relay",
+        "react-useeffect-loop"
+      ]
+    },
+    {
+      "query": "What's the safe way to push messages from billing-events.dlq back onto the main queue?",
+      "expect": "orbit-dlq-replay-cli",
+      "kind": "project",
+      "lang": "en",
+      "hit": "STRONG",
+      "got": "orbit-billing-async-only",
+      "outcome": "wrong_strong",
+      "rank": 0,
+      "signals": {
+        "s_vec": 0.79128,
+        "s_lex": 0.17931,
+        "s_jaccard": 0.17931,
+        "s_ce": null
+      },
+      "retrieved": [
+        "orbit-billing-async-only",
+        "orbit-celery-reports-queue",
+        "ledgerline-kafka-inbox-dedupe",
+        "ledgerline-outbox-relay",
+        "orbit-billing-event-id-stable"
+      ]
+    },
+    {
+      "query": "Ho rimesso in coda a mano i messaggi della dead letter dalla UI di RabbitMQ e i consumer falliscono di nuovo, come se non ci fosse il tenant. Perché?",
+      "expect": "orbit-dlq-replay-cli",
+      "kind": "project",
+      "lang": "it",
+      "hit": "STRONG",
+      "got": "orbit-dlq-replay-cli",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.826882,
+        "s_lex": 0.130435,
+        "s_jaccard": 0.130435,
+        "s_ce": null
+      },
+      "retrieved": [
+        "orbit-dlq-replay-cli",
+        "ledgerline-api-idempotency-header",
+        "ledgerline-kafka-inbox-dedupe",
+        "k8s-crashloop-probe",
+        "orbit-redis-cache-key-tenant"
+      ]
+    },
+    {
+      "query": "Some customers got charged twice when the api retried a publish. How is the dedup id supposed to be generated?",
+      "expect": "orbit-billing-event-id-stable",
+      "kind": "project",
+      "lang": "en",
+      "hit": "STRONG",
+      "got": "orbit-billing-event-id-stable",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.737326,
+        "s_lex": 0.193182,
+        "s_jaccard": 0.193182,
+        "s_ce": null
+      },
+      "retrieved": [
+        "orbit-billing-event-id-stable",
+        "ledgerline-kafka-inbox-dedupe",
+        "ledgerline-kafka-partition-account",
+        "ledgerline-pact-provider-verify",
+        "orbit-billing-async-only"
+      ]
+    },
+    {
+      "query": "billingEventId va calcolato fuori dal retry loop? Su cosa deduplica il consumer di billing?",
+      "expect": "orbit-billing-event-id-stable",
+      "kind": "project",
+      "lang": "it",
+      "hit": "STRONG",
+      "got": "ledgerline-kafka-inbox-dedupe",
+      "outcome": "wrong_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.76351,
+        "s_lex": 0.101124,
+        "s_jaccard": 0.101124,
+        "s_ce": null
+      },
+      "retrieved": [
+        "orbit-billing-event-id-stable",
+        "orbit-billing-async-only",
+        "ledgerline-kafka-inbox-dedupe",
+        "orbit-preview-billing-fake-psp",
+        "ledgerline-kafka-partition-account"
+      ]
+    },
+    {
+      "query": "On my PR namespace every test order stays in pending_payment forever",
+      "expect": "orbit-preview-billing-fake-psp",
+      "kind": "project",
+      "lang": "en",
+      "hit": "STRONG",
+      "got": "orbit-preview-env-ttl",
+      "outcome": "wrong_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.762968,
+        "s_lex": 0.141844,
+        "s_jaccard": 0.141844,
+        "s_ce": null
+      },
+      "retrieved": [
+        "orbit-preview-billing-fake-psp",
+        "orbit-preview-env-ttl",
+        "orbit-e2e-label",
+        "ledgerline-kafka-partition-account",
+        "orbit-reports-node-toleration"
+      ]
+    },
+    {
+      "query": "Nel preview environment della mia PR il pagamento non si chiude mai, gli webhook di Stripe non arrivano. Come testo il checkout lì?",
+      "expect": "orbit-preview-billing-fake-psp",
+      "kind": "project",
+      "lang": "it",
+      "hit": "STRONG",
+      "got": "orbit-preview-billing-fake-psp",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.845139,
+        "s_lex": 0.210526,
+        "s_jaccard": 0.210526,
+        "s_ce": null
+      },
+      "retrieved": [
+        "orbit-preview-billing-fake-psp",
+        "orbit-preview-env-ttl",
+        "orbit-e2e-label",
+        "ledgerline-psp-sim-magic-amounts",
+        "ledgerline-kafka-partition-account"
+      ]
+    },
+    {
+      "query": "pytest fails with connection refused on port 5434 even though make dev is up",
+      "expect": "orbit-test-db-port-5434",
+      "kind": "project",
+      "lang": "en",
+      "hit": "STRONG",
+      "got": "orbit-test-db-port-5434",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.836306,
+        "s_lex": 0.185185,
+        "s_jaccard": 0.185185,
+        "s_ce": null
+      },
+      "retrieved": [
+        "orbit-test-db-port-5434",
+        "orbit-local-postgres-5433",
+        "ledgerline-pact-provider-verify",
+        "powershell-execution-policy",
+        "ssh-agent-forwarding"
+      ]
+    },
+    {
+      "query": "Ho lanciato i test e mi hanno svuotato tutte le tabelle del database di sviluppo. Su quale db dovrebbero girare?",
+      "expect": "orbit-test-db-port-5434",
+      "kind": "project",
+      "lang": "it",
+      "hit": "STRONG",
+      "got": "orbit-migrations-make-target",
+      "outcome": "wrong_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.754844,
+        "s_lex": 0.0887574,
+        "s_jaccard": 0.0887574,
+        "s_ce": null
+      },
+      "retrieved": [
+        "orbit-test-db-port-5434",
+        "orbit-migrations-make-target",
+        "sqlite-wal-readers",
+        "ledgerline-outbox-relay",
+        "log-rotation-disk-full"
+      ]
+    },
+    {
+      "query": "I need to populate a new column for about 40M existing rows. Can I just do the UPDATE in the alembic revision?",
+      "expect": "orbit-backfills-not-in-migrations",
+      "kind": "project",
+      "lang": "en",
+      "hit": "STRONG",
+      "got": "orbit-migration-index-concurrently",
+      "outcome": "wrong_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.769887,
+        "s_lex": 0.101523,
+        "s_jaccard": 0.101523,
+        "s_ce": null
+      },
+      "retrieved": [
+        "orbit-backfills-not-in-migrations",
+        "orbit-migration-index-concurrently",
+        "orbit-migrations-make-target",
+        "ledgerline-read-replica-lag",
+        "ledgerline-recon-reingest"
+      ]
+    },
+    {
+      "query": "Where are one-off data fix scripts supposed to live, and how do I resume one that got interrupted halfway?",
+      "expect": "orbit-backfills-not-in-migrations",
+      "kind": "project",
+      "lang": "en",
+      "hit": "STRONG",
+      "got": "bash-set-e-pipe",
+      "outcome": "wrong_strong",
+      "rank": 0,
+      "signals": {
+        "s_vec": 0.767669,
+        "s_lex": 0.0833333,
+        "s_jaccard": 0.0833333,
+        "s_ce": null
+      },
+      "retrieved": [
+        "pg-serial-sequence-reset",
+        "ledgerline-unleash-kill-switches",
+        "bash-set-e-pipe",
+        "ledgerline-recon-reingest",
+        "flutter-setstate-disposed"
+      ]
+    },
+    {
+      "query": "migration-lint fails on my CREATE INDEX, squawk says it locks writes on the table",
+      "expect": "orbit-migration-index-concurrently",
+      "kind": "project",
+      "lang": "en",
+      "hit": "STRONG",
+      "got": "orbit-migration-index-concurrently",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.814731,
+        "s_lex": 0.237179,
+        "s_jaccard": 0.237179,
+        "s_ce": null
+      },
+      "retrieved": [
+        "orbit-migration-index-concurrently",
+        "pg-idle-in-transaction",
+        "ledgerline-migration-lock-timeout",
+        "ledgerline-kafka-topics-terraform",
+        "git-crlf-windows"
+      ]
+    },
+    {
+      "query": "Ho messo postgresql_concurrently=True ma alembic dice che CONCURRENTLY non può girare dentro un blocco di transazione",
+      "expect": "orbit-migration-index-concurrently",
+      "kind": "project",
+      "lang": "it",
+      "hit": "STRONG",
+      "got": "pg-idle-in-transaction",
+      "outcome": "wrong_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.785149,
+        "s_lex": 0.141026,
+        "s_jaccard": 0.141026,
+        "s_ce": null
+      },
+      "retrieved": [
+        "orbit-migration-index-concurrently",
+        "orbit-migrations-make-target",
+        "orbit-backfills-not-in-migrations",
+        "pg-idle-in-transaction",
+        "ledgerline-kafka-partition-account"
+      ]
+    },
+    {
+      "query": "api-v2-lint rejects my new list endpoint because it accepts a page query param. What's the expected pattern?",
+      "expect": "orbit-api-v2-cursor-pagination",
+      "kind": "project",
+      "lang": "en",
+      "hit": "STRONG",
+      "got": "orbit-api-v2-cursor-pagination",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.829482,
+        "s_lex": 0.220859,
+        "s_jaccard": 0.220859,
+        "s_ce": null
+      },
+      "retrieved": [
+        "orbit-api-v2-cursor-pagination",
+        "orbit-api-v1-frozen",
+        "ledgerline-recon-reingest",
+        "orbit-alert-runbook-url",
+        "ledgerline-llctl-explicit-env"
+      ]
+    },
+    {
+      "query": "Come va fatta la paginazione nei nuovi endpoint di lista? Con offset sui tenant grandi vedo righe duplicate e query lente",
+      "expect": "orbit-api-v2-cursor-pagination",
+      "kind": "project",
+      "lang": "it",
+      "hit": "STRONG",
+      "got": "orbit-api-v2-cursor-pagination",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.817534,
+        "s_lex": 0.138298,
+        "s_jaccard": 0.138298,
+        "s_ce": null
+      },
+      "retrieved": [
+        "orbit-api-v2-cursor-pagination",
+        "ledgerline-recon-reingest",
+        "orbit-tenant-scoped-session",
+        "orbit-redis-cache-key-tenant",
+        "ledgerline-outbox-relay"
+      ]
+    },
+    {
+      "query": "Customers in Tokyo say their daily orders report is missing the last hours of the day",
+      "expect": "orbit-tenant-timezone-reports",
+      "kind": "project",
+      "lang": "en",
+      "hit": "MISS",
+      "got": null,
+      "outcome": "miss",
+      "rank": 2,
+      "signals": {
+        "s_vec": 0.690498,
+        "s_lex": 0.130435,
+        "s_jaccard": 0.130435,
+        "s_ce": null
+      },
+      "retrieved": [
+        "orbit-staging-nightly-restore",
+        "orbit-tenant-timezone-reports",
+        "ledgerline-kafka-inbox-dedupe",
+        "ledgerline-uat-weekly-refresh",
+        "python-datetime-naive"
+      ]
+    },
+    {
+      "query": "Is there a helper that gives me the start and end of a day for a given tenant, instead of using date.today() in the report task?",
+      "expect": "orbit-tenant-timezone-reports",
+      "kind": "project",
+      "lang": "en",
+      "hit": "STRONG",
+      "got": "orbit-tenant-timezone-reports",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.769985,
+        "s_lex": 0.115385,
+        "s_jaccard": 0.115385,
+        "s_ce": null
+      },
+      "retrieved": [
+        "orbit-tenant-timezone-reports",
+        "orbit-redis-cache-key-tenant",
+        "ledgerline-settlement-cutoff-london",
+        "orbit-tenant-scoped-session",
+        "python-datetime-naive"
+      ]
+    },
+    {
+      "query": "Every tenant got the invoice reminder email twice this morning, right after we touched the autoscaling config",
+      "expect": "orbit-celery-beat-single-replica",
+      "kind": "project",
+      "lang": "en",
+      "hit": "STRONG",
+      "got": "ledgerline-kafka-inbox-dedupe",
+      "outcome": "wrong_strong",
+      "rank": 0,
+      "signals": {
+        "s_vec": 0.784369,
+        "s_lex": 0.0761421,
+        "s_jaccard": 0.0761421,
+        "s_ce": null
+      },
+      "retrieved": [
+        "ledgerline-kafka-inbox-dedupe",
+        "orbit-billing-event-id-stable",
+        "orbit-redis-cache-key-tenant",
+        "orbit-tenant-timezone-reports",
+        "pg-index-not-used-lower"
+      ]
+    },
+    {
+      "query": "Posso aumentare le repliche di worker-beat per reggere più carico?",
+      "expect": "orbit-celery-beat-single-replica",
+      "kind": "project",
+      "lang": "it",
+      "hit": "STRONG",
+      "got": "orbit-celery-beat-single-replica",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.832312,
+        "s_lex": 0.131944,
+        "s_jaccard": 0.131944,
+        "s_ce": null
+      },
+      "retrieved": [
+        "orbit-celery-beat-single-replica",
+        "orbit-staging-rate-limit-loadtest",
+        "ledgerline-read-replica-lag",
+        "ledgerline-ledgerwriter-balanced",
+        "orbit-reports-node-toleration"
+      ]
+    },
+    {
+      "query": "A customer saw another company's product catalog, looks like the cache. How should cache keys be built?",
+      "expect": "orbit-redis-cache-key-tenant",
+      "kind": "project",
+      "lang": "en",
+      "hit": "STRONG",
+      "got": "orbit-redis-cache-key-tenant",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.786987,
+        "s_lex": 0.121387,
+        "s_jaccard": 0.121387,
+        "s_ce": null
+      },
+      "retrieved": [
+        "orbit-redis-cache-key-tenant",
+        "gha-cache-branch-scope",
+        "java-hashcode-equals",
+        "ledgerline-kafka-partition-account",
+        "orbit-billing-event-id-stable"
+      ]
+    },
+    {
+      "query": "Come svuoto la cache Redis di un solo tenant su staging?",
+      "expect": "orbit-redis-cache-key-tenant",
+      "kind": "project",
+      "lang": "it",
+      "hit": "STRONG",
+      "got": "orbit-redis-cache-key-tenant",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.774248,
+        "s_lex": 0.123188,
+        "s_jaccard": 0.123188,
+        "s_ce": null
+      },
+      "retrieved": [
+        "orbit-redis-cache-key-tenant",
+        "gha-cache-branch-scope",
+        "orbit-staging-rate-limit-loadtest",
+        "redis-keys-blocking",
+        "ledgerline-kafka-partition-account"
+      ]
+    },
+    {
+      "query": "import.meta.env.API_BASE_URL is undefined in the browser but the variable is definitely set in the deployment",
+      "expect": "orbit-web-public-env-prefix",
+      "kind": "project",
+      "lang": "en",
+      "hit": "STRONG",
+      "got": "orbit-web-public-env-prefix",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.777577,
+        "s_lex": 0.193548,
+        "s_jaccard": 0.193548,
+        "s_ce": null
+      },
+      "retrieved": [
+        "orbit-web-public-env-prefix",
+        "python-venv-pip-wrong",
+        "git-rebase-autostash",
+        "k8s-configmap-reload",
+        "cors-preflight-credentials"
+      ]
+    },
+    {
+      "query": "Perché la mia variabile d'ambiente non arriva al frontend? Nel pod c'è ma nel bundle JS no",
+      "expect": "orbit-web-public-env-prefix",
+      "kind": "project",
+      "lang": "it",
+      "hit": "STRONG",
+      "got": "k8s-configmap-reload",
+      "outcome": "wrong_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.813811,
+        "s_lex": 0.0764331,
+        "s_jaccard": 0.0764331,
+        "s_ce": null
+      },
+      "retrieved": [
+        "orbit-web-public-env-prefix",
+        "k8s-oomkilled-limits",
+        "k8s-configmap-reload",
+        "k8s-crashloop-probe",
+        "orbit-events-schema-version"
+      ]
+    },
+    {
+      "query": "I changed a button's padding and now my PR can't merge because the ui-review check is yellow. How do I clear it?",
+      "expect": "orbit-chromatic-ui-review",
+      "kind": "project",
+      "lang": "en",
+      "hit": "STRONG",
+      "got": "orbit-chromatic-ui-review",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.836537,
+        "s_lex": 0.15,
+        "s_jaccard": 0.15,
+        "s_ce": null
+      },
+      "retrieved": [
+        "orbit-chromatic-ui-review",
+        "ledgerline-pact-provider-verify",
+        "orbit-preview-env-ttl",
+        "pg-serial-sequence-reset",
+        "orbit-e2e-label"
+      ]
+    },
+    {
+      "query": "Ho modificato un componente in packages/ui e la PR è bloccata da un check sulle differenze visive, cosa devo fare?",
+      "expect": "orbit-chromatic-ui-review",
+      "kind": "project",
+      "lang": "it",
+      "hit": "STRONG",
+      "got": "orbit-chromatic-ui-review",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.822581,
+        "s_lex": 0.101604,
+        "s_jaccard": 0.101604,
+        "s_ce": null
+      },
+      "retrieved": [
+        "orbit-chromatic-ui-review",
+        "orbit-events-schema-version",
+        "orbit-preview-billing-fake-psp",
+        "react-strict-double",
+        "orbit-preview-env-ttl"
+      ]
+    },
+    {
+      "query": "alert-lint is rejecting the Prometheus rule I just added, which annotation does it want?",
+      "expect": "orbit-alert-runbook-url",
+      "kind": "project",
+      "lang": "en",
+      "hit": "STRONG",
+      "got": "orbit-alert-runbook-url",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.854532,
+        "s_lex": 0.251701,
+        "s_jaccard": 0.251701,
+        "s_ce": null
+      },
+      "retrieved": [
+        "orbit-alert-runbook-url",
+        "ledgerline-llctl-explicit-env",
+        "orbit-billing-async-only",
+        "orbit-migration-index-concurrently",
+        "ledgerline-unleash-kill-switches"
+      ]
+    },
+    {
+      "query": "I'm adding a new paging alert for queue backlog. What else has to go into the same PR?",
+      "expect": "orbit-alert-runbook-url",
+      "kind": "project",
+      "lang": "en",
+      "hit": "STRONG",
+      "got": "orbit-celery-reports-queue",
+      "outcome": "wrong_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.770538,
+        "s_lex": 0.0979021,
+        "s_jaccard": 0.0979021,
+        "s_ce": null
+      },
+      "retrieved": [
+        "orbit-alert-runbook-url",
+        "orbit-celery-reports-queue",
+        "orbit-e2e-label",
+        "orbit-billing-async-only",
+        "ledgerline-kafka-partition-account"
+      ]
+    },
+    {
+      "query": "pii-scan failed on my PR because I logged email= in a warning. What should I log instead?",
+      "expect": "orbit-structlog-no-pii",
+      "kind": "project",
+      "lang": "en",
+      "hit": "STRONG",
+      "got": "orbit-structlog-no-pii",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.766259,
+        "s_lex": 0.0705882,
+        "s_jaccard": 0.0705882,
+        "s_ce": null
+      },
+      "retrieved": [
+        "orbit-structlog-no-pii",
+        "pg-index-not-used-lower",
+        "orbit-e2e-label",
+        "pg-serial-sequence-reset",
+        "ledgerline-kafka-partition-account"
+      ]
+    },
+    {
+      "query": "Which logger are we supposed to use in the Python services? Is plain logging.getLogger ok?",
+      "expect": "orbit-structlog-no-pii",
+      "kind": "project",
+      "lang": "en",
+      "hit": "STRONG",
+      "got": "orbit-structlog-no-pii",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.802061,
+        "s_lex": 0.183007,
+        "s_jaccard": 0.183007,
+        "s_ce": null
+      },
+      "retrieved": [
+        "orbit-structlog-no-pii",
+        "python-mutable-default",
+        "ledgerline-read-replica-lag",
+        "ledgerline-pci-tokenizer-boundary",
+        "ledgerline-goprivate-ledgerkit"
+      ]
+    },
+    {
+      "query": "My new reports chart deploys but the pod sits in Pending with 'untolerated taint'",
+      "expect": "orbit-reports-node-toleration",
+      "kind": "project",
+      "lang": "en",
+      "hit": "STRONG",
+      "got": "orbit-reports-node-toleration",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.853234,
+        "s_lex": 0.16,
+        "s_jaccard": 0.16,
+        "s_ce": null
+      },
+      "retrieved": [
+        "orbit-reports-node-toleration",
+        "orbit-celery-reports-queue",
+        "k8s-configmap-reload",
+        "orbit-tenant-timezone-reports",
+        "orbit-python-311-pin"
+      ]
+    },
+    {
+      "query": "Il pod resta in Pending: ho copiato la chart da un altro servizio, ma deve girare sui nodi ad alta memoria. Cosa manca?",
+      "expect": "orbit-reports-node-toleration",
+      "kind": "project",
+      "lang": "it",
+      "hit": "STRONG",
+      "got": "k8s-oomkilled-limits",
+      "outcome": "wrong_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.766859,
+        "s_lex": 0.0726257,
+        "s_jaccard": 0.0726257,
+        "s_ce": null
+      },
+      "retrieved": [
+        "orbit-reports-node-toleration",
+        "k8s-oomkilled-limits",
+        "orbit-backfills-not-in-migrations",
+        "ledgerline-pci-tokenizer-boundary",
+        "ledgerline-kafka-partition-account"
+      ]
+    },
+    {
+      "query": "docker build fails with 'no matching distribution found for orbit-core'",
+      "expect": "orbit-make-image-pip-index",
+      "kind": "project",
+      "lang": "en",
+      "hit": "STRONG",
+      "got": "orbit-make-image-pip-index",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.78658,
+        "s_lex": 0.150685,
+        "s_jaccard": 0.150685,
+        "s_ce": null
+      },
+      "retrieved": [
+        "orbit-make-image-pip-index",
+        "orbit-migrations-make-target",
+        "docker-layer-cache-copy",
+        "orbit-structlog-no-pii",
+        "orbit-redis-cache-key-tenant"
+      ]
+    },
+    {
+      "query": "Come buildo l'immagine di un servizio in locale? Il docker build normale non riesce a scaricare i pacchetti interni",
+      "expect": "orbit-make-image-pip-index",
+      "kind": "project",
+      "lang": "it",
+      "hit": "STRONG",
+      "got": "orbit-make-image-pip-index",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.852339,
+        "s_lex": 0.138122,
+        "s_jaccard": 0.138122,
+        "s_ce": null
+      },
+      "retrieved": [
+        "orbit-make-image-pip-index",
+        "docker-localhost-host",
+        "docker-layer-cache-copy",
+        "ledgerline-kafka-topics-terraform",
+        "orbit-backfills-not-in-migrations"
+      ]
+    },
+    {
+      "query": "My k6 script runs fine against localhost but on staging I start getting 429s after a few seconds",
+      "expect": "orbit-staging-rate-limit-loadtest",
+      "kind": "project",
+      "lang": "en",
+      "hit": "MISS",
+      "got": null,
+      "outcome": "miss",
+      "rank": 5,
+      "signals": {
+        "s_vec": 0.695633,
+        "s_lex": 0.14375,
+        "s_jaccard": 0.14375,
+        "s_ce": null
+      },
+      "retrieved": [
+        "ledgerline-local-kafka-29092",
+        "powershell-execution-policy",
+        "docker-localhost-host",
+        "orbit-email-mailpit-allowlist",
+        "orbit-staging-rate-limit-loadtest"
+      ]
+    },
+    {
+      "query": "Dove trovo il token per i load test su staging e in quale header lo mando?",
+      "expect": "orbit-staging-rate-limit-loadtest",
+      "kind": "project",
+      "lang": "it",
+      "hit": "STRONG",
+      "got": "orbit-staging-rate-limit-loadtest",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.822372,
+        "s_lex": 0.192857,
+        "s_jaccard": 0.192857,
+        "s_ce": null
+      },
+      "retrieved": [
+        "orbit-staging-rate-limit-loadtest",
+        "ledgerline-pci-tokenizer-boundary",
+        "ledgerline-api-idempotency-header",
+        "orbit-email-mailpit-allowlist",
+        "ledgerline-outbox-relay"
+      ]
+    },
+    {
+      "query": "I triggered a password reset on staging with my gmail address and nothing ever arrived",
+      "expect": "orbit-email-mailpit-allowlist",
+      "kind": "project",
+      "lang": "en",
+      "hit": "STRONG",
+      "got": "orbit-email-mailpit-allowlist",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.753307,
+        "s_lex": 0.115385,
+        "s_jaccard": 0.115385,
+        "s_ce": null
+      },
+      "retrieved": [
+        "orbit-email-mailpit-allowlist",
+        "pg-index-not-used-lower",
+        "ledgerline-kafka-partition-account",
+        "pg-idle-in-transaction",
+        "pg-serial-sequence-reset"
+      ]
+    },
+    {
+      "query": "In locale dove vedo le email transazionali che manda l'app?",
+      "expect": "orbit-email-mailpit-allowlist",
+      "kind": "project",
+      "lang": "it",
+      "hit": "STRONG",
+      "got": "orbit-email-mailpit-allowlist",
+      "outcome": "correct_strong",
+      "rank": 3,
+      "signals": {
+        "s_vec": 0.769181,
+        "s_lex": 0.0869565,
+        "s_jaccard": 0.0869565,
+        "s_ce": null
+      },
+      "retrieved": [
+        "orbit-structlog-no-pii",
+        "pg-index-not-used-lower",
+        "orbit-email-mailpit-allowlist",
+        "orbit-backfills-not-in-migrations",
+        "ledgerline-kafka-inbox-dedupe"
+      ]
+    },
+    {
+      "query": "Staging search keeps returning records that the morning DB restore already deleted, why?",
+      "expect": "orbit-search-reindex-alias",
+      "kind": "project",
+      "lang": "en",
+      "hit": "STRONG",
+      "got": "orbit-staging-nightly-restore",
+      "outcome": "wrong_strong",
+      "rank": 0,
+      "signals": {
+        "s_vec": 0.777183,
+        "s_lex": 0.101911,
+        "s_jaccard": 0.101911,
+        "s_ce": null
+      },
+      "retrieved": [
+        "orbit-staging-nightly-restore",
+        "http-keepalive-502",
+        "ledgerline-recon-reingest",
+        "pg-serial-sequence-reset",
+        "cron-utc"
+      ]
+    },
+    {
+      "query": "Ho cambiato il tipo di un campo nel mapping di OpenSearch e dopo il deploy non è cambiato niente, come si rifà l'indice?",
+      "expect": "orbit-search-reindex-alias",
+      "kind": "project",
+      "lang": "it",
+      "hit": "STRONG",
+      "got": "orbit-search-reindex-alias",
+      "outcome": "correct_strong",
+      "rank": 2,
+      "signals": {
+        "s_vec": 0.809139,
+        "s_lex": 0.0846561,
+        "s_jaccard": 0.0846561,
+        "s_ce": null
+      },
+      "retrieved": [
+        "orbit-feature-flags-yaml",
+        "orbit-search-reindex-alias",
+        "ledgerline-unleash-kill-switches",
+        "java-hashcode-equals",
+        "orbit-api-v1-frozen"
+      ]
+    },
+    {
+      "query": "How do I turn amount_minor into a display string? Is dividing by 100 fine?",
+      "expect": "ledgerline-money-minor-units",
+      "kind": "project",
+      "lang": "en",
+      "hit": "STRONG",
+      "got": "ledgerline-money-minor-units",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.849527,
+        "s_lex": 0.150327,
+        "s_jaccard": 0.150327,
+        "s_ce": null
+      },
+      "retrieved": [
+        "ledgerline-money-minor-units",
+        "orbit-staging-rate-limit-loadtest",
+        "ledgerline-kafka-partition-account",
+        "float-money",
+        "ts-strict-null"
+      ]
+    },
+    {
+      "query": "I payout in yen sono usciti 100 volte più grandi del dovuto, come vanno convertiti gli importi?",
+      "expect": "ledgerline-money-minor-units",
+      "kind": "project",
+      "lang": "it",
+      "hit": "MISS",
+      "got": null,
+      "outcome": "miss",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.795588,
+        "s_lex": 0.0319149,
+        "s_jaccard": 0.0319149,
+        "s_ce": null
+      },
+      "retrieved": [
+        "ledgerline-money-minor-units",
+        "ledgerline-oncall-sev1-payouts",
+        "float-money",
+        "orbit-staging-rate-limit-loadtest",
+        "ledgerline-migration-lock-timeout"
+      ]
+    },
+    {
+      "query": "My test fixture inserts rows straight into ledger.entries and the commit blows up with 'journal not balanced'",
+      "expect": "ledgerline-ledgerwriter-balanced",
+      "kind": "project",
+      "lang": "en",
+      "hit": "STRONG",
+      "got": "ledgerline-ledgerwriter-balanced",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.874753,
+        "s_lex": 0.25,
+        "s_jaccard": 0.25,
+        "s_ce": null
+      },
+      "retrieved": [
+        "ledgerline-ledgerwriter-balanced",
+        "ledgerline-read-replica-lag",
+        "ledgerline-kafka-partition-account",
+        "pg-serial-sequence-reset",
+        "ledgerline-migration-lock-timeout"
+      ]
+    },
+    {
+      "query": "What's the right way to create a transfer between two accounts in a test setup?",
+      "expect": "ledgerline-ledgerwriter-balanced",
+      "kind": "project",
+      "lang": "en",
+      "hit": "STRONG",
+      "got": "ledgerline-kafka-partition-account",
+      "outcome": "wrong_strong",
+      "rank": 0,
+      "signals": {
+        "s_vec": 0.791585,
+        "s_lex": 0.113924,
+        "s_jaccard": 0.113924,
+        "s_ce": null
+      },
+      "retrieved": [
+        "orbit-test-db-port-5434",
+        "ledgerline-outbox-relay",
+        "ledgerline-kafka-partition-account",
+        "ledgerline-pci-tokenizer-boundary",
+        "orbit-preview-billing-fake-psp"
+      ]
+    },
+    {
+      "query": "After a consumer group rebalance we processed the same payment capture twice. How do we guard against redelivery?",
+      "expect": "ledgerline-kafka-inbox-dedupe",
+      "kind": "project",
+      "lang": "en",
+      "hit": "STRONG",
+      "got": "ledgerline-kafka-inbox-dedupe",
+      "outcome": "correct_strong",
+      "rank": 5,
+      "signals": {
+        "s_vec": 0.805923,
+        "s_lex": 0.116751,
+        "s_jaccard": 0.116751,
+        "s_ce": null
+      },
+      "retrieved": [
+        "ledgerline-kafka-partition-account",
+        "orbit-billing-event-id-stable",
+        "ledgerline-api-idempotency-header",
+        "ledgerline-pact-provider-verify",
+        "ledgerline-kafka-inbox-dedupe"
+      ]
+    },
+    {
+      "query": "Come funziona InboxGuard e in quale tabella salva i message_id già visti?",
+      "expect": "ledgerline-kafka-inbox-dedupe",
+      "kind": "project",
+      "lang": "it",
+      "hit": "STRONG",
+      "got": "ledgerline-kafka-inbox-dedupe",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.765893,
+        "s_lex": 0.0892857,
+        "s_jaccard": 0.0892857,
+        "s_ce": null
+      },
+      "retrieved": [
+        "ledgerline-kafka-inbox-dedupe",
+        "ledgerline-outbox-relay",
+        "pg-idle-in-transaction",
+        "ledgerline-ledgerwriter-balanced",
+        "ledgerline-kafka-partition-account"
+      ]
+    },
+    {
+      "query": "The no-kafka-in-tx test fails on my KafkaTemplate.send inside a @Transactional method",
+      "expect": "ledgerline-outbox-relay",
+      "kind": "project",
+      "lang": "en",
+      "hit": "STRONG",
+      "got": "spring-transactional-self",
+      "outcome": "wrong_strong",
+      "rank": 2,
+      "signals": {
+        "s_vec": 0.800691,
+        "s_lex": 0.180451,
+        "s_jaccard": 0.180451,
+        "s_ce": null
+      },
+      "retrieved": [
+        "spring-transactional-self",
+        "ledgerline-outbox-relay",
+        "ledgerline-local-kafka-29092",
+        "ledgerline-kafka-topics-terraform",
+        "ledgerline-pact-provider-verify"
+      ]
+    },
+    {
+      "query": "Se pubblico l'evento e poi la transazione fa rollback, il messaggio parte comunque. Qual è il pattern giusto da noi?",
+      "expect": "ledgerline-outbox-relay",
+      "kind": "project",
+      "lang": "it",
+      "hit": "STRONG",
+      "got": "ledgerline-outbox-relay",
+      "outcome": "correct_strong",
+      "rank": 2,
+      "signals": {
+        "s_vec": 0.803126,
+        "s_lex": 0.0825243,
+        "s_jaccard": 0.0825243,
+        "s_ce": null
+      },
+      "retrieved": [
+        "spring-transactional-self",
+        "ledgerline-outbox-relay",
+        "ledgerline-kafka-partition-account",
+        "ledgerline-ledgerwriter-balanced",
+        "orbit-billing-event-id-stable"
+      ]
+    },
+    {
+      "query": "Works on my laptop, but in uat the producer gets UNKNOWN_TOPIC_OR_PARTITION",
+      "expect": "ledgerline-kafka-topics-terraform",
+      "kind": "project",
+      "lang": "en",
+      "hit": "STRONG",
+      "got": "ledgerline-kafka-topics-terraform",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.787513,
+        "s_lex": 0.130435,
+        "s_jaccard": 0.130435,
+        "s_ce": null
+      },
+      "retrieved": [
+        "ledgerline-kafka-topics-terraform",
+        "ledgerline-uat-weekly-refresh",
+        "ts-strict-null",
+        "ledgerline-llctl-explicit-env",
+        "bash-word-splitting"
+      ]
+    },
+    {
+      "query": "Come creo un nuovo topic Kafka e che convenzione di nomi devo seguire?",
+      "expect": "ledgerline-kafka-topics-terraform",
+      "kind": "project",
+      "lang": "it",
+      "hit": "STRONG",
+      "got": "ledgerline-kafka-topics-terraform",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.828196,
+        "s_lex": 0.0869565,
+        "s_jaccard": 0.0869565,
+        "s_ce": null
+      },
+      "retrieved": [
+        "ledgerline-kafka-topics-terraform",
+        "ledgerline-outbox-relay",
+        "ledgerline-local-kafka-29092",
+        "ledgerline-kafka-inbox-dedupe",
+        "ledgerline-kafka-partition-account"
+      ]
+    },
+    {
+      "query": "We briefly saw a negative balance because a refund got applied before the debit on the same account. What should the message key be?",
+      "expect": "ledgerline-kafka-partition-account",
+      "kind": "project",
+      "lang": "en",
+      "hit": "STRONG",
+      "got": "ledgerline-kafka-partition-account",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.8036,
+        "s_lex": 0.123711,
+        "s_jaccard": 0.123711,
+        "s_ce": null
+      },
+      "retrieved": [
+        "ledgerline-kafka-partition-account",
+        "ledgerline-api-idempotency-header",
+        "ledgerline-kafka-inbox-dedupe",
+        "ledgerline-read-replica-lag",
+        "ledgerline-recon-reingest"
+      ]
+    },
+    {
+      "query": "Which key should I use when producing to ll.ledger.balance-changed.v1?",
+      "expect": "ledgerline-kafka-partition-account",
+      "kind": "project",
+      "lang": "en",
+      "hit": "STRONG",
+      "got": "ledgerline-read-replica-lag",
+      "outcome": "wrong_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.757988,
+        "s_lex": 0.0967742,
+        "s_jaccard": 0.0967742,
+        "s_ce": null
+      },
+      "retrieved": [
+        "ledgerline-kafka-partition-account",
+        "ledgerline-llctl-explicit-env",
+        "ledgerline-api-idempotency-header",
+        "ledgerline-unleash-kill-switches",
+        "ledgerline-read-replica-lag"
+      ]
+    },
+    {
+      "query": "Why did the settlement batch fire at 21:30 UTC yesterday instead of 22:30?",
+      "expect": "ledgerline-settlement-cutoff-london",
+      "kind": "project",
+      "lang": "en",
+      "hit": "STRONG",
+      "got": "ledgerline-settlement-cutoff-london",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.81557,
+        "s_lex": 0.166667,
+        "s_jaccard": 0.166667,
+        "s_ce": null
+      },
+      "retrieved": [
+        "ledgerline-settlement-cutoff-london",
+        "orbit-staging-nightly-restore",
+        "orbit-tenant-timezone-reports",
+        "cron-utc",
+        "ledgerline-uat-weekly-refresh"
+      ]
+    },
+    {
+      "query": "La banca ci ha rifiutato il file di settlement perché era festivo in UK. Dove si aggiorna il calendario?",
+      "expect": "ledgerline-settlement-cutoff-london",
+      "kind": "project",
+      "lang": "it",
+      "hit": "STRONG",
+      "got": "ledgerline-settlement-cutoff-london",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.809298,
+        "s_lex": 0.125,
+        "s_jaccard": 0.125,
+        "s_ce": null
+      },
+      "retrieved": [
+        "ledgerline-settlement-cutoff-london",
+        "log-rotation-disk-full",
+        "ledgerline-recon-reingest",
+        "ledgerline-uat-weekly-refresh",
+        "ntp-clock-skew-jwt"
+      ]
+    },
+    {
+      "query": "I ran an llctl command thinking I was on uat and it hit prod-eu. How does it decide the environment?",
+      "expect": "ledgerline-llctl-explicit-env",
+      "kind": "project",
+      "lang": "en",
+      "hit": "STRONG",
+      "got": "ledgerline-llctl-explicit-env",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.825386,
+        "s_lex": 0.138889,
+        "s_jaccard": 0.138889,
+        "s_ce": null
+      },
+      "retrieved": [
+        "ledgerline-llctl-explicit-env",
+        "ledgerline-uat-weekly-refresh",
+        "ledgerline-kafka-topics-terraform",
+        "flutter-setstate-disposed",
+        "ledgerline-settlement-cutoff-london"
+      ]
+    },
+    {
+      "query": "Come ottengo i permessi di scrittura in prod con llctl?",
+      "expect": "ledgerline-llctl-explicit-env",
+      "kind": "project",
+      "lang": "it",
+      "hit": "STRONG",
+      "got": "ledgerline-llctl-explicit-env",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.805409,
+        "s_lex": 0.0700637,
+        "s_jaccard": 0.0700637,
+        "s_ce": null
+      },
+      "retrieved": [
+        "ledgerline-llctl-explicit-env",
+        "ledgerline-recon-reingest",
+        "ledgerline-kafka-topics-terraform",
+        "ledgerline-argocd-gitops",
+        "ledgerline-pact-provider-verify"
+      ]
+    },
+    {
+      "query": "Running the service from IntelliJ it connects to Kafka, then fails with 'Connection to node 1 (kafka:9092) could not be established'",
+      "expect": "ledgerline-local-kafka-29092",
+      "kind": "project",
+      "lang": "en",
+      "hit": "STRONG",
+      "got": "ntp-clock-skew-jwt",
+      "outcome": "wrong_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.729861,
+        "s_lex": 0.158824,
+        "s_jaccard": 0.158824,
+        "s_ce": null
+      },
+      "retrieved": [
+        "ledgerline-local-kafka-29092",
+        "ledgerline-outbox-relay",
+        "ledgerline-kafka-topics-terraform",
+        "pg-serial-sequence-reset",
+        "ledgerline-kafka-inbox-dedupe"
+      ]
+    },
+    {
+      "query": "What port do I use to reach the local broker from my host machine?",
+      "expect": "ledgerline-local-kafka-29092",
+      "kind": "project",
+      "lang": "en",
+      "hit": "STRONG",
+      "got": "docker-localhost-host",
+      "outcome": "wrong_strong",
+      "rank": 5,
+      "signals": {
+        "s_vec": 0.781134,
+        "s_lex": 0.163636,
+        "s_jaccard": 0.163636,
+        "s_ce": null
+      },
+      "retrieved": [
+        "docker-localhost-host",
+        "orbit-local-postgres-5433",
+        "orbit-email-mailpit-allowlist",
+        "tls-missing-intermediate",
+        "ledgerline-local-kafka-29092"
+      ]
+    },
+    {
+      "query": "pci-boundary fails because I added a cardNumber field to a DTO in the refunds module",
+      "expect": "ledgerline-pci-tokenizer-boundary",
+      "kind": "project",
+      "lang": "en",
+      "hit": "STRONG",
+      "got": "ledgerline-pci-tokenizer-boundary",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.797209,
+        "s_lex": 0.121547,
+        "s_jaccard": 0.121547,
+        "s_ce": null
+      },
+      "retrieved": [
+        "ledgerline-pci-tokenizer-boundary",
+        "orbit-pnpm-only",
+        "ledgerline-pact-provider-verify",
+        "pg-serial-sequence-reset",
+        "npm-ci-lockfile"
+      ]
+    },
+    {
+      "query": "Which service is allowed to see the actual card number, and how do the other services refer to a card?",
+      "expect": "ledgerline-pci-tokenizer-boundary",
+      "kind": "project",
+      "lang": "en",
+      "hit": "STRONG",
+      "got": "ledgerline-pci-tokenizer-boundary",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.802712,
+        "s_lex": 0.143646,
+        "s_jaccard": 0.143646,
+        "s_ce": null
+      },
+      "retrieved": [
+        "ledgerline-pci-tokenizer-boundary",
+        "cors-preflight-credentials",
+        "orbit-preview-billing-fake-psp",
+        "regex-catastrophic",
+        "orbit-backfills-not-in-migrations"
+      ]
+    },
+    {
+      "query": "How do I make a sandbox payment get declined for insufficient funds so I can test the error path?",
+      "expect": "ledgerline-psp-sim-magic-amounts",
+      "kind": "project",
+      "lang": "en",
+      "hit": "STRONG",
+      "got": "ledgerline-psp-sim-magic-amounts",
+      "outcome": "correct_strong",
+      "rank": 2,
+      "signals": {
+        "s_vec": 0.778472,
+        "s_lex": 0.122093,
+        "s_jaccard": 0.122093,
+        "s_ce": null
+      },
+      "retrieved": [
+        "orbit-preview-billing-fake-psp",
+        "ledgerline-psp-sim-magic-amounts",
+        "ledgerline-kafka-partition-account",
+        "ledgerline-api-idempotency-header",
+        "orbit-test-db-port-5434"
+      ]
+    },
+    {
+      "query": "In locale come simulo un chargeback o un timeout del PSP?",
+      "expect": "ledgerline-psp-sim-magic-amounts",
+      "kind": "project",
+      "lang": "it",
+      "hit": "STRONG",
+      "got": "ledgerline-psp-sim-magic-amounts",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.819346,
+        "s_lex": 0.147059,
+        "s_jaccard": 0.147059,
+        "s_ce": null
+      },
+      "retrieved": [
+        "ledgerline-psp-sim-magic-amounts",
+        "orbit-preview-billing-fake-psp",
+        "http-keepalive-502",
+        "ledgerline-oncall-sev1-payouts",
+        "ledgerline-pci-tokenizer-boundary"
+      ]
+    },
+    {
+      "query": "Service won't start: 'Validate failed: Migration checksum mismatch' after I fixed a typo in an old migration",
+      "expect": "ledgerline-flyway-timestamp-versions",
+      "kind": "project",
+      "lang": "en",
+      "hit": "STRONG",
+      "got": "orbit-backfills-not-in-migrations",
+      "outcome": "wrong_strong",
+      "rank": 0,
+      "signals": {
+        "s_vec": 0.760604,
+        "s_lex": 0.145349,
+        "s_jaccard": 0.145349,
+        "s_ce": null
+      },
+      "retrieved": [
+        "pg-serial-sequence-reset",
+        "orbit-backfills-not-in-migrations",
+        "pg-idle-in-transaction",
+        "ledgerline-migration-lock-timeout",
+        "ntp-clock-skew-jwt"
+      ]
+    },
+    {
+      "query": "Come vanno numerate le migration Flyway? Con V43__ sono andato in conflitto con un altro branch",
+      "expect": "ledgerline-flyway-timestamp-versions",
+      "kind": "project",
+      "lang": "it",
+      "hit": "STRONG",
+      "got": "ledgerline-flyway-timestamp-versions",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.793545,
+        "s_lex": 0.0874317,
+        "s_jaccard": 0.0874317,
+        "s_ce": null
+      },
+      "retrieved": [
+        "ledgerline-flyway-timestamp-versions",
+        "orbit-migration-index-concurrently",
+        "orbit-backfills-not-in-migrations",
+        "ledgerline-migration-lock-timeout",
+        "orbit-migrations-make-target"
+      ]
+    },
+    {
+      "query": "migration-guard rejected my ALTER TABLE on ledger.entries, what does it require?",
+      "expect": "ledgerline-migration-lock-timeout",
+      "kind": "project",
+      "lang": "en",
+      "hit": "STRONG",
+      "got": "ledgerline-migration-lock-timeout",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.818147,
+        "s_lex": 0.135802,
+        "s_jaccard": 0.135802,
+        "s_ce": null
+      },
+      "retrieved": [
+        "ledgerline-migration-lock-timeout",
+        "orbit-migration-index-concurrently",
+        "ledgerline-ledgerwriter-balanced",
+        "pg-idle-in-transaction",
+        "orbit-migrations-make-target"
+      ]
+    },
+    {
+      "query": "Un ALTER TABLE in una migration è rimasto in attesa dietro una query lunga e ha bloccato tutti i pagamenti per minuti, come si evita?",
+      "expect": "ledgerline-migration-lock-timeout",
+      "kind": "project",
+      "lang": "it",
+      "hit": "STRONG",
+      "got": "orbit-migration-index-concurrently",
+      "outcome": "wrong_strong",
+      "rank": 4,
+      "signals": {
+        "s_vec": 0.787056,
+        "s_lex": 0.118483,
+        "s_jaccard": 0.118483,
+        "s_ce": null
+      },
+      "retrieved": [
+        "pg-idle-in-transaction",
+        "orbit-migration-index-concurrently",
+        "orbit-backfills-not-in-migrations",
+        "ledgerline-migration-lock-timeout",
+        "ledgerline-oncall-sev1-payouts"
+      ]
+    },
+    {
+      "query": "If the flag server is unreachable, what does Flags.killSwitch return?",
+      "expect": "ledgerline-unleash-kill-switches",
+      "kind": "project",
+      "lang": "en",
+      "hit": "STRONG",
+      "got": "ledgerline-unleash-kill-switches",
+      "outcome": "correct_strong",
+      "rank": 2,
+      "signals": {
+        "s_vec": 0.81679,
+        "s_lex": 0.0784314,
+        "s_jaccard": 0.0784314,
+        "s_ce": null
+      },
+      "retrieved": [
+        "k8s-crashloop-probe",
+        "ledgerline-unleash-kill-switches",
+        "flutter-setstate-disposed",
+        "docker-localhost-host",
+        "orbit-feature-flags-yaml"
+      ]
+    },
+    {
+      "query": "Se cambio un flag su Unleash devo rifare il deploy del servizio?",
+      "expect": "ledgerline-unleash-kill-switches",
+      "kind": "project",
+      "lang": "it",
+      "hit": "STRONG",
+      "got": "ledgerline-unleash-kill-switches",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.810545,
+        "s_lex": 0.0965517,
+        "s_jaccard": 0.0965517,
+        "s_ce": null
+      },
+      "retrieved": [
+        "ledgerline-unleash-kill-switches",
+        "orbit-feature-flags-yaml",
+        "orbit-events-schema-version",
+        "ledgerline-llctl-explicit-env",
+        "k8s-configmap-reload"
+      ]
+    },
+    {
+      "query": "pact-verify on payments-gateway fails with 'no pact found for consumer version'",
+      "expect": "ledgerline-pact-provider-verify",
+      "kind": "project",
+      "lang": "en",
+      "hit": "STRONG",
+      "got": "ledgerline-pact-provider-verify",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.868436,
+        "s_lex": 0.248,
+        "s_jaccard": 0.248,
+        "s_ce": null
+      },
+      "retrieved": [
+        "ledgerline-pact-provider-verify",
+        "ledgerline-pci-tokenizer-boundary",
+        "ledgerline-fx-rate-staleness",
+        "orbit-preview-billing-fake-psp",
+        "npm-ci-lockfile"
+      ]
+    },
+    {
+      "query": "I changed an interaction on the consumer side of a contract. In what order do I publish and rebuild so can-i-deploy lets uat through?",
+      "expect": "ledgerline-pact-provider-verify",
+      "kind": "project",
+      "lang": "en",
+      "hit": "STRONG",
+      "got": "ledgerline-pact-provider-verify",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.81962,
+        "s_lex": 0.151685,
+        "s_jaccard": 0.151685,
+        "s_ce": null
+      },
+      "retrieved": [
+        "ledgerline-pact-provider-verify",
+        "ledgerline-outbox-relay",
+        "ledgerline-uat-weekly-refresh",
+        "ledgerline-kafka-partition-account",
+        "ledgerline-llctl-explicit-env"
+      ]
+    },
+    {
+      "query": "Gradle build fails with 'invalid source release 21' in ledger-core",
+      "expect": "ledgerline-jdk21-toolchain",
+      "kind": "project",
+      "lang": "en",
+      "hit": "STRONG",
+      "got": "ledgerline-jdk21-toolchain",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.892032,
+        "s_lex": 0.365079,
+        "s_jaccard": 0.365079,
+        "s_ce": null
+      },
+      "retrieved": [
+        "ledgerline-jdk21-toolchain",
+        "ledgerline-pact-provider-verify",
+        "ledgerline-argocd-gitops",
+        "ledgerline-ledgerwriter-balanced",
+        "ledgerline-goprivate-ledgerkit"
+      ]
+    },
+    {
+      "query": "IntelliJ compila con Java 17 e la build fallisce, come sistemo la versione del JDK per i servizi Kotlin?",
+      "expect": "ledgerline-jdk21-toolchain",
+      "kind": "project",
+      "lang": "it",
+      "hit": "STRONG",
+      "got": "ledgerline-jdk21-toolchain",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.855454,
+        "s_lex": 0.115385,
+        "s_jaccard": 0.115385,
+        "s_ce": null
+      },
+      "retrieved": [
+        "ledgerline-jdk21-toolchain",
+        "tls-missing-intermediate",
+        "orbit-make-image-pip-index",
+        "ledgerline-outbox-relay",
+        "powershell-execution-policy"
+      ]
+    },
+    {
+      "query": "go mod download in recon-worker returns 410 Gone for the ledgerkit module",
+      "expect": "ledgerline-goprivate-ledgerkit",
+      "kind": "project",
+      "lang": "en",
+      "hit": "STRONG",
+      "got": "ledgerline-goprivate-ledgerkit",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.807498,
+        "s_lex": 0.253968,
+        "s_jaccard": 0.253968,
+        "s_ce": null
+      },
+      "retrieved": [
+        "ledgerline-goprivate-ledgerkit",
+        "docker-layer-cache-copy",
+        "ledgerline-argocd-gitops",
+        "ledgerline-api-idempotency-header",
+        "git-submodule-detached"
+      ]
+    },
+    {
+      "query": "Come configuro Go per scaricare i moduli interni dal nostro GitLab?",
+      "expect": "ledgerline-goprivate-ledgerkit",
+      "kind": "project",
+      "lang": "it",
+      "hit": "STRONG",
+      "got": "ledgerline-goprivate-ledgerkit",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.826465,
+        "s_lex": 0.101449,
+        "s_jaccard": 0.101449,
+        "s_ce": null
+      },
+      "retrieved": [
+        "ledgerline-goprivate-ledgerkit",
+        "go-nil-interface",
+        "go-loop-var-capture",
+        "ledgerline-sops-secrets",
+        "orbit-secrets-vault"
+      ]
+    },
+    {
+      "query": "Cross-currency payments are failing with FX_RATE_STALE on a Tuesday morning",
+      "expect": "ledgerline-fx-rate-staleness",
+      "kind": "project",
+      "lang": "en",
+      "hit": "STRONG",
+      "got": "ledgerline-fx-rate-staleness",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.819292,
+        "s_lex": 0.178344,
+        "s_jaccard": 0.178344,
+        "s_ce": null
+      },
+      "retrieved": [
+        "ledgerline-fx-rate-staleness",
+        "float-money",
+        "ledgerline-oncall-sev1-payouts",
+        "ledgerline-kafka-partition-account",
+        "ledgerline-migration-lock-timeout"
+      ]
+    },
+    {
+      "query": "Why do currency conversions go through with a three-day-old rate on Sunday but get rejected after one day during the week?",
+      "expect": "ledgerline-fx-rate-staleness",
+      "kind": "project",
+      "lang": "en",
+      "hit": "STRONG",
+      "got": "ledgerline-fx-rate-staleness",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.752731,
+        "s_lex": 0.183246,
+        "s_jaccard": 0.183246,
+        "s_ce": null
+      },
+      "retrieved": [
+        "ledgerline-fx-rate-staleness",
+        "ledgerline-money-minor-units",
+        "ledgerline-uat-weekly-refresh",
+        "ledgerline-api-idempotency-header",
+        "ledgerline-settlement-cutoff-london"
+      ]
+    },
+    {
+      "query": "I fixed the CAMT.053 parser bug and re-uploaded the statement to SFTP, but recon-worker just says 'duplicate statement'",
+      "expect": "ledgerline-recon-reingest",
+      "kind": "project",
+      "lang": "en",
+      "hit": "STRONG",
+      "got": "ledgerline-recon-reingest",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.859065,
+        "s_lex": 0.142857,
+        "s_jaccard": 0.142857,
+        "s_ce": null
+      },
+      "retrieved": [
+        "ledgerline-recon-reingest",
+        "ledgerline-llctl-explicit-env",
+        "pg-serial-sequence-reset",
+        "ledgerline-pact-provider-verify",
+        "ledgerline-read-replica-lag"
+      ]
+    },
+    {
+      "query": "Come faccio a riprocessare un estratto conto bancario già importato?",
+      "expect": "ledgerline-recon-reingest",
+      "kind": "project",
+      "lang": "it",
+      "hit": "MISS",
+      "got": null,
+      "outcome": "miss",
+      "rank": 2,
+      "signals": {
+        "s_vec": 0.787936,
+        "s_lex": 0.0647059,
+        "s_jaccard": 0.0647059,
+        "s_ce": null
+      },
+      "retrieved": [
+        "float-money",
+        "ledgerline-recon-reingest",
+        "ledgerline-api-idempotency-header",
+        "ledgerline-kafka-partition-account",
+        "ledgerline-money-minor-units"
+      ]
+    },
+    {
+      "query": "Payouts have been failing for 10 minutes now. Is this a SEV1 and how do I declare it?",
+      "expect": "ledgerline-oncall-sev1-payouts",
+      "kind": "project",
+      "lang": "en",
+      "hit": "STRONG",
+      "got": "ledgerline-oncall-sev1-payouts",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.865742,
+        "s_lex": 0.204969,
+        "s_jaccard": 0.204969,
+        "s_ce": null
+      },
+      "retrieved": [
+        "ledgerline-oncall-sev1-payouts",
+        "docker-pid1-signals",
+        "ledgerline-psp-sim-magic-amounts",
+        "ntp-clock-skew-jwt",
+        "ledgerline-money-minor-units"
+      ]
+    },
+    {
+      "query": "Entro quanto va scritto il postmortem e in quale cartella?",
+      "expect": "ledgerline-oncall-sev1-payouts",
+      "kind": "project",
+      "lang": "it",
+      "hit": "STRONG",
+      "got": "ledgerline-ledgerwriter-balanced",
+      "outcome": "wrong_strong",
+      "rank": 3,
+      "signals": {
+        "s_vec": 0.766971,
+        "s_lex": 0.0718954,
+        "s_jaccard": 0.0718954,
+        "s_ce": null
+      },
+      "retrieved": [
+        "ledgerline-ledgerwriter-balanced",
+        "ledgerline-outbox-relay",
+        "ledgerline-oncall-sev1-payouts",
+        "ledgerline-llctl-explicit-env",
+        "ledgerline-kafka-topics-terraform"
+      ]
+    },
+    {
+      "query": "I scaled payments-gateway with kubectl scale and a few minutes later it went back to the old replica count",
+      "expect": "ledgerline-argocd-gitops",
+      "kind": "project",
+      "lang": "en",
+      "hit": "STRONG",
+      "got": "ledgerline-fx-rate-staleness",
+      "outcome": "wrong_strong",
+      "rank": 0,
+      "signals": {
+        "s_vec": 0.774922,
+        "s_lex": 0.19209,
+        "s_jaccard": 0.19209,
+        "s_ce": null
+      },
+      "retrieved": [
+        "ledgerline-fx-rate-staleness",
+        "ledgerline-migration-lock-timeout",
+        "ledgerline-recon-reingest",
+        "ledgerline-read-replica-lag",
+        "ledgerline-api-idempotency-header"
+      ]
+    },
+    {
+      "query": "Durante un incidente devo scalare d'urgenza un servizio in prod-eu, come evito che la modifica venga annullata?",
+      "expect": "ledgerline-argocd-gitops",
+      "kind": "project",
+      "lang": "it",
+      "hit": "MISS",
+      "got": null,
+      "outcome": "miss",
+      "rank": 0,
+      "signals": {
+        "s_vec": 0.732036,
+        "s_lex": 0.0858586,
+        "s_jaccard": 0.0858586,
+        "s_ce": null
+      },
+      "retrieved": [
+        "orbit-events-schema-version",
+        "ledgerline-llctl-explicit-env",
+        "ledgerline-oncall-sev1-payouts",
+        "git-rebase-autostash",
+        "ledgerline-uat-weekly-refresh"
+      ]
+    },
+    {
+      "query": "How do I get the uat secrets for payments-gateway into a local env file so I can run it from my machine?",
+      "expect": "ledgerline-sops-secrets",
+      "kind": "project",
+      "lang": "en",
+      "hit": "STRONG",
+      "got": "ledgerline-sops-secrets",
+      "outcome": "correct_strong",
+      "rank": 2,
+      "signals": {
+        "s_vec": 0.758762,
+        "s_lex": 0.12973,
+        "s_jaccard": 0.12973,
+        "s_ce": null
+      },
+      "retrieved": [
+        "orbit-secrets-vault",
+        "ledgerline-sops-secrets",
+        "ledgerline-llctl-explicit-env",
+        "powershell-execution-policy",
+        "ledgerline-uat-weekly-refresh"
+      ]
+    },
+    {
+      "query": "Which IAM role do I need to edit an encrypted secret file in ll-gitops?",
+      "expect": "ledgerline-sops-secrets",
+      "kind": "project",
+      "lang": "en",
+      "hit": "STRONG",
+      "got": "ledgerline-sops-secrets",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.826557,
+        "s_lex": 0.197279,
+        "s_jaccard": 0.197279,
+        "s_ce": null
+      },
+      "retrieved": [
+        "ledgerline-sops-secrets",
+        "ledgerline-argocd-gitops",
+        "orbit-secrets-vault",
+        "ledgerline-recon-reingest",
+        "git-crlf-windows"
+      ]
+    },
+    {
+      "query": "A payout check right after a debit read an old balance; that method is annotated @ReadOnlyReplica",
+      "expect": "ledgerline-read-replica-lag",
+      "kind": "project",
+      "lang": "en",
+      "hit": "STRONG",
+      "got": "ledgerline-read-replica-lag",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.762726,
+        "s_lex": 0.154762,
+        "s_jaccard": 0.154762,
+        "s_ce": null
+      },
+      "retrieved": [
+        "ledgerline-read-replica-lag",
+        "ledgerline-kafka-partition-account",
+        "ledgerline-recon-reingest",
+        "ledgerline-api-idempotency-header",
+        "spring-transactional-self"
+      ]
+    },
+    {
+      "query": "Il saldo che leggo subito dopo una scrittura è vecchio di qualche secondo, da dove dovrei leggerlo?",
+      "expect": "ledgerline-read-replica-lag",
+      "kind": "project",
+      "lang": "it",
+      "hit": "STRONG",
+      "got": "ledgerline-read-replica-lag",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.818516,
+        "s_lex": 0.0670391,
+        "s_jaccard": 0.0670391,
+        "s_ce": null
+      },
+      "retrieved": [
+        "ledgerline-read-replica-lag",
+        "float-money",
+        "ledgerline-kafka-partition-account",
+        "ledgerline-oncall-sev1-payouts",
+        "ledgerline-ledgerwriter-balanced"
+      ]
+    },
+    {
+      "query": "The test merchant I created in uat on Thursday is gone on Monday, together with its API key",
+      "expect": "ledgerline-uat-weekly-refresh",
+      "kind": "project",
+      "lang": "en",
+      "hit": "STRONG",
+      "got": "ledgerline-uat-weekly-refresh",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.801636,
+        "s_lex": 0.150838,
+        "s_jaccard": 0.150838,
+        "s_ce": null
+      },
+      "retrieved": [
+        "ledgerline-uat-weekly-refresh",
+        "orbit-test-db-port-5434",
+        "ledgerline-pact-provider-verify",
+        "ledgerline-kafka-topics-terraform",
+        "react-useeffect-loop"
+      ]
+    },
+    {
+      "query": "Dove metto i merchant di test perché sopravvivano al refresh settimanale di uat?",
+      "expect": "ledgerline-uat-weekly-refresh",
+      "kind": "project",
+      "lang": "it",
+      "hit": "STRONG",
+      "got": "ledgerline-uat-weekly-refresh",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.827585,
+        "s_lex": 0.114943,
+        "s_jaccard": 0.114943,
+        "s_ce": null
+      },
+      "retrieved": [
+        "ledgerline-uat-weekly-refresh",
+        "orbit-test-db-port-5434",
+        "ledgerline-pact-provider-verify",
+        "ledgerline-llctl-explicit-env",
+        "orbit-chromatic-ui-review"
+      ]
+    },
+    {
+      "query": "Retrying POST /v3/payments returns 422 IDEMPOTENCY_KEY_REUSED, we changed the amount between attempts",
+      "expect": "ledgerline-api-idempotency-header",
+      "kind": "project",
+      "lang": "en",
+      "hit": "STRONG",
+      "got": "ledgerline-api-idempotency-header",
+      "outcome": "correct_strong",
+      "rank": 1,
+      "signals": {
+        "s_vec": 0.911378,
+        "s_lex": 0.285714,
+        "s_jaccard": 0.285714,
+        "s_ce": null
+      },
+      "retrieved": [
+        "ledgerline-api-idempotency-header",
+        "ledgerline-kafka-partition-account",
+        "http-keepalive-502",
+        "ledgerline-ledgerwriter-balanced",
+        "ledgerline-psp-sim-magic-amounts"
+      ]
+    },
+    {
+      "query": "What header does our client SDK have to send when creating a payment, and how long does the gateway remember it?",
+      "expect": "ledgerline-api-idempotency-header",
+      "kind": "project",
+      "lang": "en",
+      "hit": "STRONG",
+      "got": "ledgerline-fx-rate-staleness",
+      "outcome": "wrong_strong",
+      "rank": 2,
+      "signals": {
+        "s_vec": 0.758023,
+        "s_lex": 0.137566,
+        "s_jaccard": 0.137566,
+        "s_ce": null
+      },
+      "retrieved": [
+        "ledgerline-kafka-partition-account",
+        "ledgerline-api-idempotency-header",
+        "ledgerline-fx-rate-staleness",
+        "orbit-preview-billing-fake-psp",
+        "ledgerline-migration-lock-timeout"
+      ]
+    },
+    {
+      "query": "How do I add a new queue binding for order.cancelled in Orbit's RabbitMQ topology?",
+      "expect": null,
+      "kind": "negative",
+      "lang": "en",
+      "hit": "STRONG",
+      "got": "orbit-celery-reports-queue",
+      "outcome": "wrong_strong",
+      "rank": 0,
+      "signals": {
+        "s_vec": 0.780491,
+        "s_lex": 0.115108,
+        "s_jaccard": 0.115108,
+        "s_ce": null
+      },
+      "retrieved": [
+        "orbit-dlq-replay-cli",
+        "orbit-celery-reports-queue",
+        "orbit-events-schema-version",
+        "orbit-billing-async-only",
+        "orbit-api-v1-frozen"
+      ]
+    },
+    {
+      "query": "How long are messages kept in billing-events.dlq before they get purged?",
+      "expect": null,
+      "kind": "negative",
+      "lang": "en",
+      "hit": "STRONG",
+      "got": "orbit-billing-async-only",
+      "outcome": "wrong_strong",
+      "rank": 0,
+      "signals": {
+        "s_vec": 0.755852,
+        "s_lex": 0.118881,
+        "s_jaccard": 0.118881,
+        "s_ce": null
+      },
+      "retrieved": [
+        "orbit-dlq-replay-cli",
+        "ledgerline-kafka-inbox-dedupe",
+        "ledgerline-oncall-sev1-payouts",
+        "ledgerline-outbox-relay",
+        "orbit-billing-async-only"
+      ]
+    },
+    {
+      "query": "How do I rotate the Stripe webhook signing secret used by stripe-relay?",
+      "expect": null,
+      "kind": "negative",
+      "lang": "en",
+      "hit": "MISS",
+      "got": null,
+      "outcome": "miss",
+      "rank": 0,
+      "signals": {
+        "s_vec": 0.736378,
+        "s_lex": 0.0949367,
+        "s_jaccard": 0.0949367,
+        "s_ce": null
+      },
+      "retrieved": [
+        "ledgerline-pact-provider-verify",
+        "ledgerline-read-replica-lag",
+        "orbit-events-schema-version",
+        "react-useeffect-loop",
+        "ledgerline-sops-secrets"
+      ]
+    },
+    {
+      "query": "Come faccio il downgrade di una migration alembic su staging se il deploy è andato male?",
+      "expect": null,
+      "kind": "negative",
+      "lang": "it",
+      "hit": "STRONG",
+      "got": "orbit-backfills-not-in-migrations",
+      "outcome": "wrong_strong",
+      "rank": 0,
+      "signals": {
+        "s_vec": 0.76843,
+        "s_lex": 0.151899,
+        "s_jaccard": 0.151899,
+        "s_ce": null
+      },
+      "retrieved": [
+        "orbit-migrations-make-target",
+        "orbit-backfills-not-in-migrations",
+        "orbit-migration-index-concurrently",
+        "orbit-feature-flags-yaml",
+        "orbit-email-mailpit-allowlist"
+      ]
+    },
+    {
+      "query": "On the Orbit v2 list endpoints, how do I sort by created_at descending?",
+      "expect": null,
+      "kind": "negative",
+      "lang": "en",
+      "hit": "STRONG",
+      "got": "orbit-api-v2-cursor-pagination",
+      "outcome": "wrong_strong",
+      "rank": 0,
+      "signals": {
+        "s_vec": 0.859533,
+        "s_lex": 0.192857,
+        "s_jaccard": 0.192857,
+        "s_ce": null
+      },
+      "retrieved": [
+        "orbit-api-v2-cursor-pagination",
+        "orbit-api-v1-frozen",
+        "orbit-search-reindex-alias",
+        "orbit-python-311-pin",
+        "orbit-secrets-vault"
+      ]
+    },
+    {
+      "query": "Celery tasks on the worker deployment sit in the queue and are never acknowledged, how do I inspect them?",
+      "expect": null,
+      "kind": "negative",
+      "lang": "en",
+      "hit": "STRONG",
+      "got": "orbit-celery-reports-queue",
+      "outcome": "wrong_strong",
+      "rank": 0,
+      "signals": {
+        "s_vec": 0.814192,
+        "s_lex": 0.146667,
+        "s_jaccard": 0.146667,
+        "s_ce": null
+      },
+      "retrieved": [
+        "orbit-celery-reports-queue",
+        "orbit-celery-beat-single-replica",
+        "ledgerline-unleash-kill-switches",
+        "orbit-reports-node-toleration",
+        "orbit-tenant-timezone-reports"
+      ]
+    },
+    {
+      "query": "Qual è il TTL di default delle chiavi nella cache Redis di Orbit?",
+      "expect": null,
+      "kind": "negative",
+      "lang": "it",
+      "hit": "STRONG",
+      "got": "orbit-redis-cache-key-tenant",
+      "outcome": "wrong_strong",
+      "rank": 0,
+      "signals": {
+        "s_vec": 0.818397,
+        "s_lex": 0.103448,
+        "s_jaccard": 0.103448,
+        "s_ce": null
+      },
+      "retrieved": [
+        "orbit-redis-cache-key-tenant",
+        "orbit-local-postgres-5433",
+        "orbit-secrets-vault",
+        "orbit-alert-runbook-url",
+        "java-hashcode-equals"
+      ]
+    },
+    {
+      "query": "How do I add a lazily loaded route to the React router in apps/web?",
+      "expect": null,
+      "kind": "negative",
+      "lang": "en",
+      "hit": "MISS",
+      "got": null,
+      "outcome": "miss",
+      "rank": 0,
+      "signals": {
+        "s_vec": 0.716121,
+        "s_lex": 0.121951,
+        "s_jaccard": 0.121951,
+        "s_ce": null
+      },
+      "retrieved": [
+        "docker-localhost-host",
+        "react-strict-double",
+        "spring-lazy-init-exception",
+        "react-useeffect-loop",
+        "orbit-chromatic-ui-review"
+      ]
+    },
+    {
+      "query": "Chromatic snapshots are flaky because of animated components, how do we disable animations in stories?",
+      "expect": null,
+      "kind": "negative",
+      "lang": "en",
+      "hit": "STRONG",
+      "got": "float-money",
+      "outcome": "wrong_strong",
+      "rank": 0,
+      "signals": {
+        "s_vec": 0.708443,
+        "s_lex": 0.165517,
+        "s_jaccard": 0.165517,
+        "s_ce": null
+      },
+      "retrieved": [
+        "orbit-chromatic-ui-review",
+        "ledgerline-unleash-kill-switches",
+        "react-strict-double",
+        "powershell-execution-policy",
+        "gha-cache-branch-scope"
+      ]
+    },
+    {
+      "query": "Who is the secondary on-call for Orbit this week and how do I swap a shift in PagerDuty?",
+      "expect": null,
+      "kind": "negative",
+      "lang": "en",
+      "hit": "STRONG",
+      "got": "orbit-events-schema-version",
+      "outcome": "wrong_strong",
+      "rank": 0,
+      "signals": {
+        "s_vec": 0.755035,
+        "s_lex": 0.106509,
+        "s_jaccard": 0.106509,
+        "s_ce": null
+      },
+      "retrieved": [
+        "orbit-reports-node-toleration",
+        "orbit-celery-beat-single-replica",
+        "orbit-events-schema-version",
+        "orbit-api-v2-cursor-pagination",
+        "orbit-search-reindex-alias"
+      ]
+    },
+    {
+      "query": "Come cerco in Loki tutti i log di una singola request?",
+      "expect": null,
+      "kind": "negative",
+      "lang": "it",
+      "hit": "MISS",
+      "got": null,
+      "outcome": "miss",
+      "rank": 0,
+      "signals": {
+        "s_vec": 0.730958,
+        "s_lex": 0.0695652,
+        "s_jaccard": 0.0695652,
+        "s_ce": null
+      },
+      "retrieved": [
+        "log-rotation-disk-full",
+        "gha-secrets-forks",
+        "orbit-structlog-no-pii",
+        "orbit-staging-rate-limit-loadtest",
+        "ledgerline-oncall-sev1-payouts"
+      ]
+    },
+    {
+      "query": "How do I add more nodes to the reports-pool node pool?",
+      "expect": null,
+      "kind": "negative",
+      "lang": "en",
+      "hit": "STRONG",
+      "got": "orbit-reports-node-toleration",
+      "outcome": "wrong_strong",
+      "rank": 0,
+      "signals": {
+        "s_vec": 0.78742,
+        "s_lex": 0.211864,
+        "s_jaccard": 0.211864,
+        "s_ce": null
+      },
+      "retrieved": [
+        "orbit-reports-node-toleration",
+        "orbit-billing-async-only",
+        "node-unhandled-rejection",
+        "orbit-celery-reports-queue",
+        "ledgerline-kafka-partition-account"
+      ]
+    },
+    {
+      "query": "How do we handle bounces for transactional emails in production?",
+      "expect": null,
+      "kind": "negative",
+      "lang": "en",
+      "hit": "MISS",
+      "got": null,
+      "outcome": "miss",
+      "rank": 0,
+      "signals": {
+        "s_vec": 0.712778,
+        "s_lex": 0.104839,
+        "s_jaccard": 0.104839,
+        "s_ce": null
+      },
+      "retrieved": [
+        "orbit-email-mailpit-allowlist",
+        "orbit-celery-beat-single-replica",
+        "ledgerline-outbox-relay",
+        "ledgerline-kafka-inbox-dedupe",
+        "orbit-backfills-not-in-migrations"
+      ]
+    },
+    {
+      "query": "OpenSearch queries are slow for tenants with a huge catalog, how do I profile them?",
+      "expect": null,
+      "kind": "negative",
+      "lang": "en",
+      "hit": "STRONG",
+      "got": "orbit-redis-cache-key-tenant",
+      "outcome": "wrong_strong",
+      "rank": 0,
+      "signals": {
+        "s_vec": 0.756719,
+        "s_lex": 0.0903614,
+        "s_jaccard": 0.0903614,
+        "s_ce": null
+      },
+      "retrieved": [
+        "orbit-redis-cache-key-tenant",
+        "orbit-tenant-scoped-session",
+        "orbit-celery-reports-queue",
+        "orbit-tenant-timezone-reports",
+        "orbit-search-reindex-alias"
+      ]
+    },
+    {
+      "query": "How does ll-money handle rounding when splitting a fee across three accounts?",
+      "expect": null,
+      "kind": "negative",
+      "lang": "en",
+      "hit": "STRONG",
+      "got": "ledgerline-kafka-partition-account",
+      "outcome": "wrong_strong",
+      "rank": 0,
+      "signals": {
+        "s_vec": 0.769617,
+        "s_lex": 0.0691824,
+        "s_jaccard": 0.0691824,
+        "s_ce": null
+      },
+      "retrieved": [
+        "ledgerline-api-idempotency-header",
+        "ledgerline-money-minor-units",
+        "ledgerline-kafka-partition-account",
+        "ledgerline-recon-reingest",
+        "float-money"
+      ]
+    },
+    {
+      "query": "Come storno una scrittura contabile postata sul conto sbagliato in ledger-core?",
+      "expect": null,
+      "kind": "negative",
+      "lang": "it",
+      "hit": "STRONG",
+      "got": "ledgerline-ledgerwriter-balanced",
+      "outcome": "wrong_strong",
+      "rank": 0,
+      "signals": {
+        "s_vec": 0.826875,
+        "s_lex": 0.0701754,
+        "s_jaccard": 0.0701754,
+        "s_ce": null
+      },
+      "retrieved": [
+        "ledgerline-ledgerwriter-balanced",
+        "ledgerline-kafka-partition-account",
+        "ledgerline-outbox-relay",
+        "ledgerline-oncall-sev1-payouts",
+        "ledgerline-migration-lock-timeout"
+      ]
+    },
+    {
+      "query": "How many partitions should a new ll.payments topic have?",
+      "expect": null,
+      "kind": "negative",
+      "lang": "en",
+      "hit": "STRONG",
+      "got": "ledgerline-kafka-partition-account",
+      "outcome": "wrong_strong",
+      "rank": 0,
+      "signals": {
+        "s_vec": 0.766174,
+        "s_lex": 0.0689655,
+        "s_jaccard": 0.0689655,
+        "s_ce": null
+      },
+      "retrieved": [
+        "ledgerline-api-idempotency-header",
+        "ledgerline-kafka-partition-account",
+        "ledgerline-recon-reingest",
+        "ledgerline-money-minor-units",
+        "ledgerline-oncall-sev1-payouts"
+      ]
+    },
+    {
+      "query": "Come resetto gli offset di un consumer group Kafka in uat per rileggere un topic dall'inizio?",
+      "expect": null,
+      "kind": "negative",
+      "lang": "it",
+      "hit": "STRONG",
+      "got": "ledgerline-kafka-topics-terraform",
+      "outcome": "wrong_strong",
+      "rank": 0,
+      "signals": {
+        "s_vec": 0.799192,
+        "s_lex": 0.0944444,
+        "s_jaccard": 0.0944444,
+        "s_ce": null
+      },
+      "retrieved": [
+        "ledgerline-kafka-topics-terraform",
+        "ledgerline-kafka-inbox-dedupe",
+        "ledgerline-outbox-relay",
+        "ledgerline-local-kafka-29092",
+        "ledgerline-uat-weekly-refresh"
+      ]
+    },
+    {
+      "query": "outbox-relay è in ritardo di diversi minuti, come vedo il backlog?",
+      "expect": null,
+      "kind": "negative",
+      "lang": "it",
+      "hit": "STRONG",
+      "got": "ledgerline-outbox-relay",
+      "outcome": "wrong_strong",
+      "rank": 0,
+      "signals": {
+        "s_vec": 0.769525,
+        "s_lex": 0.0931677,
+        "s_jaccard": 0.0931677,
+        "s_ce": null
+      },
+      "retrieved": [
+        "ledgerline-outbox-relay",
+        "ledgerline-oncall-sev1-payouts",
+        "k8s-crashloop-probe",
+        "orbit-dlq-replay-cli",
+        "ledgerline-read-replica-lag"
+      ]
+    },
+    {
+      "query": "Can settlement-batch be triggered manually for a single merchant in uat?",
+      "expect": null,
+      "kind": "negative",
+      "lang": "en",
+      "hit": "STRONG",
+      "got": "ledgerline-uat-weekly-refresh",
+      "outcome": "wrong_strong",
+      "rank": 0,
+      "signals": {
+        "s_vec": 0.76678,
+        "s_lex": 0.0786517,
+        "s_jaccard": 0.0786517,
+        "s_ce": null
+      },
+      "retrieved": [
+        "ledgerline-uat-weekly-refresh",
+        "ledgerline-settlement-cutoff-london",
+        "ledgerline-kafka-topics-terraform",
+        "ledgerline-pact-provider-verify",
+        "ledgerline-llctl-explicit-env"
+      ]
+    },
+    {
+      "query": "Come aggiorno llctl all'ultima versione?",
+      "expect": null,
+      "kind": "negative",
+      "lang": "it",
+      "hit": "STRONG",
+      "got": "ledgerline-llctl-explicit-env",
+      "outcome": "wrong_strong",
+      "rank": 0,
+      "signals": {
+        "s_vec": 0.787687,
+        "s_lex": 0.0694444,
+        "s_jaccard": 0.0694444,
+        "s_ce": null
+      },
+      "retrieved": [
+        "ledgerline-llctl-explicit-env",
+        "ledgerline-recon-reingest",
+        "ledgerline-argocd-gitops",
+        "tls-missing-intermediate",
+        "ledgerline-unleash-kill-switches"
+      ]
+    },
+    {
+      "query": "Kafka from make up refuses to start with 'Cluster ID mismatch' after I pruned docker volumes",
+      "expect": null,
+      "kind": "negative",
+      "lang": "en",
+      "hit": "STRONG",
+      "got": "docker-layer-cache-copy",
+      "outcome": "wrong_strong",
+      "rank": 0,
+      "signals": {
+        "s_vec": 0.777229,
+        "s_lex": 0.081761,
+        "s_jaccard": 0.081761,
+        "s_ce": null
+      },
+      "retrieved": [
+        "pg-serial-sequence-reset",
+        "ledgerline-kafka-topics-terraform",
+        "docker-layer-cache-copy",
+        "ledgerline-local-kafka-29092",
+        "ledgerline-outbox-relay"
+      ]
+    },
+    {
+      "query": "What PCI DSS training do I need before getting access to the pci namespace?",
+      "expect": null,
+      "kind": "negative",
+      "lang": "en",
+      "hit": "MISS",
+      "got": null,
+      "outcome": "miss",
+      "rank": 0,
+      "signals": {
+        "s_vec": 0.715177,
+        "s_lex": 0.0780142,
+        "s_jaccard": 0.0780142,
+        "s_ce": null
+      },
+      "retrieved": [
+        "ledgerline-pci-tokenizer-boundary",
+        "cors-preflight-credentials",
+        "orbit-preview-billing-fake-psp",
+        "docker-layer-cache-copy",
+        "pg-serial-sequence-reset"
+      ]
+    },
+    {
+      "query": "How do I simulate a 3-D Secure challenge with psp-sim?",
+      "expect": null,
+      "kind": "negative",
+      "lang": "en",
+      "hit": "MISS",
+      "got": null,
+      "outcome": "miss",
+      "rank": 0,
+      "signals": {
+        "s_vec": 0.769397,
+        "s_lex": 0.0616438,
+        "s_jaccard": 0.0616438,
+        "s_ce": null
+      },
+      "retrieved": [
+        "ledgerline-psp-sim-magic-amounts",
+        "orbit-pnpm-only",
+        "powershell-execution-policy",
+        "ledgerline-api-idempotency-header",
+        "orbit-make-image-pip-index"
+      ]
+    },
+    {
+      "query": "How do I write a repeatable R__ Flyway migration for a reporting view in ledger-core?",
+      "expect": null,
+      "kind": "negative",
+      "lang": "en",
+      "hit": "STRONG",
+      "got": "ledgerline-flyway-timestamp-versions",
+      "outcome": "wrong_strong",
+      "rank": 0,
+      "signals": {
+        "s_vec": 0.794865,
+        "s_lex": 0.12069,
+        "s_jaccard": 0.12069,
+        "s_ce": null
+      },
+      "retrieved": [
+        "ledgerline-flyway-timestamp-versions",
+        "ledgerline-recon-reingest",
+        "ledgerline-ledgerwriter-balanced",
+        "orbit-migration-index-concurrently",
+        "ledgerline-migration-lock-timeout"
+      ]
+    },
+    {
+      "query": "Come rinomino un flag su Unleash senza rompere i servizi che lo leggono?",
+      "expect": null,
+      "kind": "negative",
+      "lang": "it",
+      "hit": "STRONG",
+      "got": "ledgerline-unleash-kill-switches",
+      "outcome": "wrong_strong",
+      "rank": 0,
+      "signals": {
+        "s_vec": 0.824488,
+        "s_lex": 0.0909091,
+        "s_jaccard": 0.0909091,
+        "s_ce": null
+      },
+      "retrieved": [
+        "ledgerline-unleash-kill-switches",
+        "orbit-feature-flags-yaml",
+        "ledgerline-outbox-relay",
+        "orbit-chromatic-ui-review",
+        "regex-catastrophic"
+      ]
+    },
+    {
+      "query": "The MDC request id gets lost when payments-gateway switches to Dispatchers.IO in a coroutine, how do I propagate it?",
+      "expect": null,
+      "kind": "negative",
+      "lang": "en",
+      "hit": "STRONG",
+      "got": "ledgerline-api-idempotency-header",
+      "outcome": "wrong_strong",
+      "rank": 0,
+      "signals": {
+        "s_vec": 0.764867,
+        "s_lex": 0.0891089,
+        "s_jaccard": 0.0891089,
+        "s_ce": null
+      },
+      "retrieved": [
+        "ledgerline-kafka-partition-account",
+        "orbit-billing-event-id-stable",
+        "ledgerline-api-idempotency-header",
+        "ledgerline-outbox-relay",
+        "ledgerline-kafka-inbox-dedupe"
+      ]
+    },
+    {
+      "query": "fx-rates deve prendere anche valute che la BCE non pubblica, come si aggiunge un'altra fonte di tassi?",
+      "expect": null,
+      "kind": "negative",
+      "lang": "it",
+      "hit": "MISS",
+      "got": null,
+      "outcome": "miss",
+      "rank": 0,
+      "signals": {
+        "s_vec": 0.768212,
+        "s_lex": 0.0497512,
+        "s_jaccard": 0.0497512,
+        "s_ce": null
+      },
+      "retrieved": [
+        "ledgerline-fx-rate-staleness",
+        "float-money",
+        "ledgerline-settlement-cutoff-london",
+        "ledgerline-migration-lock-timeout",
+        "ledgerline-recon-reingest"
+      ]
+    },
+    {
+      "query": "How do I get read access to the Argo CD UI for the prod-us cluster?",
+      "expect": null,
+      "kind": "negative",
+      "lang": "en",
+      "hit": "STRONG",
+      "got": "ledgerline-argocd-gitops",
+      "outcome": "wrong_strong",
+      "rank": 0,
+      "signals": {
+        "s_vec": 0.757752,
+        "s_lex": 0.0967742,
+        "s_jaccard": 0.0967742,
+        "s_ce": null
+      },
+      "retrieved": [
+        "ledgerline-argocd-gitops",
+        "ledgerline-llctl-explicit-env",
+        "cors-preflight-credentials",
+        "ledgerline-pact-provider-verify",
+        "orbit-chromatic-ui-review"
+      ]
+    },
+    {
+      "query": "Come si configura un rate limit per singolo merchant sulla /v3/payments?",
+      "expect": null,
+      "kind": "negative",
+      "lang": "it",
+      "hit": "STRONG",
+      "got": "ledgerline-api-idempotency-header",
+      "outcome": "wrong_strong",
+      "rank": 0,
+      "signals": {
+        "s_vec": 0.769182,
+        "s_lex": 0.0843373,
+        "s_jaccard": 0.0843373,
+        "s_ce": null
+      },
+      "retrieved": [
+        "ledgerline-api-idempotency-header",
+        "ledgerline-fx-rate-staleness",
+        "orbit-staging-rate-limit-loadtest",
+        "ledgerline-migration-lock-timeout",
+        "ledgerline-kafka-partition-account"
+      ]
+    }
+  ]
+}

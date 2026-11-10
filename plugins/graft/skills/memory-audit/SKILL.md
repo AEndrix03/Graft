@@ -59,10 +59,11 @@ Always pass `--note`: it is the audit trail's only record of your reasoning.
 | `possible_supersession` | Does the newer note (`b`) replace the older one (`a`)? | Yes → `supersede_a`. They say different things → `keep_both`. |
 | `near_duplicate` | Same fact twice? | One says it all → `supersede_a` / `supersede_b` (supersede the weaker). Both add something → insert one merged note, then `merge --by <new-id>`. Different facts → `keep_both`. |
 | `contradiction` | Which side matches the code? | Wrong side → `supersede_a` / `supersede_b` so the right one replaces it, or `stale --node <wrong-id>`. |
+| `possible_contradiction` | Do they really disagree (see `signals.divergence`: negation, opposite terms, numbers)? Which side matches the current code / docs? | Wrong side → `supersede_a` / `supersede_b`. Unsure which is outdated → `stale --node <doubtful-id>`. A real conflict you cannot settle now → `contradicts` (kept on record, comes back as a `contradiction`). Not a conflict (different contexts, both true) → `keep_both`. |
 | `keyword_fragmentation` | Does the variant spelling hurt findability? | Usually `keep`. If it matters → re-insert the note with the established keyword, `supersede --by <new-id>`. |
 | `isolated_low_value` | Is the note still useful to anyone? | No → `retire`. Yes → `keep`. |
 
-`keep` / `keep_both` dismisses the candidate until its evidence changes (new content, new file version), so it will not come back on the next scan. For pairs, `a` is always the older node.
+`contradicts` (on a pair candidate, or `--node <a> --by <b>` on any two notes) only records a `CONTRADICTS` edge and changes no state. `keep` / `keep_both` dismisses the candidate until its evidence changes (new content, new file version), so it will not come back on the next scan. For pairs, `a` is always the older node.
 
 Process the batch, then scan again: resolved and dismissed candidates do not reappear, so the loop converges. Stop after two or three batches in one turn; the rest can wait for the next session.
 
@@ -70,7 +71,7 @@ Process the batch, then scan again: resolved and dismissed candidates do not rea
 
 Only these go to the user, with the candidate and your evidence in two lines:
 
-- you cannot tell which side of a contradiction is right from the code, docs or conversation;
+- you cannot tell which side of a contradiction is right from the code, docs or conversation (on a `possible_contradiction`, record it with `contradicts` first so it is not lost);
 - the decision depends on intent you cannot observe (a planned migration, a policy not written anywhere);
 - the user asked to review decisions before they are applied.
 

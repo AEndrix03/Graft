@@ -20,6 +20,14 @@ ctest --test-dir build           # run the suite
 ./build/test_<name>              # run a single test
 ```
 
+`test_embed` and `e2e_model` need the embedding model and are reported as skipped without it. Point `GRAFT_TEST_MODEL` at the GGUF to run them:
+
+```bash
+GRAFT_TEST_MODEL="$PWD/models/bge-m3.gguf" ctest --test-dir build   # absolute: tests run in build/
+```
+
+`e2e_model` (`tests/e2e/test_e2e.py`, needs Python 3) starts a private `graftd`, inserts a few notes and checks `query` / `retrieve` / `explore` / `graft hook prompt` end to end: gating, the lexical lists of `retrieve`, and stale / retired / superseded / expired notes, each "absent" assertion with a positive control. CI runs both on Linux with the model cached.
+
 ## Project layout
 
 - `src/` — daemon, CLI, retrieval, embed, storage, config, http (one subdir per concern)

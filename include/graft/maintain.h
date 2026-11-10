@@ -21,6 +21,7 @@
 /* Candidate kinds, in priority order (most urgent first). */
 typedef enum {
   MG_MAINT_CONTRADICTION = 0,
+  MG_MAINT_POSSIBLE_CONTRADICTION,
   MG_MAINT_SOURCE_REMOVED,
   MG_MAINT_SOURCE_CHANGED,
   MG_MAINT_POSSIBLE_SUPERSESSION,
@@ -94,13 +95,15 @@ typedef enum {
   MG_MAINT_TO_STALE = 1,   /* ACTIVE -> STALE */
   MG_MAINT_TO_RETIRED,     /* any but RETIRED -> RETIRED (soft delete) */
   MG_MAINT_TO_ACTIVE,      /* STALE / SUPERSEDED / RETIRED -> ACTIVE */
-  MG_MAINT_TO_SUPERSEDED   /* ACTIVE / STALE -> SUPERSEDED by `by` */
+  MG_MAINT_TO_SUPERSEDED,  /* ACTIVE / STALE -> SUPERSEDED by `by` */
+  MG_MAINT_LINK_CONTRADICTS /* no state change: a CONTRADICTS edge node -> by,
+                               both ACTIVE / STALE */
 } mg_maint_transition_t;
 
 typedef struct {
   mg_maint_transition_t to;
   mg_node_id_t          node;
-  mg_node_id_t          by;                 /* MG_MAINT_TO_SUPERSEDED only */
+  mg_node_id_t          by;                 /* TO_SUPERSEDED / LINK_CONTRADICTS */
 } mg_maint_change_t;
 
 typedef struct {
@@ -137,6 +140,10 @@ void     mg_maint_keywords_free(mg_maint_keyword_t *kw, size_t n);
 /* ACTIVE nodes carrying keyword kw (at most max). */
 mg_err_t mg_storage_maint_keyword_nodes(mg_storage_t *s, mg_keyword_id_t kw,
                                         mg_node_id_t *out, size_t max, size_t *n);
+/* *out = 1 when a CONTRADICTS edge joins a and b, in either direction and
+ * whatever their state. */
+mg_err_t mg_storage_maint_has_contradicts(mg_storage_t *s, const mg_node_id_t a,
+                                          const mg_node_id_t b, int *out);
 mg_err_t mg_storage_maint_is_dismissed(mg_storage_t *s, const char *candidate_id,
                                        const char *evidence, int *out);
 
@@ -155,7 +162,8 @@ void     mg_maint_candidates_free(mg_maint_candidate_t *c, size_t n);
 /* === resolution === */
 /* One transaction: applies the transitions, records the dismissal
  * (dismiss_id / dismiss_kind / dismiss_evidence, all or none), drops the
- * cached candidate drop_id and every cached candidate naming a touched node,
+ * cached candidate drop_id and every cached candidate naming a node whose
+ * state changed (a LINK_CONTRADICTS change touches no state),
  * and appends the audit row. MG_ERR_NOT_FOUND for a missing node,
  * MG_ERR_INVALID_ARG for a transition the node's state does not allow. */
 mg_err_t mg_storage_maint_apply(mg_storage_t *s,

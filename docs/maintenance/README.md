@@ -54,12 +54,12 @@ A retired node is a soft delete: `get` still returns it (with `"state": "retired
 
 | Kind | Evidence that, when it changes, brings a dismissed candidate back |
 |---|---|
-| `contradiction`, `near_duplicate`, `possible_supersession` | the content hashes of the two nodes |
+| `contradiction`, `possible_contradiction`, `near_duplicate`, `possible_supersession` | the content hashes of the two nodes |
 | `source_changed`, `source_removed` | each source's state and current fingerprint |
 | `keyword_fragmentation` | the node's content hash and the two keywords |
 | `isolated_low_value` | the node's content hash |
 
-Candidates are cached by the last scan (what `status` counts and `resolve` looks ids up in). Resolving a candidate, or changing the state of a node it names, removes it from the cache; the next scan only reports what is still true. Running scan, resolving everything, and scanning again yields nothing new: **maintenance converges instead of producing churn**.
+Candidates are cached by the last scan (what `status` counts and `resolve` looks ids up in). Resolving a candidate, or changing the state of a node it names, removes it from the cache (`contradicts` changes no state, so it only removes the candidate it resolves); the next scan only reports what is still true. Running scan, resolving everything, and scanning again yields nothing new: **maintenance converges instead of producing churn**.
 
 Provenance candidates need the files: like `sources diff`, the CLI re-hashes the `file:` sources of the project at `--root` (default: the working directory) and sends the mismatching links as evidence; the daemon never reads files.
 
@@ -70,10 +70,27 @@ Provenance candidates need the files: like `sources diff`, the CLI re-hashes the
 - **`possible_supersession`** (older `a`, newer `b`): the newer note replaces the older one → `supersede_a`; both hold → `keep_both`.
 - **`near_duplicate`**: same fact twice → `merge` (insert the combined note, then `merge --by <new>`) or `supersede_a` / `supersede_b` when one already says it all; different facts → `keep_both`.
 - **`contradiction`**: check the code: the wrong side is superseded by the right one (`supersede_a` / `supersede_b`) or marked `stale`.
+- **`possible_contradiction`**: check both against the current code / docs. One is wrong → `supersede_a` / `supersede_b`; unsure which is outdated → `stale` the doubtful one; a real conflict that cannot be settled yet → `contradicts` (keeps it on record as a `contradiction`); not a conflict after all (different contexts) → `keep_both`.
 - **`keyword_fragmentation`**: usually `keep`; re-insert with the established keyword and `supersede` when the variant hurts findability.
 - **`isolated_low_value`**: `retire` what is no longer useful, `keep` what is.
 
 Only irreversible or genuinely ambiguous cases go to the user. Everything above is reversible with `restore` until the retention window ends.
+
+### Contradictions
+
+Two notes that disagree are found in two places; neither changes anything by itself:
+
+| Producer | When | What happens |
+|---|---|---|
+| the writing agent, at insert | `insert` returns `similar`: existing notes at cosine >= `edges.similar_report_min` to the new title | the agent supersedes a note the new one corrects, or records an unsettled conflict with `resolve --node <new> --action contradicts --by <old>` (a `CONTRADICTS` edge, no state change) |
+| `maintain scan` | a near-duplicate pair whose texts diverge with a score >= `maintenance.contradiction_min` | a `possible_contradiction` candidate for the agent to resolve |
+
+A `CONTRADICTS` edge between two active nodes is reported as a `contradiction` candidate on every scan until the pair is settled (`supersede_a` / `supersede_b` / `stale`) or dismissed (`keep_both`); such a pair is no longer reported as a near-duplicate.
+
+The divergence score is a deterministic heuristic over English and Italian word lists, with no model: a negation on one side only (`not`, `never`, `without`, `*n't`, `non`, `mai`, `senza`, ...) adds 0.5; each pair of opposite terms split across the two notes (`enabled`/`disabled`, `always`/`never`, `sync`/`async`, `required`/`optional`, `before`/`after`, `abilitato`/`disabilitato`, `sempre`/`mai`, ...) adds 0.5, unless one side names both; different numbers on the two sides add 0.25. The score is capped at 1 and reported in the candidate's `divergence` signal. It is tuned for false negatives: numbers alone stay below the default threshold, and `no-op` / `non-blocking` are words, not negations.
+
+There is deliberately no NLI model. Embeddings alone cannot separate a contradiction from a paraphrase (both sit at ~0.95 cosine), an NLI model would need a new runtime and a model download and is weak on mixed Italian / English technical notes, and the integrated agent is already a better judge with the code in front of it: Graft finds, the agent decides.
+
 
 ### `apply-safe`
 
@@ -81,7 +98,7 @@ Runs without judgment, in this order: purge retired nodes past retention; collap
 
 ### Audit log
 
-`graft maintain log [--node <id>]` lists every resolution (`keep`, `stale`, `retire`, `restore`, `supersede*`, `merge`, `refresh`), every `purge` and `collapse_duplicate`, and every `apply_safe` run: when, who (`actor`), what, on which nodes, with the agent's `--note`. Stored in the `maintenance_log` table, never pruned.
+`graft maintain log [--node <id>]` lists every resolution (`keep`, `stale`, `retire`, `restore`, `supersede*`, `merge`, `refresh`, `contradicts` with detail `contradicts=<by>`), every `purge` and `collapse_duplicate`, and every `apply_safe` run: when, who (`actor`), what, on which nodes, with the agent's `--note`. Stored in the `maintenance_log` table, never pruned.
 
 ---
 
@@ -265,6 +282,6 @@ The next CLI call will auto-start a fresh daemon.
 - **Log rotation.** `usage.jsonl` grows without bound. A small rotation helper (`graft logs rotate`) and / or a daily cap with a sidecar file would be cleaner than "truncate manually".
 - **Structured daemon logs.** The daemon uses `fprintf(stderr, ...)`. Switching to one-JSON-line-per-event would let Loki / Vector ingest it without parsing.
 - **Health endpoint with more substance.** `GET /v1/healthz` returns just `{"status":"ok"}`. Adding `n_nodes`, `uptime_ms`, `last_consolidate_at` would help dashboards.
-- **Contradiction detection.** The scan reports `CONTRADICTS` edges, but nothing creates them automatically yet; an NLI pass at insert time would feed it.
+- **Polarity-free contradictions.** The divergence heuristic needs a negation, an opposite pair or different numbers; "Auth uses sessions" vs "Auth uses JWT" is caught only by insert's `similar` (when the titles are close enough) or as a `possible_supersession`.
 - **Fragmented clusters.** Many small nodes about one topic that would read better as one are not a candidate kind yet.
 - **Approximate near-duplicate search.** The scan compares the newest `maintenance.scan_max_nodes` active nodes pairwise; a vector index would cover larger graphs in one pass.

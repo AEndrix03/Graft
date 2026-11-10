@@ -18,6 +18,11 @@
  * digest (content hashes, current source fingerprints) and hides the
  * candidate until that evidence changes.
  *
+ * A near-duplicate pair whose texts diverge (divergence.c: a negation on one
+ * side only, opposite terms, different numbers) is reported as
+ * possible_contradiction instead; a pair already joined by a CONTRADICTS
+ * edge is left to the contradiction candidate.
+ *
  * maintain_resolve args:
  *   { "action": str, "candidate_id"?: str, "node"?: hex, "by"?: hex,
  *     "note"?: str, "actor"?: str }
@@ -30,6 +35,7 @@
 #include "graft/ops.h"
 #include "graft/error.h"
 #include "../retrieve/internal.h"
+#include "divergence.h"
 #include "mpack.h"
 
 #include <stdio.h>
@@ -325,14 +331,58 @@ static int64_t node_created(mg_storage_t *s, const mg_node_id_t id) {
   return t;
 }
 
-/* A pair candidate (near_duplicate / possible_supersession / contradiction),
- * nodes ordered older first so "a" is the one a newer note would replace. */
+/* title + "\n" + body of a node, malloc'd; NULL when missing. */
+static char *node_text(mg_storage_t *s, const mg_node_id_t id) {
+  mg_node_t node;
+  char *out;
+  size_t lt, lb;
+  if (mg_storage_get_node(s, id, &node) != MG_OK) return NULL;
+  lt = node.title ? strlen(node.title) : 0;
+  lb = node.body ? strlen(node.body) : 0;
+  out = (char *)malloc(lt + lb + 2);
+  if (out) {
+    memcpy(out, node.title ? node.title : "", lt);
+    out[lt] = '\n';
+    memcpy(out + lt + 1, node.body ? node.body : "", lb);
+    out[lt + 1 + lb] = '\0';
+  }
+  mg_node_free(&node);
+  return out;
+}
+
+static void write_divergence(mpack_writer_t *w, const mg_divergence_t *d) {
+  const char *p = d->opposites;
+  mpack_write_cstr(w, "divergence");
+  mpack_build_map(w);
+  mpack_write_cstr(w, "score");     write_score(w, d->score);
+  mpack_write_cstr(w, "negation");  mpack_write_bool(w, d->negation != 0);
+  mpack_write_cstr(w, "numbers");   mpack_write_bool(w, d->numbers != 0);
+  mpack_write_cstr(w, "opposites");
+  mpack_build_array(w);
+  while (*p) {
+    const char *comma = strchr(p, ',');
+    size_t len = comma ? (size_t)(comma - p) : strlen(p);
+    mpack_write_utf8(w, p, (uint32_t)len);
+    p += len + (comma ? 1 : 0);
+  }
+  mpack_complete_array(w);
+  mpack_complete_map(w);
+}
+
+/* A pair candidate (near_duplicate / possible_supersession /
+ * possible_contradiction / contradiction), nodes ordered older first so "a"
+ * is the one a newer note would replace. contradiction_min > 0 enables the
+ * divergence check on near-duplicate pairs. */
 static mg_err_t pair_candidate(cand_list_t *l, mg_storage_t *s, int kind, double score,
                                const mg_node_id_t x, const mg_node_id_t y,
-                               const src_ev_t *ev, size_t n_ev) {
+                               const src_ev_t *ev, size_t n_ev, float contradiction_min) {
   static const char *const dup_actions[] = { "merge", "supersede_a", "supersede_b", "keep_both", NULL };
   static const char *const sup_actions[] = { "supersede_a", "supersede_b", "keep_both", "merge", NULL };
   static const char *const con_actions[] = { "supersede_a", "supersede_b", "stale", "keep_both", NULL };
+  static const char *const pcon_actions[] = { "supersede_a", "supersede_b", "stale", "contradicts",
+                                              "keep_both", NULL };
+  mg_divergence_t div;
+  int has_div = 0;
   mg_node_id_t ids[2];
   int64_t ta = node_created(s, x), tb = node_created(s, y);
   char csv[2 * (HEX_ID_LEN + 1)], idin[256], evin[512];
@@ -347,6 +397,21 @@ static mg_err_t pair_candidate(cand_list_t *l, mg_storage_t *s, int kind, double
     int64_t t = ta;
     ta = tb;
     tb = t;
+  }
+  if (kind == MG_MAINT_NEAR_DUPLICATE) {
+    int linked = 0;
+    /* already flagged: the contradiction candidate (or its dismissal) owns the pair */
+    if (mg_storage_maint_has_contradicts(s, ids[0], ids[1], &linked) == MG_OK && linked) return MG_OK;
+    if (contradiction_min > 0.0f) {
+      char *text_a = node_text(s, ids[0]), *text_b = node_text(s, ids[1]);
+      mg_divergence(text_a, text_b, &div);
+      free(text_a);
+      free(text_b);
+      if (div.score >= contradiction_min) {
+        kind = MG_MAINT_POSSIBLE_CONTRADICTION;
+        has_div = 1;
+      }
+    }
   }
   if (kind == MG_MAINT_NEAR_DUPLICATE && tb - ta >= MAINT_SUPERSESSION_GAP &&
       count_shared_keywords(s, ids[0], ids[1]) > 0) {
@@ -367,8 +432,10 @@ static mg_err_t pair_candidate(cand_list_t *l, mg_storage_t *s, int kind, double
   mpack_write_cstr(&w, "age_gap_hours");  mpack_write_int(&w, (tb - ta) / 3600000LL);
   mpack_write_cstr(&w, "source_changed");
   mpack_write_bool(&w, has_source_evidence(ev, n_ev, ids[0]) || has_source_evidence(ev, n_ev, ids[1]));
+  if (has_div) write_divergence(&w, &div);
   mpack_complete_map(&w);
   write_actions(&w, kind == MG_MAINT_CONTRADICTION ? con_actions
+                  : kind == MG_MAINT_POSSIBLE_CONTRADICTION ? pcon_actions
                   : kind == MG_MAINT_POSSIBLE_SUPERSESSION ? sup_actions : dup_actions);
   err = cand_finish(&w, &buf, &len);
   if (err != MG_OK) return err;
@@ -402,7 +469,8 @@ static mg_err_t scan_near_duplicates(cand_list_t *l, mg_storage_t *s, const mg_c
       if (dot < thr) continue;
       partners[i]++;
       partners[j]++;
-      err = pair_candidate(l, s, MG_MAINT_NEAR_DUPLICATE, dot, v[i].id, v[j].id, ev, n_ev);
+      err = pair_candidate(l, s, MG_MAINT_NEAR_DUPLICATE, dot, v[i].id, v[j].id, ev, n_ev,
+                           cfg->maint_contradiction_min);
     }
   }
   free(partners);
@@ -416,7 +484,7 @@ static mg_err_t scan_contradictions(cand_list_t *l, mg_storage_t *s, size_t cap,
   size_t n = 0, i;
   mg_err_t err = mg_storage_maint_contradictions(s, cap, &p, &n);
   for (i = 0; err == MG_OK && i < n; ++i) {
-    err = pair_candidate(l, s, MG_MAINT_CONTRADICTION, p[i].weight, p[i].a, p[i].b, ev, n_ev);
+    err = pair_candidate(l, s, MG_MAINT_CONTRADICTION, p[i].weight, p[i].a, p[i].b, ev, n_ev, 0.0f);
   }
   free(p);
   return err;
@@ -882,17 +950,21 @@ mg_err_t mg_op_maintain_resolve(mg_ctx_t *ctx, mpack_node_t args, mpack_writer_t
       goto done;
     }
   }
-  /* the single target of stale / retire / restore / supersede */
+  /* the single target of stale / retire / restore / supersede / contradicts */
   if (!has_node && has_cand) {
     if (n_cnodes == 1) {
       memcpy(node, cnodes[0], MG_NODE_ID_BYTES);
       has_node = 1;
-    } else if (n_cnodes == 2 && has_by && !strcmp(action, "supersede")) {
+    } else if (n_cnodes == 2 && has_by && (!strcmp(action, "supersede") || !strcmp(action, "contradicts"))) {
       int at = index_of((const mg_node_id_t *)cnodes, 2, by);
       if (at >= 0) {
         memcpy(node, cnodes[1 - at], MG_NODE_ID_BYTES);
         has_node = 1;
       }
+    } else if (n_cnodes == 2 && !has_by && !strcmp(action, "contradicts")) {
+      memcpy(node, cnodes[0], MG_NODE_ID_BYTES);
+      memcpy(by, cnodes[1], MG_NODE_ID_BYTES);
+      has_node = has_by = 1;
     }
   }
 
@@ -918,6 +990,20 @@ mg_err_t mg_op_maintain_resolve(mg_ctx_t *ctx, mpack_node_t args, mpack_writer_t
       memcpy(changes[0].node, node, MG_NODE_ID_BYTES);
       memcpy(changes[0].by, by, MG_NODE_ID_BYTES);
       n_changes = 1;
+    }
+  } else if (!strcmp(action, "contradicts")) {
+    /* records the conflict, changes no state: the pair comes back as a
+     * contradiction candidate until someone settles it */
+    if (!has_node || !has_by) {
+      err = MG_ERR_INVALID_ARG;
+    } else {
+      char h[HEX_ID_LEN + 1];
+      changes[0].to = MG_MAINT_LINK_CONTRADICTS;
+      memcpy(changes[0].node, node, MG_NODE_ID_BYTES);
+      memcpy(changes[0].by, by, MG_NODE_ID_BYTES);
+      n_changes = 1;
+      hex_of(by, h);
+      snprintf(detail, sizeof(detail), "contradicts=%s", h);
     }
   } else if (!strcmp(action, "supersede_a") || !strcmp(action, "supersede_b")) {
     int a = !strcmp(action, "supersede_a") ? 0 : 1;
@@ -1005,6 +1091,7 @@ mg_err_t mg_op_maintain_resolve(mg_ctx_t *ctx, mpack_node_t args, mpack_writer_t
   mpack_build_array(result);
   if (n_changes > 0) {
     for (i = 0; i < n_changes; ++i) write_node(result, ctx->storage, changes[i].node);
+    if (changes[0].to == MG_MAINT_LINK_CONTRADICTS) write_node(result, ctx->storage, by);
   } else {
     for (i = 0; i < n_cnodes; ++i) write_node(result, ctx->storage, cnodes[i]);
   }

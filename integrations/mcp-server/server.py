@@ -115,8 +115,18 @@ def create_mcp(**kwargs: Any) -> FastMCP:
             "non-trivial problems (graft_query / graft_retrieve / graft_explore) "
             "and save AFTER novel solutions (graft_classify + graft_insert). "
             "Multi-tenant via profiles: pass `profile=<name>` to any tool to target "
-            "a specific tenant. Use graft_delete to remove obsolete/wrong nodes; "
-            "to 'modify' a node, delete it then re-insert with the corrected fields."
+            "a specific tenant. Nodes are never edited in place. To correct a node, "
+            "graft_insert the corrected version, then graft_maintain_resolve "
+            "node=<old> action='supersede' by=<new>. A doubtful node you cannot "
+            "verify: action='stale'. One no longer useful: action='retire'. All "
+            "of these are audited and reversible ('restore'). After graft_insert, "
+            "check `similar` (existing notes close to the new one): supersede one "
+            "the new note corrects; for a conflict you cannot settle yet, "
+            "graft_maintain_resolve node=<new> action='contradicts' by=<old> "
+            "(records it, changes no state); merely related: nothing. "
+            "graft_delete is a permanent hard delete that bypasses history and "
+            "the audit log: use it only for content that must disappear, e.g. a "
+            "secret saved by mistake."
         ),
         **kwargs,
     )
@@ -177,7 +187,13 @@ def register_tools(mcp: FastMCP) -> FastMCP:
         `sources` records provenance: "file:<path>" (prefer absolute paths:
         relative ones resolve against the MCP server's working directory),
         "url:<url>", "conversation" or "manual". Re-saving identical content
-        with new sources attaches them to the existing node."""
+        with new sources attaches them to the existing node.
+
+        A new node's result carries `similar`: existing active/stale notes close
+        to it (by default up to 3, cosine >= 0.8; id_hex, title, state,
+        similarity). Check them now: the new note corrects one -> graft_maintain_resolve node=<old>
+        action='supersede' by=<new>; they conflict and you cannot tell which is
+        right -> node=<new> action='contradicts' by=<old>; related -> nothing."""
         _require_scopes(WRITE_SCOPE)
         args = ["insert", "--title", title, "--body", body]
         for kw in keywords or []:
@@ -198,7 +214,10 @@ def register_tools(mcp: FastMCP) -> FastMCP:
 
     @mcp.tool()
     def graft_delete(id_hex: str, profile: Optional[str] = None) -> dict:
-        """Remove a node from the graph by its 32-char hex id."""
+        """Permanently delete a node by its 32-char hex id. Destructive and not
+        audited: not the way to edit or retire knowledge (use graft_insert +
+        graft_maintain_resolve supersede / stale / retire for that). Only for
+        content that must disappear, e.g. a secret saved by mistake."""
         _require_scopes(ADMIN_SCOPE)
         return _run(["delete", id_hex], profile=profile)
 
@@ -236,9 +255,10 @@ def register_tools(mcp: FastMCP) -> FastMCP:
         profile: Optional[str] = None,
     ) -> dict:
         """Emit maintenance candidates (near duplicates, supersessions,
-        contradictions, changed/removed file sources, ...) without changing the
-        graph. `root` is the project whose file sources are re-hashed (default:
-        the MCP server's working directory)."""
+        contradictions, possible contradictions, changed/removed file
+        sources, ...) without changing the graph. `root` is the project whose
+        file sources are re-hashed (default: the MCP server's working
+        directory)."""
         _require_scopes(WRITE_SCOPE)
         args = ["maintain", "scan", "--limit", str(limit)]
         if root:
@@ -258,7 +278,10 @@ def register_tools(mcp: FastMCP) -> FastMCP:
     ) -> dict:
         """Resolve a candidate (or act on a node id): keep, keep_both, stale,
         retire, restore, supersede (with `by`), supersede_a, supersede_b,
-        merge (with `by`), refresh. Every resolution is audited and reversible."""
+        merge (with `by`), refresh, contradicts (with `by`, or on a pair
+        candidate: records an unsettled conflict, changes no state; the pair
+        comes back as a `contradiction` until settled). Every resolution is
+        audited; state changes are reversible with restore."""
         _require_scopes(WRITE_SCOPE)
         args = ["maintain", "resolve"]
         if candidate_id:

@@ -79,6 +79,7 @@ Why not stricter STRONG thresholds? [`bench/`](../../bench/) tried raising them 
   "hit":   "STRONG",
   "id_hex": "...",
   "title":  "...",
+  "state":  "active",
   "body":   "...",
   "signals": { "s_vec": 0.91, "s_lex": 0.42, "s_jaccard": 0.38, "s_ce": null }
 }
@@ -91,6 +92,7 @@ Why not stricter STRONG thresholds? [`bench/`](../../bench/) tried raising them 
   "hit":   "WEAK",
   "id_hex": "...",
   "title":  "...",
+  "state":  "active",
   "body":   null,
   "signals": { "s_vec": 0.86, "s_lex": 0.07, "s_jaccard": 0.09, "s_ce": null }
 }
@@ -102,12 +104,14 @@ Why not stricter STRONG thresholds? [`bench/`](../../bench/) tried raising them 
 {
   "hit":  "MISS",
   "fallback_retrieve": {
-    "results": [{ "id_hex": "...", "title": "...", "score": 0.014 }, ...],
+    "results": [{ "id_hex": "...", "title": "...", "state": "active", "score": 0.014 }, ...],
     "distinct_keywords": ["..."]
   },
   "signals": { "s_vec": 0.21, ... }
 }
 ```
+
+`state` is the matched node's lifecycle state, `active` or `stale` (the same field appears on every `retrieve` result, every `explore` node and every `--explain` candidate). A STALE note is still searchable, because doubtful context beats none, but it can come back as a `STRONG` hit: treat a stale hit as a lead to verify against the current code and sources, never as an answer. The Claude Code prompt hook says so explicitly when it injects one.
 
 ### Side effects
 
@@ -124,12 +128,12 @@ embed(q)
    │
    ▼
 R_vec      = vector_topk(50)           (cosine on title embedding)
-R_bm25_t   = fts5_search(50, title)    (BM25 over title only)
-R_bm25_b   = fts5_search(50, body)     (BM25 over body only)
+R_bm25_t   = fts5_search(50, title)    (BM25 over title only, any query word)
+R_bm25_b   = fts5_search(50, body)     (BM25 over body only, any query word)
    │
    ▼
 for each list L_i and each candidate c at rank r (1-indexed):
-    rrf[c] += 1 / (k_const + r)
+    rrf[c] += w_i / (k_const + r)      (w_vec = 1, w_bm25 = retrieval.lexical_weight = 0.1)
 
 return top-K of rrf  (default K = retrieval.top_k = 25)
 ```
@@ -140,12 +144,16 @@ Why three lists, not two:
 - **`R_bm25_t`** catches exact phrasing in the **retrieval anchor**. A title-level hit is a much stronger signal than a body-level hit.
 - **`R_bm25_b`** catches incidental keyword overlap in the prose. Lower-confidence than the title, but recovers cases where the body uses different wording from the title.
 
+Why the BM25 lists match **any** query word and vote at a tenth of the vector list:
+
+- With every word required (FTS5's implicit AND), a natural-language question almost never matches: some word of it is always missing from the note, and the lists came back empty for 90 of 90 held-out questions. Matching any word (OR), BM25 ranks notes by how much of the question they share.
+- At full weight those OR lists hurt: a generic word can rank an unrelated note first, and two lexical votes outvote a correct vector list. As a small tie-breaker they help exactly where vectors are weakest, team-specific vocabulary (service names, commands, flags): on the extended benchmark, held-out project questions ranked better 18 times and worse 7, with general questions unchanged. Measurements: [`bench/results/2026-10-05-fts-match`](../../bench/results/2026-10-05-fts-match/README.md), [`bench/results/2026-10-06-lexical-weight`](../../bench/results/2026-10-06-lexical-weight/README.md).
+
 Score arithmetic:
 
 - `k_const = 60` (config `retrieval.rrf_k_const`) — the standard RRF constant.
-- Theoretical max per node: `3 / (60 + 1) ≈ 0.0492` (rank-1 in all three).
-- Typical "good" score: `> 0.025`.
-- Typical "noise floor": `< 0.005`.
+- Theoretical max per node: `(1 + 2 × 0.1) / (60 + 1) ≈ 0.0197` (rank-1 in all three at the default weight); a vector-only rank 1 scores `1/61 ≈ 0.0164`.
+- Scores are only comparable within one response: they rank, they do not measure confidence. Use `query` for a gated answer.
 
 `distinct_keywords` is a flat list of every keyword present on the returned nodes. Useful for the viewer's keyword chips and for the agent's `/recall` follow-ups.
 
@@ -260,7 +268,7 @@ Re-measure after a few hundred more inserts. Threshold tuning is empirical.
 ## What's missing and how to improve it
 
 - **Cross-encoder reranker wiring.** The stub returns `-1`; the gating already handles the disabled case correctly, but enabling a real CE would noticeably improve `s_ce` resolution on the close cases.
-- **NLI contradiction detection.** `nli_enabled` exists in config; the implementation is not yet wired. The goal: when an insert is too similar to an existing node but the polarity is opposite (e.g. "X must do Y" vs "X must NOT do Y"), add a `MG_EDGE_CONTRADICTS` edge so the agent surfaces both sides.
+- **Surface `CONTRADICTS` edges in results.** Contradictions are recorded by the agent (`maintain resolve --action contradicts`, see [maintenance](../maintenance/README.md#contradictions)) and resolved through `maintain scan`, but `query` / `retrieve` / `explore` do not flag a hit that has an unsettled `CONTRADICTS` partner yet. Returning the partner next to the hit would let the agent see both sides before quoting one.
 - **Adaptive thresholds.** Today the user edits `config.yaml`. A `graft consolidate --tune` mode that proposes new thresholds based on the recent percentiles would close the loop.
 - **`retrieve` per-list weighting.** RRF is unweighted across the three lists. For corpora dominated by long bodies, downweighting `R_bm25_b` would reduce noise.
 - **`query` early exit on very-strong vector hits.** The current loop touches up to 10 candidates even when `s_vec > 0.95` on the first. A small short-circuit would shave a few ms on the warm hot path.

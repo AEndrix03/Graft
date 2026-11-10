@@ -55,6 +55,8 @@ Read `result.hit`:
 - **WEAK** — similar but not identical. Fetch the full body with `graft get <id_hex>`, present it labeled as "WEAK match — review before using". Then proceed to Step 2 to find better candidates.
 - **MISS** — go to Step 2.
 
+Check `result.state` too (also on every `retrieve` / `explore` result): `"stale"` means the note was marked doubtful. Present it as "STALE note — verify before using" even on a STRONG hit, and do not stop at it until it is checked against the current code or sources.
+
 ### Step 2 — `retrieve`
 
 ```bash
