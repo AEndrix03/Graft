@@ -6,7 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 Every change that a user could notice lands here in the same pull request that
-makes it, under `## [Unreleased]
+makes it, under `## [Unreleased]`. When a release is cut, that section is renamed
+to `## [x.y.z] - YYYY-MM-DD` and becomes the body of the GitHub Release.
+
+## [Unreleased]
+
+## [0.3.0] - 2026-11-11
+
+Graft now catches contradictions as they are written, keeps itself up to date, and its keyword-aware search uses the lexical signal again.
 
 ### Added
 
@@ -160,7 +167,8 @@ Each adapter ships **skills** (when to search, when to save) and, where the harn
 - Glossary in `docs/concepts.md`, use cases in `docs/use-cases.md`.
 - Contributor guide in `CONTRIBUTING.md` with commit-msg policy (Conventional Commits, English ASCII subject ≤ 70 chars).
 
-[Unreleased]: https://github.com/AEndrix03/Graft/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/AEndrix03/Graft/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/AEndrix03/Graft/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/AEndrix03/Graft/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/AEndrix03/Graft/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/AEndrix03/Graft/releases/tag/v0.1.0
