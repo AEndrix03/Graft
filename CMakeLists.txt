@@ -225,6 +225,14 @@ if(GRAFT_BUILD_TESTS)
     PASS_REGULAR_EXPRESSION "unknown option or missing value: '--title'")
   set_tests_properties(cli_rejects_unknown_query_option PROPERTIES
     PASS_REGULAR_EXPRESSION "unknown option or missing value: '--top-k'")
+  # --help, anywhere after the command, prints the usage instead of being
+  # rejected as an unknown option.
+  add_test(NAME cli_help
+           COMMAND graft --help)
+  add_test(NAME cli_subcommand_help
+           COMMAND graft insert --help)
+  set_tests_properties(cli_help cli_subcommand_help PROPERTIES
+    PASS_REGULAR_EXPRESSION "graft insert --title T --body B")
   # --source file: is resolved and fingerprinted client-side, so a missing
   # file fails before any daemon is contacted.
   add_test(NAME cli_rejects_missing_source_file
