@@ -11,6 +11,17 @@ to `## [x.y.z] - YYYY-MM-DD` and becomes the body of the GitHub Release.
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-11-14
+
+`graftd` stays small: no more thread pile-up per request, and long notes no longer leave gigabytes of RAM behind.
+
+### Fixed
+
+- `graftd` no longer grows to several GB of RAM and hundreds of threads. Two independent leaks are fixed ([#28](https://github.com/AEndrix03/Graft/issues/28)):
+  - **Threads.** Every request used to leave `embedding.threads - 1` threads behind (+10 per request with `threads: 11`). Each connection runs on its own thread, and OpenMP in ggml keeps one worker team per calling thread. Every llama encode/decode now runs on one fixed thread per model context, so a single team is reused.
+  - **Memory.** Embedding a long text used to keep about 1 MB of RAM per input token until the daemon exited (around 7 GB after a ~7,000-token note). The cause was an unused logits buffer of `n_vocab × n_tokens` floats that llama.cpp allocated even for embedding models. llama.cpp is updated to b12374, which skips that buffer. Embeddings are unchanged (cosine ≥ 0.9998 against the previous build), so existing databases need no re-embedding. A 32 KB input now peaks at about 50 MB above the idle footprint instead of 5.8 GB.
+- Building llama.cpp from source now passes `-DLLAMA_BUILD_APP=OFF`. Newer llama.cpp adds a unified `app/` target that does not compile with `LLAMA_BUILD_COMMON=OFF`.
+
 ## [0.3.0] - 2026-11-11
 
 Graft now catches contradictions as they are written, keeps itself up to date, and its keyword-aware search uses the lexical signal again.
@@ -167,7 +178,8 @@ Each adapter ships **skills** (when to search, when to save) and, where the harn
 - Glossary in `docs/concepts.md`, use cases in `docs/use-cases.md`.
 - Contributor guide in `CONTRIBUTING.md` with commit-msg policy (Conventional Commits, English ASCII subject ≤ 70 chars).
 
-[Unreleased]: https://github.com/AEndrix03/Graft/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/AEndrix03/Graft/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/AEndrix03/Graft/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/AEndrix03/Graft/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/AEndrix03/Graft/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/AEndrix03/Graft/compare/v0.1.0...v0.1.1

@@ -1,6 +1,7 @@
 #ifndef GRAFT_VERIFY_INTERNAL_H
 #define GRAFT_VERIFY_INTERNAL_H
 
+#include "graft/llama_exec.h"
 #include "graft/verify.h"
 
 #include <stdbool.h>
@@ -20,6 +21,7 @@ struct llama_context;
 typedef struct {
   struct llama_model   *model;
   struct llama_context *ctx;
+  mg_llama_exec_t      *exec;  /* fixed thread for llama_encode/decode */
   mg_ce_mutex_t         lock;
   int                   backend_acquired;
   int                   lock_initialized;
