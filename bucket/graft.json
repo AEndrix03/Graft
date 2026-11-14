@@ -1,10 +1,10 @@
 {
-    "version": "0.3.0",
+    "version": "0.3.1",
     "description": "Persistent graph memory for AI agents",
     "homepage": "https://github.com/AEndrix03/Graft",
     "license": "Apache-2.0",
-    "url": "https://github.com/AEndrix03/Graft/releases/download/v0.3.0/graft-windows-x86_64.zip",
-    "hash": "80e0e53cf77963560331925b1b167070f9aad1fde81c048c9afa9bd03fa68b9c",
+    "url": "https://github.com/AEndrix03/Graft/releases/download/v0.3.1/graft-windows-x86_64.zip",
+    "hash": "8d63ffe7acf9f070d2348a0f8adb0ad7ab5b03a2e887e0677d43d573e234014c",
     "extract_dir": "graft-windows-x86_64",
     "bin": [
         "bin/graft.exe",
