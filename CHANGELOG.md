@@ -11,6 +11,10 @@ to `## [x.y.z] - YYYY-MM-DD` and becomes the body of the GitHub Release.
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-11-14
+
+`graftd` stays small: no more thread pile-up per request, and long notes no longer leave gigabytes of RAM behind.
+
 ### Fixed
 
 - `graftd` no longer grows to several GB of RAM and hundreds of threads. Two independent leaks are fixed ([#28](https://github.com/AEndrix03/Graft/issues/28)):
@@ -174,7 +178,8 @@ Each adapter ships **skills** (when to search, when to save) and, where the harn
 - Glossary in `docs/concepts.md`, use cases in `docs/use-cases.md`.
 - Contributor guide in `CONTRIBUTING.md` with commit-msg policy (Conventional Commits, English ASCII subject ≤ 70 chars).
 
-[Unreleased]: https://github.com/AEndrix03/Graft/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/AEndrix03/Graft/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/AEndrix03/Graft/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/AEndrix03/Graft/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/AEndrix03/Graft/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/AEndrix03/Graft/compare/v0.1.0...v0.1.1
