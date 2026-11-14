@@ -76,6 +76,7 @@ class Graft < Formula
       -DLLAMA_BUILD_EXAMPLES=OFF
       -DLLAMA_BUILD_TESTS=OFF
       -DLLAMA_BUILD_COMMON=OFF
+      -DLLAMA_BUILD_APP=OFF
       -DCMAKE_BUILD_TYPE=Release
     ]
     llama_args << "-DCMAKE_BUILD_RPATH=#{rpath_token}"

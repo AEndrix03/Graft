@@ -1,6 +1,7 @@
 /* requires llama built */
 #include "graft/embed.h"
 #include "graft/llama_backend.h"
+#include "graft/llama_exec.h"
 
 #include <limits.h>
 #include <math.h>
@@ -57,6 +58,7 @@ static int mg_mutex_unlock(mg_mutex_t *lock) {
 
 struct mg_embed_instance {
   struct llama_context *ctx;
+  mg_llama_exec_t      *exec;  /* fixed thread for llama_encode/decode */
   mg_mutex_t            lock;
   int                   n_ctx;
 };
@@ -76,6 +78,7 @@ static void mg_embed_ctx_free_partial(mg_embed_ctx_t *ctx, int lock_initialized)
   if (ctx->inst) {
     for (int i = 0; i < ctx->n_inst; i++) {
       struct mg_embed_instance *it = &ctx->inst[i];
+      mg_llama_exec_stop(it->exec);
       if (it->ctx) {
         llama_free(it->ctx);
       }
@@ -220,7 +223,7 @@ mg_err_t mg_embed_init(const char *model_path, int threads, int ctx_size,
     }
     ctx->locks_init++;
     it->ctx = llama_init_from_model(ctx->model, ctx_params);
-    if (!it->ctx) {
+    if (!it->ctx || mg_llama_exec_start(&it->exec) != 0) {
       mg_embed_ctx_free_partial(ctx, 1);
       mg_llama_backend_release();
       return MG_ERR_EMBED;
@@ -241,6 +244,22 @@ void mg_embed_shutdown(mg_embed_ctx_t *ctx) {
   mg_llama_backend_release();
 }
 
+/* Runs on the instance's executor thread, never on the connection thread:
+ * see graft/llama_exec.h for why. */
+struct embed_job {
+  struct llama_context *ctx;
+  struct llama_batch    batch;
+  bool                  encoder;
+};
+
+static int embed_run_job(void *arg) {
+  struct embed_job *job = (struct embed_job *)arg;
+  if (job->encoder) {
+    return llama_encode(job->ctx, job->batch) != 0 ? -1 : 0;
+  }
+  return llama_decode(job->ctx, job->batch) != 0 ? -1 : 0;
+}
+
 static mg_err_t embed_instance_text(struct mg_embed_instance *inst,
                                     struct llama_model *model,
                                     const char *text, mg_embedding_t out) {
@@ -248,7 +267,7 @@ static mg_err_t embed_instance_text(struct mg_embed_instance *inst,
   llama_token *tokens;
   int32_t text_len;
   int32_t n_tokens;
-  struct llama_batch batch;
+  struct embed_job job;
   float *embedding;
   mg_err_t err = MG_OK;
 
@@ -284,13 +303,10 @@ static mg_err_t embed_instance_text(struct mg_embed_instance *inst,
     goto done;
   }
 
-  batch = llama_batch_get_one(tokens, n_tokens);
-  if (llama_model_has_encoder(model)) {
-    if (llama_encode(inst->ctx, batch) != 0) {
-      err = MG_ERR_EMBED;
-      goto done;
-    }
-  } else if (llama_decode(inst->ctx, batch) != 0) {
+  job.ctx = inst->ctx;
+  job.batch = llama_batch_get_one(tokens, n_tokens);
+  job.encoder = llama_model_has_encoder(model);
+  if (mg_llama_exec_run(inst->exec, embed_run_job, &job) != 0) {
     err = MG_ERR_EMBED;
     goto done;
   }
