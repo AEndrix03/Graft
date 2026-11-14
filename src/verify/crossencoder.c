@@ -282,7 +282,7 @@ int mg_ce_try_enable(mg_verify_ctx_t *ctx) {
   ctx_params.n_threads_batch = ctx->cfg.embed_threads;
 
   ctx->ce.ctx = llama_init_from_model(ctx->ce.model, ctx_params);
-  if (!ctx->ce.ctx) {
+  if (!ctx->ce.ctx || mg_llama_exec_start(&ctx->ce.exec) != 0) {
     mg_ce_shutdown(ctx);
     return -1;
   }
@@ -300,6 +300,22 @@ int mg_ce_try_enable(mg_verify_ctx_t *ctx) {
   return 0;
 }
 
+/* Runs on the CE executor thread, never on the connection thread: see
+ * graft/llama_exec.h for why. */
+struct mg_ce_job {
+  struct llama_context *ctx;
+  struct llama_batch    batch;
+  bool                  encoder;
+};
+
+static int mg_ce_run_job(void *arg) {
+  struct mg_ce_job *job = (struct mg_ce_job *)arg;
+  if (job->encoder) {
+    return llama_encode(job->ctx, job->batch) != 0 ? -1 : 0;
+  }
+  return llama_decode(job->ctx, job->batch) != 0 ? -1 : 0;
+}
+
 static int mg_ce_score_with_template(mg_verify_ctx_t *ctx,
                                      const char *query,
                                      const char *candidate,
@@ -310,7 +326,7 @@ static int mg_ce_score_with_template(mg_verify_ctx_t *ctx,
   char *prompt = NULL;
   int32_t prompt_len;
   int32_t n_tokens;
-  struct llama_batch batch;
+  struct mg_ce_job job;
   float *scores;
   int rc = -1;
 
@@ -349,13 +365,10 @@ static int mg_ce_score_with_template(mg_verify_ctx_t *ctx,
     goto done;
   }
 
-  batch = llama_batch_get_one(tokens, n_tokens);
-  if (llama_model_has_encoder(ctx->ce.model)) {
-    if (llama_encode(ctx->ce.ctx, batch) != 0) {
-      (void)mg_ce_mutex_unlock(&ctx->ce.lock);
-      goto done;
-    }
-  } else if (llama_decode(ctx->ce.ctx, batch) != 0) {
+  job.ctx = ctx->ce.ctx;
+  job.batch = llama_batch_get_one(tokens, n_tokens);
+  job.encoder = llama_model_has_encoder(ctx->ce.model);
+  if (mg_llama_exec_run(ctx->ce.exec, mg_ce_run_job, &job) != 0) {
     (void)mg_ce_mutex_unlock(&ctx->ce.lock);
     goto done;
   }
@@ -398,6 +411,8 @@ int mg_ce_score_nli(mg_verify_ctx_t *ctx, const char *query, const char *candida
 
 void mg_ce_shutdown(mg_verify_ctx_t *ctx) {
   if (!ctx) return;
+  mg_llama_exec_stop(ctx->ce.exec);
+  ctx->ce.exec = NULL;
   if (ctx->ce.ctx) {
     llama_free(ctx->ce.ctx);
     ctx->ce.ctx = NULL;

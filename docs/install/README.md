@@ -178,7 +178,7 @@ cmake -S third_party/llama.cpp -B third_party/llama.cpp/build \
       -DBUILD_SHARED_LIBS=ON -DGGML_NATIVE=ON \
       -DLLAMA_CURL=OFF -DLLAMA_BUILD_SERVER=OFF \
       -DLLAMA_BUILD_TOOLS=OFF -DLLAMA_BUILD_EXAMPLES=OFF \
-      -DLLAMA_BUILD_TESTS=OFF -DLLAMA_BUILD_COMMON=OFF \
+      -DLLAMA_BUILD_TESTS=OFF -DLLAMA_BUILD_COMMON=OFF -DLLAMA_BUILD_APP=OFF \
       -DCMAKE_BUILD_TYPE=Release
 cmake --build third_party/llama.cpp/build -j
 

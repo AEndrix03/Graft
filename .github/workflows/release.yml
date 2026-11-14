@@ -102,7 +102,7 @@ jobs:
             -DBUILD_SHARED_LIBS=ON -DGGML_NATIVE=OFF \
             -DLLAMA_CURL=OFF -DLLAMA_BUILD_SERVER=OFF \
             -DLLAMA_BUILD_TOOLS=OFF -DLLAMA_BUILD_EXAMPLES=OFF \
-            -DLLAMA_BUILD_TESTS=OFF -DLLAMA_BUILD_COMMON=OFF \
+            -DLLAMA_BUILD_TESTS=OFF -DLLAMA_BUILD_COMMON=OFF -DLLAMA_BUILD_APP=OFF \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_BUILD_RPATH='$ORIGIN'
           cmake --build third_party/llama.cpp/build --parallel 2
@@ -157,7 +157,7 @@ jobs:
             -DBUILD_SHARED_LIBS=ON -DGGML_NATIVE=OFF \
             -DLLAMA_CURL=OFF -DLLAMA_BUILD_SERVER=OFF \
             -DLLAMA_BUILD_TOOLS=OFF -DLLAMA_BUILD_EXAMPLES=OFF \
-            -DLLAMA_BUILD_TESTS=OFF -DLLAMA_BUILD_COMMON=OFF \
+            -DLLAMA_BUILD_TESTS=OFF -DLLAMA_BUILD_COMMON=OFF -DLLAMA_BUILD_APP=OFF \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_BUILD_RPATH='$ORIGIN'
           cmake --build third_party/llama.cpp/build --parallel 2
@@ -321,7 +321,7 @@ jobs:
             -DBUILD_SHARED_LIBS=ON -DGGML_NATIVE=OFF \
             -DLLAMA_CURL=OFF -DLLAMA_BUILD_SERVER=OFF \
             -DLLAMA_BUILD_TOOLS=OFF -DLLAMA_BUILD_EXAMPLES=OFF \
-            -DLLAMA_BUILD_TESTS=OFF -DLLAMA_BUILD_COMMON=OFF \
+            -DLLAMA_BUILD_TESTS=OFF -DLLAMA_BUILD_COMMON=OFF -DLLAMA_BUILD_APP=OFF \
             -DCMAKE_BUILD_TYPE=Release
           cmake --build third_party/llama.cpp/build --parallel 2
       - name: Build graft
